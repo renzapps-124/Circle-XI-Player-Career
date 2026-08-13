@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en-GB">
+<head><script>window.addEventListener("error", function(e) { if(e.message === "Script error.") return; var div = document.createElement("div"); div.style.position="fixed"; div.style.top="0"; div.style.left="0"; div.style.background="red"; div.style.color="white"; div.style.zIndex="999999"; div.style.padding="20px"; div.style.fontSize="20px"; div.textContent="JS ERROR: " + e.message + " at " + e.filename + ":" + e.lineno; document.body.appendChild(div); });</script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#121426" />
+  <title>Circle XI: Player Career</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="styles.css?v=year-club-country-stats-83" />
+</head>
+<body data-screen="menu">
+  <div id="app">
+    <header class="topbar">
+      <button class="brand" data-nav="menu" aria-label="Go to main menu">
+        <span class="brand-ball">XI</span>
+        <span><b>Circle XI</b><small>Player Career</small></span>
+      </button>
+      <div id="topCareerSummary" class="top-career-summary hidden"></div>
+      <button id="muteBtn" class="icon-btn" aria-label="Toggle sound">🔊</button>
+    </header>
+
+    <main>
+      <section id="menuScreen" class="screen active hero-screen home-v2">
+        <div class="home-v2-ambient" aria-hidden="true">
+          <span class="home-orbit orbit-a"></span><span class="home-orbit orbit-b"></span>
+          <span class="home-particle p1"></span><span class="home-particle p2"></span><span class="home-particle p3"></span><span class="home-particle p4"></span><span class="home-particle p5"></span><span class="home-particle p6"></span>
+          <span class="home-streak s1"></span><span class="home-streak s2"></span><span class="home-streak s3"></span>
+          <div class="home-pitch-lines"><i></i><b></b><em></em></div>
+        </div>
+
+        <div class="home-v2-layout">
+          <section class="home-v2-copy">
+            <div class="home-mode-strip"><span>★</span><b>PLAYER CAREER</b><i>CONTROL ONE PLAYER. BUILD ONE LEGACY.</i></div><small class="home-build-version">BUILD 18 · COMPLETE DEPTH</small>
+            <h1><span>BUILD YOUR</span><strong>FOOTBALL</strong><span>STORY</span></h1>
+            <p>Rise from prospect to club icon through intelligent positioning, training, decisions and match performances.</p>
+
+            <div class="menu-actions home-menu-grid">
+              <button id="continueBtn" class="home-menu-btn home-menu-primary" disabled>
+                <span class="home-menu-icon">▶</span><span class="home-menu-copy"><b id="homeContinueTitle">Continue Career</b><small id="homeContinueMeta">No active career</small></span><i>›</i>
+              </button>
+              <button id="newCareerBtn" class="home-menu-btn home-menu-blue">
+                <span class="home-menu-icon">＋</span><span class="home-menu-copy"><b>New Career</b><small>Create your football story</small></span><i>›</i>
+              </button>
+              <button id="careerSavesBtn" class="home-menu-btn home-menu-dark">
+                <span class="home-menu-icon">▰</span><span class="home-menu-copy"><b>Career Saves</b><small>Manage every player career</small></span><em id="homeSaveCount">0/6</em><i>›</i>
+              </button>
+              <button id="quickMatchBtn" class="home-menu-btn home-menu-lime">
+                <span class="home-menu-icon">⚽</span><span class="home-menu-copy"><b>Quick Match</b><small>Jump straight onto the pitch</small></span><i>›</i>
+              </button>
+              <button data-nav="settings" class="home-menu-btn home-menu-dark">
+                <span class="home-menu-icon">⚙</span><span class="home-menu-copy"><b>Settings</b><small>Controls, sound and display</small></span><i>›</i>
+              </button>
+              <button data-nav="help" class="home-menu-btn home-menu-dark menu-tutorial-btn">
+                <span class="home-menu-icon">◆</span><span class="home-menu-copy"><b>Tutorial</b><small>Learn controls and career systems</small></span><i>›</i>
+              </button>
+            </div>
+
+            <div class="home-next-fixture" id="homeNextFixture">
+              <span class="fixture-calendar-icon">▦</span>
+              <div><small>NEXT FIXTURE</small><b id="homeFixtureCompetition">Career schedule</b></div>
+              <strong id="homeFixtureHome">XI</strong><span id="homeFixtureHomeCrest" class="home-mini-crest">XI</span>
+              <em>VS</em>
+              <span id="homeFixtureAwayCrest" class="home-mini-crest away">FC</span><strong id="homeFixtureAway">---</strong>
+              <i id="homeFixtureCountdown">START A CAREER</i>
+            </div>
+          </section>
+
+          <section class="home-v2-showcase">
+            <div class="home-hud-row">
+              <button class="home-settings-btn" data-nav="settings" aria-label="Open settings">⚙</button>
+            </div>
+
+            <div class="home-card-stage" id="homeCardStage">
+              <div class="home-card-back home-card-blue"></div>
+              <div class="home-card-back home-card-lime"></div>
+              <article class="home-player-card" id="homeHeroCard">
+                <div class="home-card-shine" aria-hidden="true"></div>
+                <div class="home-rating"><b id="homeOverall">68</b><span>OVR</span></div>
+                <div class="home-energy-badge">ϟ</div>
+                <div class="home-card-stat-list">
+                  <div><span>PAC</span><i><b id="homeStatPac"></b></i></div>
+                  <div><span>SHO</span><i><b id="homeStatSho"></b></i></div>
+                  <div><span>PAS</span><i><b id="homeStatPas"></b></i></div>
+                  <div><span>DEF</span><i><b id="homeStatDef"></b></i></div>
+                  <div><span>PHY</span><i><b id="homeStatPhy"></b></i></div>
+                </div>
+                <div class="home-player-ring"><canvas id="homePlayerCanvas" width="250" height="320" aria-label="Current player model"></canvas><span class="ring-pulse"></span></div>
+                <div class="home-card-identity">
+                  <span id="homeCardCrest" class="home-card-crest">XI</span>
+                  <div><small id="homeClubName">SOUTH LONDON ATHLETIC</small><h2 id="homePlayerName">PLAYER 1</h2><p><b id="homePlayerRole">ACADEMY PROSPECT</b><i>•</i><span id="homePlayerPosition">CM</span></p></div>
+                </div>
+              </article>
+            </div>
+
+            <button class="home-objective-prompt" id="homeObjectivePrompt" data-nav="hub">
+              <span>🏆</span><p>Complete objectives to earn <b>rewards</b> and boost your legacy.</p><i>›</i>
+            </button>
+          </section>
+        </div>
+      </section>
+
+
+      <section id="savesScreen" class="screen content-screen saves-screen">
+        <div class="section-heading"><div><div class="eyebrow">CAREER LIBRARY</div><h2>Career Saves</h2></div><div class="section-heading-actions"><button id="importCareerBtn" class="secondary-btn">Import Save</button><button class="ghost-btn" data-nav="menu">Back</button></div></div>
+        <input id="importCareerInput" type="file" accept="application/json,.json,.cxi" hidden />
+        <section class="save-centre-summary panel"><div><span>💾</span><b id="saveSlotCount">0 / 6 saves</b><small>Click any populated career card to open that save. Every career keeps its own player, club, season and contract data.</small></div><button id="newCareerFromSaves" class="primary-btn">＋ Start New Career</button></section>
+        <div id="saveSlotsGrid" class="save-slots-grid"></div>
+      </section>
+
+      <section id="createScreen" class="screen content-screen">
+        <div class="section-heading"><div><div class="eyebrow">NEW CAREER</div><h2>Create Your Player</h2></div><button data-nav="menu" class="ghost-btn">Back</button></div>
+        <nav id="creatorStepNav" class="creator-step-nav" aria-label="Player creation steps">
+          <button type="button" data-creator-step="0" class="active"><span>👤</span><b>Identity</b><small>1</small></button>
+          <button type="button" data-creator-step="1"><span>🌍</span><b>Club</b><small>2</small></button>
+          <button type="button" data-creator-step="2"><span>⚽</span><b>Role</b><small>3</small></button>
+          <button type="button" data-creator-step="3"><span>✂️</span><b>Style</b><small>4</small></button>
+          <button type="button" data-creator-step="4"><span>✅</span><b>Review</b><small>5</small></button>
+        </nav>
+        <div class="creation-grid">
+          <form id="playerForm" class="panel form-panel creator-panel">
+
+            <section class="creator-section active identity-creator-section" data-creator-panel="0">
+              <div class="creator-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M4.5 20c1.3-3.8 4.3-6 7.5-6s6.2 2.2 7.5 6"/></svg><div><h3>Identity and Player Attributes</h3><small>Create your football identity and see every attribute before starting the career.</small></div></div>
+              <div class="creator-row-2 identity-name-grid">
+                <label class="field-label">First name<input id="firstName" required maxlength="16" placeholder="John" value="Renny" autocomplete="given-name" /></label>
+                <label class="field-label">Surname<input id="surname" required maxlength="18" placeholder="Smith" value="Appiah" autocomplete="family-name" /></label>
+              </div>
+              <input id="playerName" type="hidden" value="Renny Appiah" />
+              <select id="age" class="visually-hidden-input"><option selected>17</option></select>
+              <select id="foot" class="visually-hidden-input"><option selected>Right</option><option>Left</option></select>
+
+              <div class="identity-nationality-block">
+                <div class="creator-section-subhead"><div><small>NATIONAL TEAM PATHWAY</small><h4>Choose nationality</h4></div><span>Continent first, then country</span></div>
+                <div class="creator-row-2">
+                  <label class="field-label">Continent<select id="nationalityContinent" class="nice-select"></select></label>
+                  <label class="field-label">Country<select id="nationality" class="nice-select"></select></label>
+                </div>
+                <div id="nationalTeamInsights" class="national-team-insights" aria-live="polite"></div>
+              </div>
+
+              <div class="creator-attributes-block">
+                <div class="creator-section-subhead"><div><small>PLAYER DNA</small><h4>Technical, mental and physical attributes</h4></div><div id="creatorAttributeBudget" class="creator-attribute-budget">30 points</div></div>
+                <div id="creatorAttributeDashboard" class="creator-attribute-dashboard" aria-live="polite"></div>
+              </div>
+            </section>
+
+            <section class="creator-section" data-creator-panel="1">
+              <div class="creator-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.4 3.8 5.6 3.8 9s-1.3 6.6-3.8 9c-2.5-2.4-3.8-5.6-3.8-9S9.5 5.4 12 3z"/></svg><h3>Career World</h3></div>
+              <div class="creator-row-3">
+                <label class="field-label">Continent<select id="careerContinent" class="nice-select"></select></label>
+                <label class="field-label">Country<select id="careerCountry" class="nice-select"></select></label>
+                <label class="field-label">League<select id="careerLeague" class="nice-select"></select></label>
+              </div>
+              <label class="field-label">Starting club<select id="careerClub" class="nice-select"></select></label>
+              <div id="worldSelectionInsights" class="world-selection-insights" aria-live="polite"></div>
+            </section>
+
+            <section class="creator-section" data-creator-panel="2">
+              <div class="creator-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3z"/></svg><h3>Position &amp; Style</h3></div>
+              <div class="field-label">Position</div>
+              <div class="position-board" id="positionBoard" role="group" aria-label="Choose a position">
+                <button type="button" class="pos-btn" data-value="ST" style="grid-area:st">ST</button>
+                <button type="button" class="pos-btn" data-value="LW" style="grid-area:lw">LW</button>
+                <button type="button" class="pos-btn" data-value="RW" style="grid-area:rw">RW</button>
+                <button type="button" class="pos-btn" data-value="AM" style="grid-area:am">AM</button>
+                <button type="button" class="pos-btn" data-value="CM" style="grid-area:cm">CM</button>
+                <button type="button" class="pos-btn" data-value="DM" style="grid-area:dm">DM</button>
+                <button type="button" class="pos-btn" data-value="LB" style="grid-area:lb">LB</button>
+                <button type="button" class="pos-btn" data-value="CB" style="grid-area:cb">CB</button>
+                <button type="button" class="pos-btn" data-value="RB" style="grid-area:rb">RB</button>
+                <button type="button" class="pos-btn" data-value="GK" style="grid-area:gk">GK</button>
+              </div>
+              <select id="position" class="visually-hidden-input"><option>GK</option><option>RB</option><option>CB</option><option>LB</option><option>DM</option><option selected>CM</option><option>AM</option><option>RW</option><option>LW</option><option>ST</option></select>
+
+              <div class="field-label">Archetype</div>
+              <div class="chip-row" id="archetypeChips"></div>
+              <select id="archetype" class="visually-hidden-input"><option>Playmaker</option><option>Ball Winner</option><option>Poacher</option><option>Target Forward</option><option>Inside Forward</option><option>Box-to-Box</option><option>Full Back</option><option>Sweeper Keeper</option></select>
+
+              <div class="field-label">Body build</div>
+              <div class="chip-row build-chip-row" id="buildChips"></div>
+              <select id="build" class="visually-hidden-input"><option>Lean</option><option selected>Athletic</option><option>Strong</option></select>
+            </section>
+
+            <section class="creator-section" data-creator-panel="3">
+              <div class="creator-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21c1-5 3.5-7 8-7s7 2 8 7"/><circle cx="12" cy="7" r="4"/></svg><h3>Appearance</h3></div>
+              <div class="creator-row-2 appearance-basics">
+                <div><div class="field-label">Skin tone</div><div class="swatch-row" id="skinSwatches"></div><select id="skinTone" class="visually-hidden-input"><option value="#f2c9a0">Light</option><option value="#c98d5b">Medium</option><option selected value="#7b4b2a">Brown</option><option value="#4a2b1a">Deep</option></select></div>
+                <label class="field-label">Hair colour<input id="hairColour" type="color" value="#21140d" /></label>
+              </div>
+              <div class="field-label hair-picker-label">Hairstyle <span>Choose a unique top down silhouette</span></div>
+              <div class="hair-style-grid" id="hairChips"></div>
+              <select id="hair" class="visually-hidden-input"><option>Short</option><option selected>Fade</option><option>Afro</option><option>Braids</option><option>Shaved</option><option>Curly Top</option><option>Cornrows</option><option>Twists</option><option>Mohawk</option><option>Locs</option></select>
+              <div id="hairUnlockNote" class="hair-unlock-note"><span>🔒</span><div><b>More styles unlock during your career</b><small>Make appearances, score goals, earn awards and become a club legend.</small></div></div>
+              <div class="creator-row-2">
+                <label class="field-label">Boot colour<input id="bootColour" type="color" value="#f4f4f4" /></label>
+                <label class="field-label">Shirt number<input id="shirtNumber" type="number" min="1" max="99" value="8" /></label>
+              </div>
+            </section>
+
+            <section class="creator-section" data-creator-panel="4">
+              <div class="creator-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/></svg><h3>Review &amp; Difficulty</h3></div>
+              <div id="creatorFinalReview" class="creator-final-review"></div>
+              <div class="field-label career-mode-label">Career type <span>Choose whether attribute editing is available</span></div>
+              <div class="career-mode-cards" id="careerModeCards"></div>
+              <select id="careerMode" class="visually-hidden-input"><option selected>Standard Career</option><option>Assisted Career</option><option>Attribute Editor Career</option></select>
+              <div class="creator-foot-profile" id="creatorFootProfile">
+                <div class="creator-section-subhead"><div><small>FOOT DEVELOPMENT</small><h4>Preferred and weak foot</h4></div><span id="weakFootEditorNote">Weak foot develops through training</span></div>
+                <div class="field-label">Preferred foot</div>
+                <div class="chip-row" id="footChips"></div>
+                <div class="weak-foot-control">
+                  <label class="field-label" for="weakFootRating">Weak foot ability <output id="weakFootValue">3 / 5 · Reasonable</output></label>
+                  <input id="weakFootRating" type="range" min="1" max="5" step="1" value="3" disabled />
+                  <label class="both-footed-toggle"><input id="bothFootedToggle" type="checkbox" disabled /> <span>Both footed</span><small>Maximum control, passing, crossing and shooting with either foot</small></label>
+                </div>
+              </div>
+              <div class="field-label difficulty-label">Match difficulty</div>
+              <div class="difficulty-cards" id="difficultyCards"></div>
+              <select id="createDifficulty" class="visually-hidden-input"><option>Easy</option><option selected>Balanced</option><option>Hard</option></select>
+            </section>
+
+            <footer class="creator-actions">
+              <button id="creatorPrevious" class="ghost-btn" type="button"><span>←</span> Previous</button>
+              <div class="creator-step-status"><b id="creatorStepLabel">Identity</b><small id="creatorStepCount">Step 1 of 5</small></div>
+              <button id="creatorNext" class="primary-btn" type="button">Next <span>→</span></button>
+              <button id="creatorSubmit" class="primary-btn hidden" type="submit">⚽ Begin Career</button>
+            </footer>
+          </form>
+          <aside class="panel preview-panel">
+            <div class="sprite-stage"><canvas id="spritePreview" width="260" height="320"></canvas></div>
+            <div id="creationSummary"></div>
+            <div id="attributePreview" class="attributes-list"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="hubScreen" class="screen content-screen career-tab-screen">
+        <div class="section-heading"><div><div class="eyebrow">CAREER HUB</div><h2 id="hubGreeting">Welcome back</h2></div><div class="section-heading-actions"><button id="hubDeleteSaveBtn" class="danger-btn">Delete Save</button><button id="hubDownloadSaveBtn" class="secondary-btn">Download Save</button><button id="playMatchBtn" class="primary-btn">Play Next Match</button></div></div>
+        <nav id="careerTabs" class="career-tabs" aria-label="Career sections">
+          <button data-career-tab="overview" class="active"><span>🏠</span>Overview</button>
+          <button data-career-tab="inbox"><span>📩</span>Inbox <i id="careerTabBadge">0</i></button>
+          <button data-career-tab="profile"><span>👤</span>Profile</button>
+          <button data-career-tab="league"><span>📊</span>League</button>
+          <button data-career-tab="training"><span>🏋️</span>Training <i id="trainingTabBadge">1</i></button>
+          <button data-career-tab="fixtures"><span>📅</span>Fixtures</button>
+          <button data-career-tab="form"><span>📈</span>Form</button>
+            <button data-career-tab="career"><span>🏅</span>Career</button>
+          <button data-career-tab="replays"><span>🎬</span>Replays <i id="replayTabBadge">0</i></button>
+          <button data-career-tab="finances"><span>💰</span>Earnings</button>
+        </nav>
+        <div class="hub-grid tabbed-hub">
+          <article class="panel profile-panel career-tab-panel" data-career-panel="profile" id="profilePanel"></article>
+          <article class="panel fixture-panel career-tab-panel" data-career-panel="fixtures" id="fixturePanel"></article>
+          <article class="panel full-league-panel career-tab-panel" data-career-panel="league" id="fullLeaguePanel"></article>
+          <article class="panel replay-gallery-panel career-tab-panel" data-career-panel="replays" id="replayGalleryPanel"></article>
+          <article class="panel finances-panel career-tab-panel" data-career-panel="finances" id="financesPanel"></article>
+          <article class="panel objectives-panel career-tab-panel" data-career-panel="overview"><div class="panel-title"><h3>Player Overview & Objectives</h3><span>Profile & Manager</span></div><div id="playerOverviewList"></div></article>
+          <article class="panel form-panel-small career-tab-panel" data-career-panel="form"><div class="panel-title"><h3>Performance Form</h3><span id="formAverage">—</span></div><div id="formList" class="form-list"></div></article>
+          <article class="panel training-panel career-tab-panel" data-career-panel="training"><div class="panel-title"><h3>Training</h3><span id="trainingPoints">1 session</span></div><p>Choose one focus before the next match.</p><div id="trainingOptions" class="training-options"></div></article>
+          <article class="panel table-panel career-tab-panel" data-career-panel="overview"><div class="panel-title"><h3 id="leagueTableTitle">The Crown League</h3><span id="leagueTableCount">12 clubs</span></div><div id="leagueTable" class="league-table"></div></article>
+          <article class="panel career-tab-panel" data-career-panel="inbox" id="inboxPanel">
+              <section class="career-inbox-column" style="height:100%;"><div class="panel-title"><h3>Career Inbox</h3><span id="inboxCount">0 new</span></div><div id="inboxList"></div></section>
+            </article>
+            <article class="panel career-showcase-panel career-tab-panel" data-career-panel="career" id="careerPanel">
+              <section id="trophyCabinetPanel" class="trophy-cabinet-panel"></section>
+              <section class="career-actions-column"><div class="panel-title"><h3>Career Actions</h3><span>Decisions</span></div><button id="squadBtn" class="secondary-btn full">View Squad</button><button id="contractBtn" class="secondary-btn full">Agent & Contract</button><button id="attributeEditorBtn" class="secondary-btn full">Career Tools & Attribute Editor</button><button id="developmentCentreBtn" class="secondary-btn full">Complete Player Development</button><button id="manageSavesBtn" class="ghost-btn full">Career Saves</button><button data-nav="settings" class="ghost-btn full">Career Settings</button><button id="resetCareerBtn" class="danger-btn full">Delete Current Career</button></section>
+            </article>
+        </div>
+      </section>
+
+
+      <div id="savedReplayModal" class="saved-replay-modal hidden" role="dialog" aria-modal="true">
+        <div class="saved-replay-shell">
+          <header><div><small>CAREER GALLERY</small><h2 id="savedReplayTitle">Saved Replay</h2></div><button id="closeSavedReplay" class="icon-btn">×</button></header>
+          <canvas id="savedReplayCanvas" width="960" height="540"></canvas><div id="savedReplayNotice" class="saved-replay-notice" aria-live="polite"></div>
+          <div class="saved-replay-controls"><button id="savedReplayBack">↶ 5s</button><button id="savedReplayPlay" class="primary-btn">▶ Play</button><button id="savedReplayForward">5s ↷</button><select id="savedReplaySpeed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select><input id="savedReplayTimeline" type="range" min="0" max="1000" value="0"><span id="savedReplayTime">00:00 / 00:00</span></div>
+        </div>
+      </div>
+
+      <div id="trainingGameModal" class="training-game-modal hidden" role="dialog" aria-modal="true">
+        <div class="training-game-shell">
+          <header><div><small>TRAINING GROUND</small><h2 id="trainingGameTitle">Target Finishing</h2></div><button id="closeTrainingGame" class="icon-btn">×</button></header>
+          <div class="training-game-layout">
+            <section id="trainingGameStage" class="training-game-stage" tabindex="0"><div id="trainingGamePitch" class="training-game-pitch"></div><div id="trainingGamePrompt" class="training-game-prompt">Click Start</div></section>
+            <aside><div class="training-game-stars" id="trainingGameStars">☆☆☆</div><div class="training-game-score"><small>SCORE</small><b id="trainingGameScore">0</b></div><div class="training-game-score"><small>TIME</small><b id="trainingGameTime">30</b></div><div class="training-game-score"><small>STREAK</small><b id="trainingGameStreak">0</b></div><div class="training-game-score combo"><small>COMBO</small><b id="trainingGameMultiplier">×1</b></div><p id="trainingGameChallenge" class="training-game-challenge">Weekly challenge: 0/12 successful actions</p><div id="trainingGameLeaderboard" class="training-game-leaderboard"></div><p id="trainingGameHelp">Hit the highlighted targets accurately.</p><button id="startTrainingGame" class="primary-btn full">▶ Start drill</button><button id="simulateTrainingGame" class="secondary-btn full">⚡ Simulate instead</button></aside>
+          </div>
+        </div>
+      </div>
+
+      <div id="trainingResultsModal" class="training-results-modal hidden" role="dialog" aria-modal="true">
+        <div class="training-results-shell">
+          <header><div><small>SESSION ANALYSIS</small><h2 id="trainingResultsTitle">Training complete</h2></div><button id="closeTrainingResults" class="icon-btn">×</button></header>
+          <div id="trainingResultsContent"></div>
+        </div>
+      </div>
+
+      <div id="promotionCelebration" class="promotion-celebration hidden" role="dialog" aria-modal="true" aria-labelledby="promotionTitle">
+        <div class="promotion-confetti" aria-hidden="true"></div>
+        <div class="promotion-stadium-lights" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <section class="promotion-stage">
+          <button id="closePromotionCelebration" class="promotion-close" aria-label="Close promotion celebration">×</button>
+          <div class="promotion-club-crest" id="promotionCrest">XI</div>
+          <small id="promotionEyebrow">SEASON ACHIEVEMENT</small>
+          <h2 id="promotionTitle">PROMOTED</h2>
+          <p id="promotionSubtitle">A new division awaits.</p>
+          <div id="promotionPlayerSummary" class="promotion-player-summary"></div>
+          <div class="promotion-division-flight"><span id="promotionOldDivision">DIVISION 2</span><i>→</i><strong id="promotionNewDivision">DIVISION 1</strong></div>
+          <button id="promotionContinue" class="primary-btn">Continue Career</button>
+        </section>
+      </div>
+
+      <section id="matchScreen" class="screen match-screen">
+        <div id="matchHud" class="match-hud">
+          <div class="scorebug" aria-live="polite">
+            <small id="matchLeagueName" class="score-league">Circle XI League</small>
+            <div class="score-main">
+              <div class="score-team home"><span id="homeLogo" class="score-logo"></span><span id="homeAbbr">SLA</span></div>
+              <b id="scoreText">0 – 0</b>
+              <div class="score-team away"><span id="awayAbbr">RIV</span><span id="awayLogo" class="score-logo"></span></div>
+              <small id="clockText">00:00</small>
+            </div>
+            <small id="scoreEvent" class="score-event"></small>
+          </div>
+          <div class="hud-stat" title="Match rating" aria-label="Match rating"><small class="hud-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.94 6.4 6.98.72-5.24 4.82 1.5 6.9L12 17.9l-6.18 3.44 1.5-6.9L2.08 9.62l6.98-.72L12 2.5z"/></svg></small><b id="ratingText">6.5</b></div>
+          <div class="hud-stat stamina-stat" title="Stamina" aria-label="Stamina"><small class="hud-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12h4l2-7 4 14 2-7h7"/></svg></small><div class="meter"><i id="staminaFill"></i></div></div>
+          <div class="hud-objective" title="Current objective" aria-label="Current objective"><small class="hud-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M5 3v18"/><path d="M5 4.5h13l-2.6 3.75L18 12H5"/></svg></small><b id="matchObjective">Keep your shape</b></div>
+          <button id="fullscreenBtn" class="icon-btn" type="button" title="Enter fullscreen" aria-label="Enter fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"/></svg></button>
+          <button id="pauseBtn" class="icon-btn" title="Pause" aria-label="Pause match"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg></button>
+        </div>
+        <canvas id="gameCanvas" width="1280" height="720"></canvas>
+        <div id="replayControlBar" class="replay-control-bar hidden" aria-label="Replay controls">
+          <div class="replay-control-heading"><span>🎬</span><div><small id="replayControlLabel">MATCH REPLAY</small><b id="replayControlTime">00:00 / 00:00</b></div></div>
+          <button id="replayBack10" title="Rewind 10 seconds" aria-label="Rewind 10 seconds">↶<small>10</small></button>
+          <button id="replayPrevMoment" title="Previous key moment" aria-label="Previous key moment">⏮</button>
+          <button id="replayPlayPause" class="replay-primary" title="Play or pause" aria-label="Play or pause">⏸</button>
+          <button id="replayNextMoment" title="Next key moment" aria-label="Next key moment">⏭</button>
+          <button id="replayForward10" title="Fast forward 10 seconds" aria-label="Fast forward 10 seconds">↷<small>10</small></button>
+          <select id="replaySpeed" aria-label="Replay speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select>
+          <input id="replayTimeline" type="range" min="0" max="1000" value="0" aria-label="Replay timeline">
+          <button id="saveReplayBtn" class="save-replay-btn" title="Save replay" aria-label="Save replay">💾<span>Save</span></button>
+          <button id="closeReplayBtn" title="End replay" aria-label="End replay">✕</button>
+        </div>
+        <div id="possessionIndicator" class="possession-indicator" aria-live="polite" aria-label="In possession"><b>⚽</b><span>IN POSSESSION</span></div>
+        <div id="gkControlGuide" class="gk-control-guide hidden" aria-label="Goalkeeper directional save controls">
+          <header><span>🧤</span><div><small>GOALKEEPER CONTROLS</small><b>Choose direction and height</b></div></header>
+          <div class="gk-control-grid">
+            <button type="button" data-gk-key="l+i"><kbd>L</kbd><i>+</i><kbd>I</kbd><small>High left</small></button>
+            <button type="button" data-gk-key="i"><kbd>I</kbd><small>High middle</small></button>
+            <button type="button" data-gk-key="j+i"><kbd>J</kbd><i>+</i><kbd>I</kbd><small>High right</small></button>
+            <button type="button" data-gk-key="l"><kbd>L</kbd><small>Dive left</small></button>
+            <div class="gk-ready"><span>◉</span><small>GK view</small></div>
+            <button type="button" data-gk-key="j"><kbd>J</kbd><small>Dive right</small></button>
+            <button type="button" data-gk-key="l+k"><kbd>L</kbd><i>+</i><kbd>K</kbd><small>Low left</small></button>
+            <button type="button" data-gk-key="k"><kbd>K</kbd><small>Low middle</small></button>
+            <button type="button" data-gk-key="j+k"><kbd>J</kbd><i>+</i><kbd>K</kbd><small>Low right</small></button>
+          </div>
+          <p>Keys pressed within a short window combine into one save.</p>
+        </div>
+        <div id="actionFeedback" class="action-feedback"></div>
+        <div id="positionIndicator" class="position-indicator" data-status="good" aria-label="Positioning status"><i aria-hidden="true"></i><div><span>Good position</span></div></div>
+        <div id="setPieceMiniGame" class="set-piece-minigame hidden" aria-label="Set-piece mini game">
+          <div class="set-piece-shell">
+            <header class="set-piece-heading">
+              <div><small>SET-PIECE STUDIO</small><h2 id="setPieceTitle">PENALTY</h2></div>
+              <div class="set-piece-live"><i></i> YOU ARE TAKING</div>
+            </header>
+            <div class="set-piece-layout">
+              <section class="set-piece-stage" id="setPieceStage" data-type="penalty">
+                <div class="set-piece-crowd"></div>
+                <div class="set-piece-goal"><div class="set-piece-net"></div></div>
+                <div class="set-piece-keeper" id="setPieceKeeper"><span>GK</span></div>
+                <div class="set-piece-target-grid" id="setPieceTargetGrid">
+                  <button data-sp-zone="TL" aria-label="Top left"></button><button data-sp-zone="TC" aria-label="Top centre"></button><button data-sp-zone="TR" aria-label="Top right"></button>
+                  <button data-sp-zone="ML" aria-label="Middle left"></button><button data-sp-zone="C" aria-label="Centre"></button><button data-sp-zone="MR" aria-label="Middle right"></button>
+                  <button data-sp-zone="BL" aria-label="Bottom left"></button><button data-sp-zone="BC" aria-label="Bottom centre"></button><button data-sp-zone="BR" aria-label="Bottom right"></button>
+                </div>
+                <div id="setPieceUncertainty" class="set-piece-uncertainty" aria-hidden="true"></div>
+                <div id="setPiecePredictedMarker" class="set-piece-predicted-marker" aria-hidden="true"></div>
+                <div id="setPieceAimMarker" class="set-piece-aim-marker" aria-hidden="true"><i></i></div>
+                <div class="set-piece-spot"></div><div class="set-piece-ball">⚽</div><div class="set-piece-player"><span>YOU</span></div>
+              </section>
+              <aside class="set-piece-panel">
+                <div class="set-piece-step"><small>01 · TARGET</small><b id="setPieceTargetLabel">Centre</b><p>Choose a target on the goal or delivery area.</p></div>
+                <div class="set-piece-step"><small>02 · TECHNIQUE</small><div id="setPieceActions" class="set-piece-actions"></div></div>
+                <div class="set-piece-step timing-step"><div class="set-piece-timing-title"><small>03 · TIMING</small><b id="setPieceStatBadge">SET PIECES 55</b></div><div class="set-piece-timing"><span id="setPieceGreenZone" class="set-piece-green-zone"></span><i id="setPieceNeedle"></i></div><div class="set-piece-timing-labels"><span>EARLY</span><b>GREEN ZONE</b><span>LATE</span></div><p id="setPieceDifficultyNote" class="set-piece-difficulty-note">Higher rating: steadier timing · smaller target error</p></div>
+                <div class="set-piece-buttons"><button id="setPieceTimingBtn" class="secondary-btn">Lock timing</button><button id="setPieceTakeBtn" class="primary-btn" disabled>Take set piece</button></div>
+                <p id="setPieceHelp" class="set-piece-help">Aim with WASD or arrows · Space locks timing · Enter takes</p>
+              </aside>
+            </div>
+          </div>
+        </div>
+        <div id="goalReplayPrompt" class="goal-replay-prompt hidden" role="dialog" aria-modal="true" aria-labelledby="goalReplayTitle">
+          <div class="goal-replay-card">
+            <div class="goal-replay-badge">GOAL</div>
+            <div class="goal-replay-copy"><small id="goalReplayTeam">SOUTH LONDON ATHLETIC SCORE</small><h2 id="goalReplayTitle">Watch the replay?</h2><p id="goalReplayScorer">See the move again before kick-off.</p></div>
+            <div class="goal-replay-actions"><button id="watchGoalReplayBtn" class="primary-btn"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M10.5 9v6l5-3z" fill="currentColor" stroke="none"/></svg>Watch replay</button><button id="skipGoalReplayBtn" class="secondary-btn"><svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M4 5l7 7-7 7V5z"/><path d="M13 5l7 7-7 7V5z"/></svg>Continue match</button></div>
+            <div class="goal-replay-keys"><kbd>Enter</kbd> replay <span>·</span> <kbd>Esc</kbd> continue</div>
+          </div>
+        </div>
+        <div id="tutorial" class="tutorial hidden">
+          <div class="tutorial-card"><div class="eyebrow">FIRST MATCH</div><h3>Control only your player</h3><p>Move and aim with WASD. Hold and release J to pass, K for a through ball, L to shoot, or I to cross—the longer you hold, the more power you use. Passing and shooting are semi-assisted, while crosses target dangerous teammates; player attributes determine the strength and accuracy of the assistance. Hold Space to jockey without the ball or shield while dribbling. When defending, use K for a standing tackle, L for a sliding tackle and Q for a shoulder challenge. Each challenge now uses situation-based tackle animations. Goalkeepers use J to dive right, L to dive left, K for low middle and I for high middle. Combine J or L with K or I for low and high corner dives. Shift adds driven passes, finesse shots and lofted deliveries. Fouls, cards, free kicks, penalties, first-time actions and substitutions are active.</p><button id="closeTutorial" class="primary-btn"><svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Start Match</button></div>
+        </div>
+        <div id="pauseOverlay" class="overlay hidden"><div class="modal"><h2>Match Paused</h2><button id="resumeBtn" class="primary-btn full"><svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Resume</button><button id="restartMatchBtn" class="secondary-btn full"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v5h-5"/></svg>Restart Match</button><button id="quitMatchBtn" class="danger-btn full"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>Quit to Career Hub</button></div></div>
+        <div id="subOffOverlay" class="overlay hidden"><div class="modal"><div class="eyebrow">SUBSTITUTION</div><h2 id="subOffTitle">Substituted</h2><p id="subOffReason" style="color:var(--muted);line-height:1.6;margin:0">You have been withdrawn from the match.</p><button id="continueSubOffBtn" class="primary-btn full"><svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>Continue</button></div></div>
+        <div id="touchControls" class="touch-controls">
+          <div id="joystick" class="joystick"><i id="joystickKnob"></i></div>
+          <div class="touch-actions">
+            <button data-action="pass" aria-label="Pass"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M8 12h11M15 7l4 5-4 5"/></svg><span>PASS</span></button>
+            <button data-action="through" aria-label="Through ball"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l6 6-6 6"/><path d="M13 6l6 6-6 6"/></svg><span>THRU</span></button>
+            <button data-action="cross" aria-label="Cross"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18C8 8 16 8 20 6"/><path d="M16 5l4 1-1 4"/></svg><span>CROSS</span></button>
+            <button data-action="shoot" aria-label="Shoot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 1.5v3.4M12 19.1v3.4M1.5 12h3.4M19.1 12h3.4"/></svg><span>SHOOT</span></button>
+            <button data-action="tackle" aria-label="Press or shield"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3z"/></svg><span>PRESS</span></button>
+            <button data-action="sprint" aria-label="Sprint"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg><span>SPRINT</span></button>
+          </div>
+        </div>
+      </section>
+
+      <section id="postMatchScreen" class="screen content-screen">
+        <div class="postmatch-wrap">
+          <div class="eyebrow">FULL TIME</div><h2 id="postScore">South London Athletic 0 – 0 Riverton FC</h2><p id="postHeadline">A professional performance.</p>
+          <div class="postmatch-grid"><article class="panel rating-summary" id="postRating"></article><article class="panel" id="postStats"></article><article class="panel" id="managerFeedback"></article></div>
+          <button id="continuePostBtn" class="primary-btn">Continue Career</button>
+        </div>
+      </section>
+
+      <section id="settingsScreen" class="screen content-screen narrow-screen">
+        <div class="section-heading"><div><div class="eyebrow">OPTIONS</div><h2>Settings</h2></div><button class="ghost-btn" data-back>Back</button></div>
+        <div class="panel settings-panel">
+          <label>Difficulty<select id="difficultySetting"><option>Easy</option><option>Balanced</option><option>Hard</option></select></label>
+          <label>Match length<select id="matchLengthSetting"><option value="240">Short · 4 minutes</option><option value="360" selected>Standard · 6 minutes</option><option value="480">Long · 8 minutes</option></select></label>
+          <label>Camera zoom<input id="zoomSetting" type="range" min="0.82" max="1.18" value="1.02" step="0.04" /></label>
+          <label>Aim sensitivity<select id="aimSensitivitySetting"><option>Slow</option><option selected>Normal</option><option>Fast</option></select></label>
+          <label>Aerial indicators<select id="aerialAssistSetting"><option>Full</option><option selected>Standard</option><option>Minimal</option><option>Off</option></select></label>
+          <label>Formation notifications<select id="formationNotificationsSetting"><option value="Full">Full tactical notifications</option><option value="Important" selected>Important changes only</option><option value="Icons">Icons only</option><option value="Off">Off</option></select></label>
+          <label class="toggle-row">Positioning guide<input id="guideSetting" type="checkbox" checked /></label>
+          <label class="toggle-row">Match sounds<input id="soundSetting" type="checkbox" checked /></label>
+          <label class="toggle-row">Gameplay feedback<input id="feedbackSetting" type="checkbox" checked /></label>
+          <label class="toggle-row">Match engine debug overlay<input id="debugEngineSetting" type="checkbox" /></label>
+          <label class="toggle-row">Deterministic test seed<input id="deterministicSeedSetting" type="checkbox" /></label>
+          <div class="settings-subheading"><span>⚙</span><div><b>Performance and accessibility</b><small>Optimise the game for your device and preferred controls.</small></div></div>
+          <label>Performance mode<select id="performanceModeSetting"><option>Auto</option><option>High</option><option>Low</option></select></label>
+          <label>Crowd detail<select id="crowdDetailSetting"><option>High</option><option>Low</option><option>Off</option></select></label>
+          <label>Particle detail<select id="particleDetailSetting"><option>High</option><option>Low</option><option>Off</option></select></label>
+          <label>Colour blind timing bars<select id="colourBlindModeSetting"><option>Off</option><option>Deuteranopia</option><option>Protanopia</option><option>Tritanopia</option><option>High Contrast</option></select></label>
+          <label>Interface size<select id="interfaceScaleSetting"><option>Small</option><option selected>Normal</option><option>Large</option><option>Extra Large</option></select></label>
+          <label>Passing assistance<select id="passAssistSetting"><option>Manual</option><option selected>Standard</option><option>Full</option></select></label>
+          <label>Shooting assistance<select id="shotAssistSetting"><option>Manual</option><option selected>Standard</option><option>Full</option></select></label>
+          <label>Touch control layout<select id="touchLayoutSetting"><option>Default</option><option>Wide</option><option>Compact</option><option>Left Handed</option></select></label>
+          <label>Master volume<input id="masterVolumeSetting" type="range" min="0" max="100" value="100" /></label>
+          <label>Crowd volume<input id="crowdVolumeSetting" type="range" min="0" max="100" value="85" /></label>
+          <label>Effects volume<input id="effectsVolumeSetting" type="range" min="0" max="100" value="90" /></label>
+          <label class="toggle-row">Reduced motion<input id="reducedMotionSetting" type="checkbox" /></label>
+          <label class="toggle-row">Screen shake<input id="screenShakeSetting" type="checkbox" checked /></label>
+          <button id="saveSettingsBtn" class="primary-btn">Save Settings</button>
+        </div>
+      </section>
+
+      <section id="helpScreen" class="screen content-screen tutorial-screen">
+        <div class="section-heading tutorial-heading"><div><div class="eyebrow">CIRCLE XI ACADEMY</div><h2>Game Tutorial</h2></div><button class="ghost-btn" data-back>Back</button></div>
+        <div class="tutorial-shell">
+          <section class="tutorial-welcome">
+            <div class="tutorial-ball">XI</div>
+            <div><small>CONTROL ONE PLAYER</small><h3>Learn the essentials in minutes</h3><p>Use the coloured sections below to learn controls, match intelligence and the career features waiting for you.</p></div>
+            <button id="tutorialQuickMatchBtn" class="primary-btn"><span>▶</span> Try Quick Match</button>
+          </section>
+          <nav class="tutorial-tabs" aria-label="Tutorial topics">
+            <button class="active" data-tutorial-tab="controls"><span>⌨</span><b>Controls</b><small>Move and play</small></button>
+            <button data-tutorial-tab="match"><span>◎</span><b>Match IQ</b><small>Play intelligently</small></button>
+            <button data-tutorial-tab="career"><span>★</span><b>Career</b><small>Build a legacy</small></button>
+            <button data-tutorial-tab="features"><span>✦</span><b>Cool Features</b><small>Discover more</small></button>
+          </nav>
+          <div class="tutorial-content">
+            <section class="tutorial-page active" data-tutorial-page="controls">
+              <div class="tutorial-section-title"><span>⌨</span><div><small>CORE CONTROLS</small><h3>Simple buttons, different football actions</h3></div><aside>Hold action buttons for more power</aside></div>
+              <div class="tutorial-control-grid">
+                <article class="tutorial-control-card tone-green"><div class="tutorial-card-icon">➜</div><div><small>MOVEMENT</small><b><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></b><p>Move your player and aim passes, shots and headers.</p></div></article>
+                <article class="tutorial-control-card tone-blue"><div class="tutorial-card-icon">●</div><div><small>PASS</small><b><kbd>J</kbd></b><p>Hold for power, then release to pass to a nearby teammate.</p></div></article>
+                <article class="tutorial-control-card tone-cyan"><div class="tutorial-card-icon">↗</div><div><small>THROUGH BALL</small><b><kbd>K</kbd></b><p>Lead a runner into space. Hold longer for a stronger ball.</p></div></article>
+                <article class="tutorial-control-card tone-red"><div class="tutorial-card-icon">◎</div><div><small>SHOOT</small><b><kbd>L</kbd></b><p>Aim towards goal and release inside the ideal power range.</p></div></article>
+                <article class="tutorial-control-card tone-yellow"><div class="tutorial-card-icon">⌁</div><div><small>CROSS</small><b><kbd>I</kbd></b><p>Deliver into the area towards a dangerous attacking runner.</p></div></article>
+                <article class="tutorial-control-card tone-purple"><div class="tutorial-card-icon">⚡</div><div><small>SPRINT / VARIATION</small><b><kbd>SHIFT</kbd></b><p>Sprint, or combine with J, K, L and I for special techniques.</p></div></article>
+                <article class="tutorial-control-card tone-orange"><div class="tutorial-card-icon">◈</div><div><small>JOCKEY / SHIELD</small><b><kbd>SPACE</kbd></b><p>Jockey without the ball or protect it while dribbling.</p></div></article>
+                <article class="tutorial-control-card tone-pink"><div class="tutorial-card-icon">⌖</div><div><small>RETURN TO POSITION</small><b><kbd>M</kbd></b><p>Hold to move safely back towards your tactical zone.</p></div></article>
+                <article class="tutorial-control-card tone-cyan goalkeeper-control-card"><div class="tutorial-card-icon">🧤</div><div><small>GOALKEEPER DIVES</small><b><kbd>L</kbd><kbd>K</kbd><kbd>I</kbd><kbd>J</kbd></b><p>L left, J right, K low middle and I high middle. Combine side and height keys for the corners.</p></div></article>
+              </div>
+              <div class="tutorial-combo-strip"><span>↠ <b>Shift + J</b> Driven pass</span><span>↗ <b>Shift + K</b> Lofted through ball</span><span>⟳ <b>Shift + L</b> Finesse shot</span><span>↑ <b>Shift + I</b> Lofted delivery</span></div>
+            </section>
+            <section class="tutorial-page" data-tutorial-page="match">
+              <div class="tutorial-section-title"><span>◎</span><div><small>MATCH INTELLIGENCE</small><h3>Play like a footballer, not just a controller</h3></div></div>
+              <div class="tutorial-feature-grid">
+                <article class="tutorial-feature-card"><span>⌖</span><div><b>Keep your position</b><p>Follow the coloured positioning guide. Good movement improves rating and manager trust.</p></div></article>
+                <article class="tutorial-feature-card"><span>!</span><div><b>Call for the right ball</b><p>When a teammate has possession, J asks to feet, K requests space, L tells them to shoot and I requests a cross.</p></div></article>
+                <article class="tutorial-feature-card"><span>◈</span><div><b>Defend with timing</b><p>Space jockeys, K tackles, L slides and Q challenges shoulder-to-shoulder. Standing, sliding and physical tackles each use three situation-based animations. Mistimed actions can cause fouls and cards.</p></div></article>
+                <article class="tutorial-feature-card"><span>▮</span><div><b>Manage energy</b><p>Sprinting drains stamina. Empty energy increases injury risk and can make the manager substitute you.</p></div></article>
+                <article class="tutorial-feature-card"><span>↑</span><div><b>Read lofted balls</b><p>Follow the moving shadow and landing marker. Use J, K, L or I to choose your header.</p></div></article>
+                <article class="tutorial-feature-card"><span>✓</span><div><b>Follow instructions</b><p>Your role changes what the manager expects. The post-match review explains strengths and weaknesses.</p></div></article>
+              </div>
+            </section>
+            <section class="tutorial-page" data-tutorial-page="career">
+              <div class="tutorial-section-title"><span>★</span><div><small>PLAYER CAREER</small><h3>Your journey from prospect to legend</h3></div></div>
+              <div class="career-journey">
+                <article><span>1</span><div class="journey-icon">◇</div><b>Create</b><p>Choose position, appearance, nationality and playing style.</p></article>
+                <article><span>2</span><div class="journey-icon">↟</div><b>Train</b><p>Complete visual drills and earn development points.</p></article>
+                <article><span>3</span><div class="journey-icon">●</div><b>Perform</b><p>Play fixtures, follow instructions and build good form.</p></article>
+                <article><span>4</span><div class="journey-icon">↗</div><b>Develop</b><p>Improve attributes, trust, reputation and selection chances.</p></article>
+                <article><span>5</span><div class="journey-icon">★</div><b>Achieve</b><p>Win club, cup, international and individual trophies.</p></article>
+              </div>
+              <div class="tutorial-tip-banner"><span>!</span><div><b>Remember</b><p>Goals matter, but passing, interceptions, positioning, assists and following the manager’s plan also improve your rating.</p></div></div>
+            </section>
+            <section class="tutorial-page" data-tutorial-page="features">
+              <div class="tutorial-section-title"><span>✦</span><div><small>DISCOVER CIRCLE XI</small><h3>Cool things happening around your career</h3></div></div>
+              <div class="tutorial-feature-grid colourful">
+                <article class="tutorial-feature-card"><span>▶</span><div><b>Matchday presentation</b><p>Walk through the stadium tunnel, line up, celebrate goals and leave together at half time and full time.</p></div></article>
+                <article class="tutorial-feature-card"><span>◎</span><div><b>Intelligent match engine</b><p>AI players scan, press, support, intercept, rotate and react to loose balls.</p></div></article>
+                <article class="tutorial-feature-card"><span>◉</span><div><b>International football</b><p>Good form and ratings can earn call-ups for June and July tournaments.</p></div></article>
+                <article class="tutorial-feature-card"><span>▦</span><div><b>Full season calendar</b><p>Browse previous results and future league, cup and international fixtures month by month.</p></div></article>
+                <article class="tutorial-feature-card"><span>◖</span><div><b>Stadium sound</b><p>Crowds, tackles, passes, shots, posts, grass, net impacts and whistles have distinct sounds.</p></div></article>
+                <article class="tutorial-feature-card"><span>★</span><div><b>Trophy cabinet</b><p>Team and individual honours use their own trophy designs inside your career cabinet.</p></div></article>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section id="developmentScreen" class="screen content-screen development-screen">
+        <div class="section-heading"><div><div class="eyebrow">COMPLETE CAREER SYSTEM</div><h2>Player Development Centre</h2></div><button class="ghost-btn" data-nav="hub">Back</button></div>
+        <div id="developmentContent" class="panel development-content"></div>
+      </section>
+
+      <section id="squadScreen" class="screen content-screen squad-screen"><div class="section-heading"><div><div id="squadClubName" class="eyebrow">SOUTH LONDON ATHLETIC</div><h2>First Team Squad</h2></div><button class="ghost-btn" data-nav="hub">Back</button></div><div id="squadList" class="panel squad-list"></div></section>
+      <section id="contractScreen" class="screen content-screen contract-screen"><div class="section-heading"><div><div class="eyebrow">REPRESENTATION</div><h2>Agent & Contract</h2></div><button class="ghost-btn" data-nav="hub">Back</button></div><div id="contractContent" class="panel contract-content"></div></section>
+      <section id="attributeEditorScreen" class="screen content-screen attribute-editor-screen"><div class="section-heading"><div><div class="eyebrow">CAREER ASSISTANCE</div><h2>Player Attribute Editor</h2></div><button class="ghost-btn" data-nav="hub">Back</button></div><div id="attributeEditorContent" class="panel attribute-editor-content"></div></section>
+    </main>
+  </div>
+  <script src="circle-xi-manager-core.js?v=15.4.0"></script>
+  <script src="circle-xi-manager-stage12.js?v=15.4.0"></script>
+  <script src="circle-xi-manager-world.js?v=15.4.0"></script>
+  <script src="game.js"></script>
+</body>
+</html>
+
+
+
+
