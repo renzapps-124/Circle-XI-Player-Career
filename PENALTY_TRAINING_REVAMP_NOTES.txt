@@ -1,0 +1,57 @@
+CIRCLE XI PLAYER CAREER — PENALTY TRAINING REVAMP
+
+Implemented directly into Penalty Practice:
+
+GAMEPLAY
+- Dedicated penalty aim cursor controlled with WASD / arrow keys.
+- Player begins behind the penalty spot with the ball placed separately on the spot.
+- Hold/release timing meter with a green PERFECT zone.
+- Penalties attribute increases placement reliability and timing forgiveness.
+- Composure improves stability under pressure.
+- High Penalties + good aim + PERFECT contact becomes extremely reliable without blindly scripting every kick.
+- Near timing misses can lead to goalkeeper saves, woodwork or inaccurate attempts.
+
+SHOT TYPES / MATCH-CONSISTENT CONTROLS
+- L: Normal penalty.
+- J + L: Placed penalty.
+- K + L: Low Driven penalty.
+- I + L: Panenka.
+- Shot types use distinct launch, spin, trajectory and visual kick actions.
+
+GOALKEEPER
+- Goalkeeper can commit left/right/centre and at different heights.
+- Keeper difficulty rises with pressure.
+- Keeper analyses the player's recent penalty placement and can anticipate repeated patterns.
+- Panenka logic benefits when the goalkeeper commits early.
+- Improved dive/deflection feedback uses the existing match-style goalkeeper renderer.
+
+SESSION MODES
+- 10 Penalty Challenge (default).
+- Corner Challenge.
+- Technique Mastery.
+- Shootout Pressure.
+- Sudden Death.
+- Session selector is available before starting and disappears during live play to keep the pitch uncluttered.
+
+GUI / FEEDBACK
+- Compact Penalty Training HUD with Penalties rating, tier and Composure.
+- Live goals, attempts, stars and session mode.
+- Aim readout and target cursor.
+- Technique selector and match control keycaps.
+- Live pressure meter.
+- GOOD / PERFECT / save / miss feedback.
+- Goal corner zones are used as subtle training references.
+
+RESULTS / DEVELOPMENT
+- Penalty-specific report showing goals, placement, timing, Composure and technique variety.
+- Placement heat map and technique scoring summary.
+- Penalties is the primary development attribute.
+- High grades unlock Composure, Finishing and Shot Power as secondary development attributes.
+- Uses the existing grade Development Points system.
+- A+ / 3-star eligible sessions can award Penalties +1 subject to the weekly safeguard.
+- Practice sessions do not consume a career training session or farm permanent progression.
+
+RUNTIME QA
+- Real browser runtime used for the supplied screenshots and GIF.
+- Fixed a penalty result-quality const reassignment bug found during capture.
+- Final JavaScript syntax check passes.

@@ -1,0 +1,47 @@
+CIRCLE XI PLAYER CAREER — CORNERS TRAINING COMPLETE REVAMP
+
+Implemented two distinct Corner Training paths:
+
+1. TAKE THE CORNER
+- Delivery selection: Inswinger, Outswinger, Driven, Floated and Near-Post Whip.
+- Hold/release cross power for delivery control.
+- Target zones include Near Post, Centre/Penalty Spot, Far Post and Edge of Six-Yard Box.
+- Corners, Crossing, Technique and Vision influence delivery quality.
+- Delivery types use different height, pace and curve profiles.
+- 10-attempt session flow and corner-specific feedback.
+
+2. ATTACK THE CORNER
+- WASD movement and free positioning inside the penalty area.
+- AI corner taker serves different deliveries.
+- Defenders track and mark the controlled player.
+- Contextual finishing options:
+  J = Header
+  L = Volley
+  K = Half Volley
+  I = Bicycle Kick
+- Ball height, bounce state, distance, pressure and player attributes determine contact quality.
+- Bicycle kicks require sufficient Technique and Agility.
+- Near-post, far-post, central, late and back-post run targets are supported.
+- Match-style goalkeeper dive reactions and goal/net reactions are retained.
+
+TRAINING PROGRESSION
+- Corner Delivery uses Corners as the primary Development Point attribute.
+- Delivery secondaries include Crossing, Technique, Vision, Curve and Composure.
+- Attack mode dynamically uses Finishing or Heading as the primary attribute depending on the techniques used.
+- Attack secondaries can include Heading, Finishing, Anticipation, Off the Ball, Jumping, Strength, Technique and Composure.
+- Existing grade progression rules remain active: A+, A, B, C and D award Development Points.
+- A+ / 3-star exceptional +1 reward uses the existing weekly safeguard.
+
+GUI
+- Dedicated Corner Training interface with Take the Corner / Attack the Corner selector.
+- Compact live HUD and technique selectors.
+- Delivery and finishing controls are shown contextually.
+- Live sessions hide unnecessary sidebar UI and expand the pitch.
+- Corner-specific results report shows mode, success rate, goals, streak and technique usage.
+
+VALIDATION
+- JavaScript syntax checked with node --check.
+- Final ZIP integrity checked before delivery.
+
+MEDIA NOTE
+The included preview screenshots are based on a genuine in-game Corner Training screen and show the implemented layout. Managed Chromium policy in the execution environment blocks local/file game pages, so they are labelled as implementation previews rather than live runtime captures.

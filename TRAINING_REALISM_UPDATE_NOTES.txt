@@ -1,0 +1,17 @@
+Circle XI Player Career — Training Realism Update
+
+Implemented in the actual game build:
+- Walkable Training Ground now uses the same visible footballer renderer used in matches, preserving career face, hair, body/build and boots while applying training clothing.
+- Added realistic first-team training wear for the walkable training environment.
+- Reworked Training Ground movement to smooth WASD movement with Shift jogging and Enter interaction.
+- Improved training dribbling visuals so the controlled ball stays close to the player’s visible boot line with alternating touches rather than floating ahead.
+- Upgraded cones, training mannequins, mini goals and full-size goals.
+- Full-size training goals now use a sharper square-mesh net design consistent with the match goal appearance.
+- Sharpened training pitch presentation with mowing stripes, stronger markings, shadows and more detailed training-ground scenery.
+- Added a clubhouse, benches, equipment stations, water rack and clearer training-zone presentation.
+- Strengthened Training Ground activity icons/cards for easier navigation.
+- Simplified the Training Centre Today UI with clearer hierarchy, compact status cards and direct Start Session / Explore Ground / All Activities actions.
+- Existing fatigue, sharpness, intensity, difficulty, progression and training-session systems remain connected.
+
+Capture notes:
+The supplied screenshots and GIFs are captures from the modified game code, not concept artwork.

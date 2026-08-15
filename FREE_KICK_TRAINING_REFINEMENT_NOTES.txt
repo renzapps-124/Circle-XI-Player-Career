@@ -1,0 +1,13 @@
+Circle XI Player Career – Free Kick Training Refinement
+
+Changes in this build:
+- Corrected training goalkeeper orientation. The keeper is upright when set and remains correctly oriented during dive/catch/parry animations, then returns to the ready pose.
+- Reduced the visual size and collision radius of the artificial free-kick mannequins by roughly 30%, creating more realistic scoring lanes.
+- Wall Simulation now makes the four-player wall jump after the strike.
+- A jumping wall creates a genuine low clearance gap, so low-driven free kicks can pass underneath the wall.
+- Added LOW DRIVEN as a selectable free-kick technique in the training HUD.
+- Low-driven free kicks use a fast, low trajectory with strong topspin.
+- Free Kick Accuracy 95+ now activates elite technique assistance: much tighter aim variation, more forgiving power and viable trajectories for Curl, Top-Spin Dip, Knuckleball, Low Driven and Normal free kicks.
+- Removed Random Match Situations from Free Kick Training.
+- Removed Free Practice from Free Kick Training.
+- Free Kick Training now contains four main sessions: Free Kick Technique, Fixed Target Free Kicks, Wall Simulation and Pressure 10.

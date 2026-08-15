@@ -1,4 +1,4 @@
-(() => {
+<canvas id='gameCanvas' width='800' height='450'></canvas><script>const canvas=document.getElementById('gameCanvas');const ctx=canvas.getContext('2d');const career={player:{attrs:{}}};const trainingGameState={station:'bench',phase:'ready',load:'working'};const activeTrainingDrill='gymBench';let selectedGymBenchLoad='working';const trainingModel={};(() => {
   'use strict';
   try {
 
@@ -3595,7 +3595,7 @@
   const PERFORMANCE_GYM_DRILLS=new Set(['gymBike','gymBench','gymTreadmill']);
   function isPerformanceGymDrill(drillId=activeTrainingDrill){return PERFORMANCE_GYM_DRILLS.has(drillId)}
   function gymBenchWeight(player=career?.player,load=selectedGymBenchLoad){const strength=clamp(Number(player?.attrs?.strength||60),1,99),factor={light:.64,working:.82,heavy:.98,pb:1.10}[load]||.82;return Math.max(20,Math.round((strength*1.34*factor)/2.5)*2.5)}
-  function gymBenchProfile(player=career?.player,load=selectedGymBenchLoad){const strength=clamp(Number(player?.attrs?.strength||60),1,99),loadFactor={light:.78,working:1,heavy:1.19,pb:1.36}[load]||1,weight=gymBenchWeight(player,load),strengthNorm=strength/99;return{strength,weight,loadFactor,strengthNorm,descentMs:lerp(820,1080,clamp((loadFactor-.78)/.58,0,1)),failMs:lerp(5500,8000,clamp((loadFactor-.78)/.58,0,1)),baseRequired:clamp(.20+loadFactor*.14-strengthNorm*.10,.22,.45),stickingBonus:clamp(.05+loadFactor*.06,.08,.16),powerScale:clamp(1.05+strengthNorm*.34-loadFactor*.05,.90,1.35)}}
+  function gymBenchProfile(player=career?.player,load=selectedGymBenchLoad){const strength=clamp(Number(player?.attrs?.strength||60),1,99),loadFactor={light:.78,working:1,heavy:1.19,pb:1.36}[load]||1,weight=gymBenchWeight(player,load),strengthNorm=strength/99;return{strength,weight,loadFactor,strengthNorm,descentMs:lerp(820,1080,clamp((loadFactor-.78)/.58,0,1)),failMs:lerp(4400,6600,clamp((loadFactor-.78)/.58,0,1)),baseRequired:clamp(.30+loadFactor*.18-strengthNorm*.08,.34,.53),stickingBonus:clamp(.08+loadFactor*.10,.13,.22),powerScale:clamp(.88+strengthNorm*.34-loadFactor*.08,.78,1.20)}}
   function gymBikeInterval(elapsed,duration=60){const r=elapsed/Math.max(1,duration);if(r<.18)return{name:'WARM UP',rpm:[62,74],res:3};if(r<.42)return{name:'TEMPO',rpm:[78,90],res:5};if(r<.58)return{name:'SPRINT',rpm:[96,112],res:4,sprint:true};if(r<.78)return{name:'CLIMB',rpm:[70,82],res:8};return{name:'FINAL SPRINT',rpm:[100,116],res:5,sprint:true}}
   function gymTreadmillProfile(player=career?.player){
     const a=player?.attrs||{},stamina=clamp(Number(a.stamina||60),1,99),pace=clamp(Number(a.pace||a.sprintSpeed||60),1,99),acceleration=clamp(Number(a.acceleration||60),1,99);
@@ -3682,16 +3682,13 @@
     const easeInOutCubic=x=>x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;
     const easeOutCubic=x=>1-Math.pow(1-clamp(x,0,1),3);
     const lerpPt=(a,b,t)=>[lerp(a[0],b[0],t),lerp(a[1],b[1],t)];
-    const gymHead=(x,y,r=21,side=1,rot=0,opts={})=>{ctx.save();ctx.translate(x,y);ctx.rotate(rot);const rx=athlete.headRX,ry=athlete.headRY;
-      const headSkin = opts.strain ? mixColour(skin, 'rgba(220,38,38,0.35)', opts.strain) : skin;
-      ctx.fillStyle=headSkin;ctx.strokeStyle=modelOutline;ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(-.62*unit,ry*.62,1.24*unit,athlete.neck,.48*unit);ctx.fill();ctx.stroke();
-      ctx.fillStyle=headSkin;ctx.strokeStyle=modelOutline;ctx.lineWidth=3.2;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    const gymHead=(x,y,r=21,side=1,rot=0)=>{ctx.save();ctx.translate(x,y);ctx.rotate(rot);const rx=athlete.headRX,ry=athlete.headRY;
+      ctx.fillStyle=skin;ctx.strokeStyle=modelOutline;ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(-.62*unit,ry*.62,1.24*unit,athlete.neck,.48*unit);ctx.fill();ctx.stroke();
+      ctx.fillStyle=skin;ctx.strokeStyle=modelOutline;ctx.lineWidth=3.2;ctx.beginPath();ctx.ellipse(0,0,rx,ry,0,0,Math.PI*2);ctx.fill();ctx.stroke();
       ctx.fillStyle='rgba(255,255,255,.11)';ctx.beginPath();ctx.ellipse(-rx*.27,-ry*.32,rx*.28,ry*.18,-.3,0,Math.PI*2);ctx.fill();
-      const _hairY=Math.abs(rot+Math.PI/2)<.25?.62*unit:-.08*unit,_hairX=Math.abs(rot+Math.PI/2)<.25?-.15*unit:0;
-      ctx.save();if(opts.hairSquash)ctx.scale(opts.hairSquash,1);drawFootballHair(ctx,hairStyle,_hairX,_hairY,unit*headScale*.94,hair,performance.now()/650);ctx.restore();
-      ctx.fillStyle=shadeColour(headSkin,-.12);ctx.strokeStyle=modelOutline;ctx.lineWidth=1.35;ctx.beginPath();ctx.ellipse(side*rx*.92,ry*.03,.34*unit,.57*unit,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-      ctx.fillStyle=modelOutline;ctx.beginPath();if(opts.eyeSquint){ctx.lineWidth=1.8;ctx.moveTo(side*rx*.35,ry*.14-1.5);ctx.lineTo(side*rx*.45,ry*.14+1.5);ctx.stroke();}else{ctx.arc(side*rx*.40,ry*.14,.18*unit,0,Math.PI*2);ctx.fill();}
-      ctx.strokeStyle=shadeColour(headSkin,-.28);ctx.lineWidth=1;ctx.beginPath();if(opts.mouthOpen>0){ctx.moveTo(side*rx*.27,-ry*.03);ctx.quadraticCurveTo(side*rx*.38,-ry*.03+opts.mouthOpen*5,side*rx*.50,-ry*.07);}else{ctx.moveTo(side*rx*.27,-ry*.03);ctx.lineTo(side*rx*.50,-ry*.07);}ctx.stroke();ctx.restore()};
+      const _hairY=Math.abs(rot+Math.PI/2)<.25?.62*unit:-.08*unit,_hairX=Math.abs(rot+Math.PI/2)<.25?-.15*unit:0;drawFootballHair(ctx,hairStyle,_hairX,_hairY,unit*headScale*.94,hair,performance.now()/650);
+      ctx.fillStyle=shadeColour(skin,-.12);ctx.strokeStyle=modelOutline;ctx.lineWidth=1.35;ctx.beginPath();ctx.ellipse(side*rx*.92,ry*.03,.34*unit,.57*unit,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.fillStyle=modelOutline;ctx.beginPath();ctx.arc(side*rx*.40,ry*.14,.18*unit,0,Math.PI*2);ctx.fill();ctx.strokeStyle=shadeColour(skin,-.28);ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(side*rx*.27,-ry*.03);ctx.lineTo(side*rx*.50,-ry*.07);ctx.stroke();ctx.restore()};
     const playerArm=(shoulder,elbow,hand,far=false,gripAngle=0,mass=1)=>{const sleeve=far?shadeColour(shirt,-.10):shirt,armSkin=far?skinBack:skin,upperW=athlete.upperArmW*.94*athlete.sleeveScale*mass,foreW=athlete.forearmW*mass;
       bone(shoulder,elbow,upperW,upperW*.82,sleeve);
       ctx.fillStyle=sleeve;ctx.beginPath();ctx.ellipse(elbow[0],elbow[1],upperW*.41,upperW*.41,0,0,Math.PI*2);ctx.fill();
@@ -3849,19 +3846,7 @@
       playerTorso(torsoC[0],torsoC[1],bodyRot,breath,.80);
       // Near arm remains visible but is rendered behind the head so it cannot cover the face.
       ctx.fillStyle=shirt;ctx.strokeStyle=modelOutline;ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(shoulderNear[0],shoulderNear[1],athlete.upperArmW*.62*armMass,athlete.upperArmW*.55*armMass,0,0,Math.PI*2);ctx.fill();ctx.stroke();playerArm(shoulderNear,nearArm.joint,nearArm.end,false,.05,armMass);
-      
-      const headTilt = Math.PI/2 - (lift * 0.08);
-      const isHeavy = s.load === 'heavy' || s.load === 'pb';
-      const isSticking = phaseName === 'push' && stick;
-      const strainAmount = isSticking ? loadRatio * 0.7 : (phaseName === 'push' ? loadRatio * 0.3 : 0);
-      const mouthExhale = phaseName === 'push' ? Math.max(0.1, loadRatio) : 0;
-      
-      gymHead(headP[0],headP[1],22,-1,headTilt, {
-         strain: strainAmount,
-         hairSquash: 0.82,
-         eyeSquint: isHeavy && phaseName === 'push',
-         mouthOpen: mouthExhale
-      });
+      gymHead(headP[0],headP[1],22,-1,Math.PI/2);
 
       // Hands wrap the same two grip points throughout the entire rep.
       const grip=(p,far)=>{ctx.fillStyle=far?skinBack:skin;ctx.strokeStyle=modelOutline;ctx.lineWidth=1.4;ctx.beginPath();ctx.ellipse(p[0],p[1],6.5,5.0,-.10,0,Math.PI*2);ctx.fill();ctx.stroke()};grip(farArm.end,true);grip(nearArm.end,false);
@@ -3930,7 +3915,7 @@
     if(alternate){
       s.benchPressTimes.push(now);s.benchPressTimes=s.benchPressTimes.filter(t=>now-t<=1000);const span=Math.max(.28,(now-(s.benchPressTimes[0]||now-280))/1000),rate=clamp((s.benchPressTimes.length-1)/span,0,14),speedQ=clamp((rate-2.8)/6.4,0,1),timingQ=first?.70:clamp(1-Math.abs(gap-115)/255,.28,1),rhythm=clamp(.34+speedQ*.52+timingQ*.14,0,1),strengthDrive=clamp(profile.strengthNorm*.30+speedQ*.56+rhythm*.14,0,1);
       s.benchPressRate=lerp(Number(s.benchPressRate||rate),rate,.58);s.peakBenchPressRate=Math.max(Number(s.peakBenchPressRate||0),s.benchPressRate);s.benchRateSamples=(s.benchRateSamples||[]);s.benchRateSamples.push(s.benchPressRate);s.avgBenchPressRate=s.benchRateSamples.reduce((a,b)=>a+b,0)/s.benchRateSamples.length;s.benchCombo=(s.benchCombo||0)+1;s.streak=s.benchCombo;s.bestStreak=Math.max(s.bestStreak||0,s.benchCombo);s.successes++;s.benchRhythmSamples.push(rhythm);
-      const impulse=clamp((.35+strengthDrive*.85)*profile.powerScale*fatigue,.25,1.35);s.pressPower=clamp(Math.max(Number(s.pressPower||0),.18)+impulse*.28,0,1);s.pressVelocity=clamp(Number(s.pressVelocity||0)+impulse*.085,0,.92);s.energy=clamp(s.energy-(.22+profile.loadFactor*.16),0,100);s.currentRepPressSamples.push({t:now,power:s.pressPower,rate:s.benchPressRate,rhythm});
+      const impulse=clamp((.24+strengthDrive*.72)*profile.powerScale*fatigue,.18,1.08);s.pressPower=clamp(Math.max(Number(s.pressPower||0),.18)+impulse*.18,0,1);s.pressVelocity=clamp(Number(s.pressVelocity||0)+impulse*.055,0,.92);s.energy=clamp(s.energy-(.22+profile.loadFactor*.16),0,100);s.currentRepPressSamples.push({t:now,power:s.pressPower,rate:s.benchPressRate,rhythm});
       if((s.benchCombo||0)%8===0)gymFeedback(s.benchPressRate>=8.2?'EXPLOSIVE DRIVE!':s.benchPressRate>=6.4?'STRONG PRESS!':'KEEP DRIVING','success',300);
     }else{
       s.mistakes++;s.benchCombo=0;s.streak=0;s.pressPower*=.68;s.pressVelocity*=.82;s.benchRhythmSamples.push(.10);gymFeedback(`SWITCH TO ${key==='j'?'L':'J'}`,'miss',360);
@@ -3986,9 +3971,9 @@
       const now=performance.now(),profile=gymBenchProfile(career.player,s.load),targetRate=.72;s.anim.rate=lerp(s.anim.rate||targetRate,targetRate,clamp(dt*5,0,1));s.anim.cycle=(s.anim.cycle+dt*s.anim.rate*Math.PI*2)%(Math.PI*2);
       if(s.phase==='ready'&&now>=Number(s.benchNextPhaseAt||0)){s.phase='lowering';s.lowerStart=now;s.barProgress=0;s.pressPower=0;s.pressVelocity=0;s.benchPressTimes=[];s.currentRepPressSamples=[];s.benchCombo=0;s.attempts++;s.lastRepLabel='DESCENT';gymFeedback('CONTROLLED DESCENT · GET READY','info',520)}
       if(s.phase==='lowering'){
-        s.barProgress=clamp((now-s.lowerStart)/profile.descentMs,0,1);if(s.barProgress>=1){s.phase='push';s.repPressStart=now;s.pressPower=.12;s.pressVelocity=.02;s.benchPressTimes=[];s.lastBenchKey=null;s.lastBenchTime=0;s.lastRepLabel='PRESS!';gymFeedback('DRIVE! · J ↔ L RAPIDLY','objective',620)}
+        s.barProgress=clamp((now-s.lowerStart)/profile.descentMs,0,1);if(s.barProgress>=1){s.phase='push';s.barProgress=0;s.repPressStart=now;s.pressPower=.12;s.pressVelocity=.02;s.benchPressTimes=[];s.lastBenchKey=null;s.lastBenchTime=0;s.lastRepLabel='PRESS!';gymFeedback('DRIVE! · J ↔ L RAPIDLY','objective',620)}
       }else if(s.phase==='push'){
-        s.pressPower=Number(s.pressPower||0)*Math.exp(-dt*(1.2+profile.loadFactor*.35));s.pressVelocity=Number(s.pressVelocity||0)*Math.exp(-dt*(0.9+profile.loadFactor*.25));const bp=clamp(Number(s.barProgress||0),0,1),stIn=clamp((bp-.34)/.11,0,1),stOut=clamp((bp-.60)/.12,0,1),sticking=(stIn*stIn*(3-2*stIn))*(1-stOut*stOut*(3-2*stOut)),required=profile.baseRequired+sticking*profile.stickingBonus,drive=Math.max(-.15,s.pressPower-required),strengthAssist=clamp((profile.strengthNorm-.45)*.14,0,.08);s.pressVelocity=clamp(s.pressVelocity+(drive*.75+strengthAssist)*dt,0,1.1);s.barProgress=clamp(bp+s.pressVelocity*dt,0,1);
+        s.pressPower=Number(s.pressPower||0)*Math.exp(-dt*(2.2+profile.loadFactor*.55));s.pressVelocity=Number(s.pressVelocity||0)*Math.exp(-dt*(1.5+profile.loadFactor*.42));const bp=clamp(Number(s.barProgress||0),0,1),stIn=clamp((bp-.34)/.11,0,1),stOut=clamp((bp-.60)/.12,0,1),sticking=(stIn*stIn*(3-2*stIn))*(1-stOut*stOut*(3-2*stOut)),required=profile.baseRequired+sticking*profile.stickingBonus,drive=Math.max(-.24,s.pressPower-required),strengthAssist=clamp((profile.strengthNorm-.45)*.09,0,.055);s.pressVelocity=clamp(s.pressVelocity+(drive*.54+strengthAssist)*dt,0,.92);s.barProgress=clamp(bp+s.pressVelocity*dt,0,1);
         const activeTimes=(s.benchPressTimes||[]).filter(t=>now-t<=1000);s.benchPressTimes=activeTimes;if(activeTimes.length>1){const span=Math.max(.28,(now-activeTimes[0])/1000);s.benchPressRate=lerp(Number(s.benchPressRate||0),(activeTimes.length-1)/span,.18)}else s.benchPressRate=lerp(Number(s.benchPressRate||0),0,.08);
         if(s.barProgress>=1){const repTime=Math.max(.35,(now-(s.repPressStart||now))/1000),samples=s.currentRepPressSamples||[],avgPower=samples.length?samples.reduce((a,x)=>a+x.power,0)/samples.length:0,avgRhythm=samples.length?samples.reduce((a,x)=>a+x.rhythm,0)/samples.length:0,rateQ=clamp((Number(s.benchPressRate||0)-3)/5.7,0,1),speedQ=clamp(1-(repTime-1.15)/(profile.failMs/1000-1.15),0,1),q=clamp(avgRhythm*.32+avgPower*.25+rateQ*.23+speedQ*.12+profile.loadFactor/1.36*.08,0,1);s.reps++;s.controlSamples.push(q);if(q>.86)s.perfectReps++;s.fastestBenchRep=Math.min(Number(s.fastestBenchRep||999),repTime);s.lastRepLabel=q>.88?'PERFECT REP':q>.72?'STRONG REP':'REP COMPLETE';gymFeedback(s.lastRepLabel,'success',720);s.phase='lockout';s.barProgress=1;s.pressPower=0;s.pressVelocity=0;s.benchNextPhaseAt=now+760;
         }else if(now-(s.repPressStart||now)>profile.failMs){s.failedReps=(s.failedReps||0)+1;s.mistakes++;s.benchCombo=0;s.streak=0;s.lastRepLabel='REP FAILED';s.failLift=clamp(s.barProgress,.10,.30);s.phase='failed';s.pressPower=0;s.pressVelocity=0;s.benchNextPhaseAt=now+1150;gymFeedback('REP FAILED · SAFETY CATCH','miss',850)}
@@ -14046,3 +14031,4 @@
 })();
 
 
+renderPerformanceGymAthlete(trainingGameState);</script>

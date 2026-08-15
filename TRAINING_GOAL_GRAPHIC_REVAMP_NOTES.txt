@@ -1,0 +1,12 @@
+TRAINING GOAL GRAPHIC REVAMP
+
+Applied the new front-facing 2D realistic goal style to training mode, especially Free Kick and target-based training screens.
+
+Changes:
+- Rebuilt the goal so it no longer appears visually backwards.
+- Front frame is now clearer with a realistic thick white post/crossbar look.
+- Roof net, side nets and floor net now recede backwards naturally from the front frame.
+- Rear support poles are placed behind the front frame to preserve the correct depth direction.
+- Mesh spacing is cleaner and more even for a more realistic square net.
+- Fixed target hoops and hanging targets are repositioned so they read as attached to the goal.
+- Maintains the existing animated local net impact behaviour.

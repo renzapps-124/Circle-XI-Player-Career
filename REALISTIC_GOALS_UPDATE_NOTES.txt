@@ -1,0 +1,13 @@
+Realistic Goals Update
+
+Applied changes:
+- Refined the goal visuals to look more realistic while keeping the compact size.
+- Improved the post, crossbar and support rendering with cleaner metallic shading.
+- Made the net look more believable with clearer front mesh and subtler roof, side and back mesh.
+- Improved the shadowing beneath the goal so the frame feels anchored on the pitch.
+- Kept the improved 2D readability for training and set piece screens.
+- Added updated in game screenshots showing the more realistic goal look.
+
+Files changed:
+- styles.css
+- REALISTIC_GOALS_UPDATE_NOTES.txt

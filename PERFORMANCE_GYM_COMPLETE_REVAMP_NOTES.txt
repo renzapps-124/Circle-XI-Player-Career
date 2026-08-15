@@ -1,0 +1,61 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM COMPLETE REVAMP
+
+Implemented from the latest Corner Real Contact & Scoring build.
+
+NEW PERFORMANCE GYM MINI-GAMES
+
+1. EXERCISE BIKE
+- 60-second cadence and resistance mini-game.
+- Alternate J and L to pedal left/right.
+- RPM responds to rhythm, timing, Stamina and Work Rate.
+- Interval phases: Warm Up, Tempo, Sprint, Climb, Final Sprint.
+- Resistance changes automatically between phases.
+- Compact live HUD: target RPM, current RPM, resistance, score, time, energy.
+- Same-key presses and poor rhythm lose cadence.
+- Stamina reduces energy drain; Work Rate improves sustained intensity.
+- Development restricted to Stamina (primary) and Work Rate (secondary).
+
+2. BENCH PRESS
+- Controlled 6-rep strength mini-game.
+- Hold K to lower the bar; release around the ideal chest-depth timing.
+- Press J + L together repeatedly to drive the bar to lockout.
+- Real bar position moves through lowering and push phases.
+- Load choices: Light, Working Set, Heavy, Personal Best.
+- Available weights scale from the player's current Strength.
+- Heavy/PB loads produce more difficult upward movement and fatigue.
+- Rep feedback: Perfect Lower, Good Control, Rushed Rep, Perfect Rep, Strong Rep.
+- Development restricted to Strength only.
+
+3. TREADMILL INTERVALS
+- 60-second pace/incline mini-game.
+- W increases treadmill speed; S decreases speed.
+- Hold Shift for sprint effort.
+- Interval phases: Jog, Run, Sprint, Incline, Recovery, Final Sprint.
+- Target speed adapts to the player's Stamina level.
+- Incline and target pace change automatically.
+- Running belt animates during live play.
+- Low energy makes excessive pace harder to sustain.
+- Development restricted to Stamina (primary) and Work Rate (secondary).
+
+PERFORMANCE GYM PRESENTATION
+- New indoor Performance Lab environment with mirrors, gym floor, dumbbell rack,
+  water station and station-specific equipment.
+- Exercise bike, bench press rack/bar and treadmill have dedicated visuals.
+- Career player is rendered on each station using the game's player renderer.
+- Live mode hides the old generic training sidebar and expands the gym session.
+- Each station has a compact machine-specific HUD and control dock.
+- Performance Gym coach panel now explicitly highlights Bike, Bench and Treadmill.
+
+PROGRESSION / BALANCE
+- Uses the existing grade -> Development Point progression system.
+- A+/A/B/C/D grade thresholds remain consistent with the rest of Training Centre.
+- Existing A+/3-star exceptional +1 safeguard remains available.
+- Gym drills use restricted development pools to prevent unrelated stat farming.
+- Physical training fatigue rules still apply.
+- Simulate remains available when career training sessions remain.
+
+VALIDATION
+- game.js passes node --check.
+- Exercise Bike, Bench Press and Treadmill were each opened and played in Chromium.
+- No page/runtime JavaScript errors were reported during the three browser tests.
+- Final screenshots/GIF frames were captured from the running updated game.

@@ -1,0 +1,22 @@
+Circle XI Player Career — Performance Gym Treadmill Intervals V8
+
+Implemented:
+- Replaced the treadmill-specific player with the shared career-player rendering identity used by Match Day / swimming.
+- Fixed backward-bending treadmill knees with forward pole-guided two-bone leg IK and fixed bone lengths.
+- Added an 8-phase running cycle: strike, compression, mid-stance, push-off, flight, knee drive, preparation and next strike.
+- Added speed-dependent stride length, knee lift, forward lean, counter arm swing, torso/pelvis rotation, head stabilisation, ankle articulation, breathing and sprint effects.
+- Treadmill gameplay now requires rapid alternating J/L inputs. Repeated same-side presses do not build proper sprint rhythm.
+- Added live stride rate, J/L combo, target-reach and target-hold feedback.
+- Added six interval stages: Warm Up, Build, Sprint 1, Recovery, Sprint 2 and Final Sprint.
+- Pace influences maximum sprint speed, Acceleration influences how quickly the player builds speed, and Stamina influences sustained high-intensity performance.
+- Added gradual acceleration/deceleration, fatigue and end-of-session cooldown animation.
+- Added treadmill-specific scoring based on interval clears, time in target zone, stride rhythm, sprint speed and target-reach performance.
+- Maximum possible grade is A+; there is no grade above A+.
+- Completed treadmill sessions award development toward Stamina, Pace and Acceleration, scaled by grade/performance.
+- Added treadmill-specific A+ results report: peak speed, intervals cleared, perfect strides, fastest target reach, time at target, longest streak and peak presses/sec.
+
+Validation:
+- game.js passes Node JavaScript syntax validation.
+- Runtime pose audit sampled a full high-speed sprint sequence with both knees remaining forward.
+- Fixed thigh/shin lengths reported zero leg stretch across sampled frames.
+- A+ result path was validated with Stamina, Pace and Acceleration development rewards.

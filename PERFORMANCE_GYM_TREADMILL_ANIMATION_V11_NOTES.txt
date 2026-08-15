@@ -1,0 +1,18 @@
+CIRCLE XI PLAYER CAREER - PERFORMANCE GYM TREADMILL ANIMATION V11
+
+Implemented:
+- Dedicated treadmill-only gait system instead of a generic running pose.
+- Separate blended WALK, JOG, RUN, FAST RUN, SPRINT and MAX SPRINT profiles.
+- Forward-only two-bone knee solving so knees cannot visually flip backwards.
+- Fixed shared Match Day / swimming player bone lengths retained.
+- Harder knee compression limits to avoid awkward over-folded legs.
+- Treadmill-specific stance, load, push, recovery and knee-drive phases.
+- Shorter stance and true flight phase at sprint speed.
+- Explicit treadmill arm-swing angles instead of generic arm IK during running.
+- Arms counter-swing against the legs.
+- Natural elbow flex with fixed upper-arm and forearm lengths.
+- Startup/cooldown rail reach blends into the dedicated running arm animation.
+- Speed-dependent stride, knee lift, torso lean, bounce and arm drive.
+- Existing J/L sprint mechanic, Stamina/Pace/Acceleration rewards and A+ grade cap retained.
+
+Renderer ID: treadmill-dedicated-gait-v11

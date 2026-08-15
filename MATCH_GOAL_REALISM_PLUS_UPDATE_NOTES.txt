@@ -1,0 +1,10 @@
+MATCH GOAL REALISM PLUS UPDATE
+
+Implemented:
+- Match goals now use a clearer, more boxed realistic 2D style that is closer to the improved training goals.
+- Upgraded front and back goal rendering so the full goal silhouette is easier to read during normal gameplay.
+- Enhanced net rendering and ripple deformation so goal impacts feel deeper and more satisfying.
+- Improved ball-to-net collision behaviour so the ball nests into the net bag more cleanly with less weak rebound.
+- Upgraded net collision audio with stronger snap, bag-thump, ripple rustle and delayed settle layers.
+- Made post and crossbar reactions more obvious with stronger shake, brighter flash rings and spark-like burst lines.
+- Improved woodwork audio so post and crossbar hits ring out more clearly.

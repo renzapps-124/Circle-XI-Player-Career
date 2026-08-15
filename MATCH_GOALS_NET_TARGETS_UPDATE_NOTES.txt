@@ -1,0 +1,12 @@
+MATCH GOALS / NET ANIMATION / TARGETS UPDATE
+
+Applied the improved realistic 2D goal style more broadly.
+
+Implemented:
+- Added a reusable detailed 2D goal markup used across set piece training drills.
+- Penalties, corners, crossing, and free kick drills now use the same improved goal style.
+- Upgraded generic match-like goal styling so simple goal instances better match the new look.
+- Net hit animation now works across detailed set piece goals, not just free kicks.
+- Added stronger localised ripple / roof / floor / side net reactions on impact.
+- Goal targets now appear attached with visible straps / clips for a more realistic mounted look.
+- Fixed target hoops, hanging vests, and live goal targets all have stronger attachment visuals.

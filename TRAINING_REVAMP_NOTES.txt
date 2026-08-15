@@ -1,0 +1,36 @@
+CIRCLE XI PLAYER CAREER - TRAINING CENTRE REVAMP
+
+This build replaces the previous single-screen training system with a new Training Centre.
+
+NEW TRAINING CENTRE NAVIGATION
+- Today: current programme, coach recommendation, fatigue, sharpness, development and injury risk.
+- Activities: filterable library of playable football training activities.
+- Development: attribute progress, role development, weak foot and recent growth.
+- Schedule: three-session weekly training planner.
+- Records: personal bests, recent career sessions and practice history.
+- Training Ground: navigable top-down club facility with activity areas and coaches.
+
+WEEKLY SYSTEM
+- 3 career development sessions are available each club week.
+- Career sessions can improve attributes, sharpness and manager trust and can create fatigue/injury risk.
+- Once all 3 sessions are complete, drills remain playable in unlimited Practice Mode.
+- Practice Mode does not consume career sessions or grant career development rewards.
+- Existing saves are migrated lazily when the Training Centre is opened.
+
+PLAYABLE ACTIVITIES
+34 activities are configured across Finishing, Passing, Technical, Defending, Physical, Tactical, Position, Set Pieces, Individual, Recovery and Goalkeeping categories.
+
+Examples include Target Finishing, 1v1 Finishing, Pressure Finishing, First Time Finishing, Passing Gates, One Touch Combinations, Through Ball Timing, Switch of Play, Close Control Course, First Touch Escape, Interception Rondo, 1v1 Defending, Recovery Run, Sprint Gates, Agility Slalom, Tactical Vision, Pressing Triggers, Transition Game, Free Kick Academy, Penalty Practice, Corner Delivery, Weak Foot Development, Recovery Studio and dedicated goalkeeper activities.
+
+CONTROLS
+- WASD / Arrow Keys: movement in playable drills and Training Ground.
+- Shift: sprint / faster Training Ground movement.
+- J, K, I, L: football actions using the same control family as matches.
+- Goalkeeper reaction drills retain directional J/K/I/L save controls.
+- Enter: interact with a nearby Training Ground facility/coach.
+
+TRAINING GROUND
+Facilities include Finishing Pitch, Technical Zone, Passing Grid, Defensive Pitch, Tactical Pitch, Goalkeeper Area, Performance Gym, Set Piece Area and Recovery Centre. Activities can also always be launched directly from the Activities menu.
+
+IMPLEMENTATION NOTE
+The expanded activities deliberately reuse Circle XI's existing playable training/match-control engine through different mechanics and configurations, rather than adding 34 isolated physics engines. This keeps controls consistent and reduces the risk of breaking career and match systems.

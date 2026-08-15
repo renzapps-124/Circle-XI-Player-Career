@@ -1,0 +1,29 @@
+CIRCLE XI PLAYER CAREER — UNIFIED MATCH / TRAINING PLAYER MODEL
+14 August 2026
+
+IMPLEMENTED
+- Added one canonical sharedPlayerRigMetrics() skeleton/body definition used by the match renderer and Performance Gym.
+- Match play no longer owns separate hard-coded torso/leg/arm/head measurements; those measurements are sourced from the shared rig.
+- Performance Gym uses the same shared build profile, torso width, waist, head proportions, limb thickness, leg proportions and hand proportions.
+- Gym head now reproduces the match-player head proportions, Fade/selected hairstyle renderer, ears, eye, nose and mouth geometry at a scene-specific uniform scale.
+- Gym controlled player torso now uses the same tapered torso path and shading geometry as the match player.
+- Gym controlled player shorts now use the same shorts silhouette/proportions as the match player.
+- Gym footwear uses the same base foot/boot geometry, with the training footwear colour preserved.
+- Upper-arm and forearm proportions come from the match rig; gym arms keep the training top sleeve layer and the same hand sizing.
+- Performance Gym continues to use exercise-specific joint positions only. Bike, Bench and Treadmill no longer maintain a separate player-body proportion system.
+- The training outfit remains appropriate for the Performance Centre while the underlying player identity/model stays unchanged.
+- Player identity continues to inherit career skin tone, hairstyle, hair colour, build, shirt number, height/leg/body scales and footwear identity.
+
+MODEL CONSISTENCY GUARD
+- Added sharedPlayerIdentityFingerprint() and verifySharedPlayerModelIdentity().
+- The Performance Gym canvas exposes the most recent audit via window.__circlePlayerModelAudit.
+- The audit compares build, skin, hair, hair colour, footwear, shoulder/head/height/leg scales, limb mass, waist scale, torso width, thigh length, shin length and shirt number.
+- Browser tests for Bike, Bench Press and Treadmill all returned audit.ok = true.
+
+VALIDATION
+- node --check game.js: PASS
+- Chromium runtime: PASS
+- Exercise Bike shared-model audit: PASS
+- Bench Press shared-model audit: PASS
+- Treadmill shared-model audit: PASS
+- No CAUGHT IN GAME.JS or JS ERROR banner during capture.

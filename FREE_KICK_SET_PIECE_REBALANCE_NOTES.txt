@@ -1,0 +1,18 @@
+FREE KICK SET PIECE REBALANCE
+
+Implemented changes:
+- Removed Pressure 10 from Free Kick Training.
+- Free Kick Training now focuses on: Free Kick Technique, Fixed Target Free Kicks, and Wall Simulation.
+- Controls/shot types are now consistent across all free-kick training activities.
+- Fixed Targets now rotate through real required techniques: Curl, Top-Spin Dip, Knuckleball, and Normal.
+- Dummy walls in Technique and Fixed Target modes are smaller (visual scale and collision radius reduced) so shots can travel over the wall more easily.
+- Stat-based free-kick assistance has been rebalanced:
+  * Technique + Fixed Targets:
+    - 90+ Free Kicks: highly reliable for Curl, Top-Spin Dip, Knuckleball, and Normal.
+    - Low Driven is excluded from that elite assistance in those two modes.
+    - 80+: sometimes score.
+    - 70+: less likely.
+    - 60+: very rare.
+  * Wall Simulation:
+    - 88+ Free Kicks: more likely to score with all shot types, including Low Driven.
+- Elite assistance improves contact quality, power matching, miss radius, and bend consistency rather than scripting goals.

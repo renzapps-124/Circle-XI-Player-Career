@@ -1,0 +1,19 @@
+CIRCLE XI PLAYER CAREER — RECOVERY POOL ORIENTATION / STAMINA / NPC UPDATE
+
+Implemented:
+- Career swimmer now remains the same drawVisibleFootballer renderer used in matches.
+- Fixed pool orientation so the user lies horizontally along the lane rather than upright/vertical.
+- The swimmer flips horizontally at each wall so the head always points in the travel direction.
+- Recovery Pool stamina has been made less punishing overall.
+- Strong stamina scaling added:
+  * 90+ Stamina: low stroke cost, fast recovery, minimal need to rest.
+  * 75–89 Stamina: manageable drain and short occasional recovery periods.
+  * 60–74 Stamina: noticeably higher drain and multiple pacing/rest windows.
+  * Below 60: requires deliberate energy management.
+- Energy recovery begins sooner for high-Stamina players when stroke frequency drops.
+- Full rest regenerates energy substantially faster, again scaled by Stamina.
+- Turn recovery is now also strongly Stamina-dependent.
+- NPC swimmers no longer use the simplified CSS body model.
+- NPC swimmers are rendered using the same match footballer renderer as the user.
+- NPCs now inherit squad-style proportions and have varied match-quality skin tones, hairstyles, builds and heights.
+- Existing 60-second arcade Recovery Pool, J/L stroke controls, water effects and recovery rewards are preserved.

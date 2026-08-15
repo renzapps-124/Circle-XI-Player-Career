@@ -1,0 +1,14 @@
+TREADMILL V12 VALIDATION
+
+JavaScript syntax: PASS (node --check game.js)
+Shared career-player model identity: PASS
+Dedicated treadmill renderer: treadmill-biomechanics-v12
+Forward knee constraint: PASS across 10 sampled sprint frames
+Fixed leg bones: PASS (0 target stretch in sampled sprint frames)
+Fixed arm bones: PASS (0 target stretch in sampled sprint frames)
+Sampled sprint knee angles: approx. 74-98 degrees
+Sampled sprint elbow angles: approx. 75-85 degrees
+Shorts attached to pelvis/thigh hierarchy: PASS
+Trainer scale: 1.36x treadmill-specific visual scale
+Treadmill live user-speed display: PASS
+Live sprint test speed: approx. 18.9-19.3 km/h

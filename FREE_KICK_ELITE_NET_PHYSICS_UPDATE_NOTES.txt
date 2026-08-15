@@ -1,0 +1,18 @@
+FREE KICK ELITE + NET + PHYSICS UPDATE
+
+Implemented:
+- Stronger free-kick stat influence so elite takers feel elite without teleporting the ball into the goal.
+- 90+ Free Kick Accuracy in Technique / Fixed Targets gets strong power, contact and aim correction.
+- 95+ becomes near-master execution with very small placement error while preserving live ball physics.
+- 88+ Wall Simulation assistance remains strong for every available technique, including Low Driven.
+- Goalkeeper visual reads are less perfect against elite Dip and Knuckleball strikes.
+- Smaller training dummies now have matching scaled collision height, so shots that visually clear them actually clear them.
+- Free-kick training goal rebuilt with a deeper square-mesh back net, roof net and side netting.
+- Net impact is local to the ball-hit location and reacts differently by shot type.
+- Curl, Top-Spin Dip, Knuckleball, Normal and Low Driven now use dedicated match-renderer kick animation profiles.
+- Curl: wider inside-foot sweep, stronger lateral bend and controlled dip.
+- Top-Spin Dip: higher launch, delayed late dip and sharper upward strike motion.
+- Knuckleball: compact punched follow-through and irregular mid-air direction changes.
+- Normal: cleaner direct power strike with moderate lift.
+- Low Driven: flatter, faster flight and compact low follow-through (Wall Simulation only).
+- Existing consistent J/K/I/L free-kick controls are preserved.

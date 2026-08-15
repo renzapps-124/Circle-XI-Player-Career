@@ -1,0 +1,10 @@
+Compact Goal Size Fix
+
+Applied update:
+- Reduced the free kick / training goal back down to the older compact goal size.
+- Kept the newer cleaner goal graphics, neater net layout and attached target look.
+- Preserved the improved visual style while preventing the goal from appearing oversized.
+- Updated responsive sizing so the goal remains compact on smaller viewports as well.
+
+Main file changed:
+- styles.css

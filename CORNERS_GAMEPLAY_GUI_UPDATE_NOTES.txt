@@ -1,0 +1,47 @@
+CIRCLE XI PLAYER CAREER — CORNERS GAMEPLAY + GUI UPDATE
+
+Implemented changes
+
+TAKE THE CORNER
+- Removed the blue cone from the corner lane and from corner-ball collision handling.
+- Added four attacking teammates in the box: near-post, central, far-post and late-run roles.
+- Added four active defenders who mark those runners.
+- Added goalkeeper positioning and reaction to the final corner finish.
+- Teammates begin realistic runs as the user charges/delivers the corner.
+- Delivery is aimed toward the appropriate moving runner rather than a static empty target.
+- Receiving AI chooses Header, Volley or Half Volley based on ball height and bounce.
+- Delivery quality is graded separately from the teammate's final shot result.
+- Great deliveries can still score strongly if the keeper saves the resulting attempt.
+- Goals created from the user's delivery show assist-style feedback.
+
+ATTACK THE CORNER
+- AI corner taker now waits roughly two seconds so the user can position themselves.
+- The cross predicts the user's movement and leads the ball into their run.
+- Supporting attackers create extra movement in the box.
+- Defenders actively mark the user and support runners.
+- Context-sensitive finish prompt changes by ball height/bounce:
+  J Header
+  L Volley
+  K Half Volley
+  I Bicycle Kick
+- Bicycle Kick still requires sufficient Technique + Agility and an appropriate delivery.
+- User keeps full WASD movement before and during the incoming corner.
+
+GUI
+- Removed the large central dark-panel feel from the live corner layout.
+- Kept the goal, box, players and ball unobstructed.
+- Slimmed down delivery / finish selectors along the bottom.
+- Added compact Objective HUD.
+- Added teammate / defender colour key.
+- Reduced target marker size and opacity.
+- Contextual finish option is highlighted when the ball reaches the user.
+- Live mode selector disappears once the drill starts.
+
+PROGRESSION
+- Existing Development Points and A+/3-star progression remain active.
+- Take the Corner continues to prioritise Corners / Crossing development.
+- Attack the Corner continues to prioritise Heading or Finishing depending on technique use.
+
+Validation
+- game.js passed node --check.
+- Corner environment no longer creates a blue-cone obstacle.

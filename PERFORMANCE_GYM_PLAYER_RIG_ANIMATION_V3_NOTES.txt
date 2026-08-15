@@ -1,0 +1,47 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM PLAYER RIG & ANIMATION V3
+
+Implemented in the Performance Gym:
+
+PLAYER MODEL
+- Shared career-player identity is retained across match and training modes.
+- Fixed-length articulated player rig used for exercise poses.
+- Mechanical elbow/knee circles are no longer visibly drawn; overlapping rounded limbs create cleaner joints.
+- Slightly larger, cleaner head with short neck and subtle facial detail.
+- More athletic arm proportions, larger hands and cleaner grips.
+- Split athletic shorts silhouette that follows the pelvis more naturally.
+- More recognisable training shoe shape with heel, toe, sole, laces and player boot accent.
+- Pelvis and chest rotation are handled separately for less rigid movement.
+
+EXERCISE BIKE
+- Hips remain anchored to the saddle with subtle weight movement.
+- Hands remain locked to the handlebars with natural elbow compression.
+- Feet remain attached to the pedals through the entire crank rotation.
+- Ankle angle changes through the pedal cycle.
+- Recovery, tempo/climb, sprint and exhausted postures are blended into the rider animation.
+- Subtle hip bob, shoulder movement, head motion and fatigue cues added.
+
+TREADMILL
+- Continuous gait blending replaces hard walk/jog/run/sprint animation changes.
+- Running cycle now includes contact, compression, push-off and flight behaviour.
+- Foot strike is tied to treadmill belt height.
+- Forward lean, stride length and knee lift scale with running speed.
+- Counter-rotating shoulders and pelvis added.
+- Arms swing opposite the legs with a more visible bend.
+- Vertical body motion and landing compression give the player more weight.
+- Dynamic shadow responds to the running cycle.
+
+BENCH PRESS
+- Head, shoulders, torso and hips are positioned on the bench.
+- Both feet stay planted.
+- Hands stay anchored to the bar while arm IK solves the elbows.
+- Bar uses a slight curved path rather than a perfectly vertical path.
+- Press animation uses nonlinear easing with a visible sticking-point section.
+- Heavy loads and low energy add subtle bar/effort shake.
+- Breathing/chest movement added.
+- Bar display motion is smoothed between gameplay input increments.
+
+ANIMATION SYSTEM
+- Animation phase is advanced using frame delta time, not directly from individual key presses.
+- Cadence/speed changes are smoothly interpolated.
+- Exercise intensity affects animation rather than only changing HUD values.
+- Subtle secondary motion includes breathing, head bob, shoulder movement, hair motion and reactive shadows.

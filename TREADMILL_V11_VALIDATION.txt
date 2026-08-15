@@ -1,0 +1,18 @@
+TREADMILL V11 VALIDATION
+
+JavaScript syntax: PASS
+Shared Match Day / swimming career player model: PASS
+Dedicated treadmill animation: PASS
+Forward-knee constraint: PASS
+Explicit arm swing: PASS
+Fixed bone lengths: PASS
+
+14-frame live sprint audit:
+- Both knees forward in every sampled frame: PASS
+- Far knee angle range: 78.17 - 102.33 degrees
+- Near knee angle range: 69.80 - 106.49 degrees
+- Far elbow angle range: 108.52 - 115.44 degrees
+- Near elbow angle range: 100.17 - 107.09 degrees
+- Maximum leg target correction: 0.57 px
+- Maximum arm target correction: 0 px
+- Sampled dedicated states: FAST RUN / SPRINT / MAX SPRINT

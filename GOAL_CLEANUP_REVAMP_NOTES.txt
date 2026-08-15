@@ -1,0 +1,18 @@
+Circle XI Player Career – Goal Cleanup Revamp
+
+Applied updates:
+1. Reworked training and match goal styling to use a cleaner 2D silhouette.
+2. Reduced goal-net line density so the net reads more clearly during gameplay and drills.
+3. Simplified the side net panels and toned down the back net to reduce visual clutter.
+4. Shortened and tidied the perceived goal depth for a more readable shape.
+5. Improved the front frame and support bar rendering so the posts and crossbar look clearer.
+6. Kept the goal more visually consistent across free kicks, target drills and live match scenes.
+7. Adjusted net mesh physics density in the match engine for a cleaner deformation profile.
+8. Improved post and crossbar hit readability by making frame reaction highlights more obvious.
+9. Kept goal targets feeling more attached and mounted when used in fixed-target drills.
+10. Included updated in-game screenshots showing the cleaner goal look.
+
+Files changed:
+- game.js
+- styles.css
+- GOAL_CLEANUP_REVAMP_NOTES.txt

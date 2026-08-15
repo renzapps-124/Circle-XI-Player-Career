@@ -1,0 +1,52 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM VISUAL & ANIMATION REWORK
+14 August 2026
+
+Implemented after reviewing the previous Performance Gym screenshots:
+
+EXERCISE BIKE
+- Replaced the bicycle-like equipment with a larger stationary performance bike.
+- Added large enclosed flywheel, frame, stabiliser feet, saddle post, handlebars and RPM console.
+- Added a dedicated seated side-view athlete renderer.
+- Player now sits on the saddle, leans into the bars, keeps hands on the handlebars and follows the pedal crank with both feet.
+- Legs use alternating pedal positions driven by the live RPM value.
+- Pedal animation speed responds to actual cadence.
+
+BENCH PRESS
+- Rebuilt player pose instead of rotating the normal upright footballer.
+- Player lies horizontally on the bench with head beneath the bar and feet planted.
+- Hands remain attached to the moving bar through lowering and pressing phases.
+- Elbows bend as the bar descends and extend as the bar is driven upward.
+- Bar height is tied to the actual rep state/progress.
+- Visible plate count scales with selected training load.
+- Added a spotter behind the bench/rack.
+- Enlarged and improved bench, rack and support structure.
+
+TREADMILL
+- Rebuilt treadmill with larger deck, motor housing, side rails, support posts and performance console.
+- Added dedicated side-view running animation rather than the generic footballer pose.
+- Stride length and arm drive respond to treadmill speed.
+- Belt animation speed responds to live treadmill speed.
+- Treadmill deck visibly changes angle as incline changes.
+
+PERFORMANCE GYM ENVIRONMENT
+- Removed the large labelled DUMBBELLS box.
+- Removed the button-like WATER element.
+- Removed tiny emoji NPC sprites.
+- Added a real dumbbell rack, squat rack, cable station and water cooler.
+- Added understated background athletes at realistic scale.
+- Added ceiling light strips and improved mirror/wall treatment.
+- Renamed wall branding to ELITE PERFORMANCE CENTRE.
+- Enlarged the main exercise station so the machine/player animation is the visual focus.
+
+GUI CLEANUP
+- Removed duplicate generic Score / Time / Streak / Energy boxes from Performance Gym setup.
+- Removed generic leaderboard/help clutter.
+- Setup sidebar now concentrates on stars, objective, Start Drill and Simulate.
+- Live sessions continue to use the compact machine-specific HUD.
+- Setup preview now shows the athlete correctly positioned on the selected machine before starting.
+
+VALIDATION
+- game.js passes node --check.
+- Exercise Bike, Bench Press and Treadmill setup/live states tested in Chromium through the Performance Gym demo routes.
+- No runtime JavaScript/page errors were reported in the final browser capture pass.
+- Final screenshots and GIFs were captured from the modified game running in Chromium.

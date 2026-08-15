@@ -234,7 +234,7 @@
       </section>
 
       <section id="hubScreen" class="screen content-screen career-tab-screen">
-        <div class="section-heading"><div><div class="eyebrow">CAREER HUB</div><h2 id="hubGreeting">Welcome back</h2></div><div class="section-heading-actions"><button id="hubDeleteSaveBtn" class="danger-btn">Delete Save</button><button id="hubDownloadSaveBtn" class="secondary-btn">Download Save</button><button id="playMatchBtn" class="primary-btn">Play Next Match</button></div></div>
+        <div class="section-heading"><div><div class="eyebrow">CAREER HUB</div><h2 id="hubGreeting">Welcome back</h2></div><div class="section-heading-actions"><button id="hubDeleteSaveBtn" class="ghost-btn" style="color:var(--muted)">🗑️ Delete</button><button id="hubDownloadSaveBtn" class="ghost-btn" style="color:var(--muted)">💾 Backup</button><button id="playMatchBtn" class="primary-btn">Play Next Match</button></div></div>
         <nav id="careerTabs" class="career-tabs" aria-label="Career sections">
           <button data-career-tab="overview" class="active"><span>🏠</span>Overview</button>
           <button data-career-tab="inbox"><span>📩</span>Inbox <i id="careerTabBadge">0</i></button>
@@ -255,7 +255,7 @@
           <article class="panel finances-panel career-tab-panel" data-career-panel="finances" id="financesPanel"></article>
           <article class="panel objectives-panel career-tab-panel" data-career-panel="overview"><div class="panel-title"><h3>Player Overview & Objectives</h3><span>Profile & Manager</span></div><div id="playerOverviewList"></div></article>
           <article class="panel form-panel-small career-tab-panel" data-career-panel="form"><div class="panel-title"><h3>Performance Form</h3><span id="formAverage">—</span></div><div id="formList" class="form-list"></div></article>
-          <article class="panel training-panel career-tab-panel" data-career-panel="training"><div class="panel-title"><h3>Training</h3><span id="trainingPoints">1 session</span></div><p>Choose one focus before the next match.</p><div id="trainingOptions" class="training-options"></div></article>
+          <article class="panel training-panel career-tab-panel" data-career-panel="training"><div class="panel-title"><h3>Training Centre</h3><span id="trainingPoints">3/3 sessions</span></div><p>Navigate the club training centre, plan your week and play football-specific development sessions.</p><div id="trainingOptions" class="training-options"></div></article>
           <article class="panel table-panel career-tab-panel" data-career-panel="overview"><div class="panel-title"><h3 id="leagueTableTitle">The Crown League</h3><span id="leagueTableCount">12 clubs</span></div><div id="leagueTable" class="league-table"></div></article>
           <article class="panel career-tab-panel" data-career-panel="inbox" id="inboxPanel">
               <section class="career-inbox-column" style="height:100%;"><div class="panel-title"><h3>Career Inbox</h3><span id="inboxCount">0 new</span></div><div id="inboxList"></div></section>
@@ -278,7 +278,7 @@
 
       <div id="trainingGameModal" class="training-game-modal hidden" role="dialog" aria-modal="true">
         <div class="training-game-shell">
-          <header><div><small>TRAINING GROUND</small><h2 id="trainingGameTitle">Target Finishing</h2></div><button id="closeTrainingGame" class="icon-btn">×</button></header>
+          <header><div class="training-game-heading"><small>TRAINING GROUND</small><h2 id="trainingGameTitle">Target Finishing</h2><div id="fkHeaderMeta" class="fk-header-meta" aria-live="polite"></div></div><button id="closeTrainingGame" class="icon-btn">×</button></header>
           <div class="training-game-layout">
             <section id="trainingGameStage" class="training-game-stage" tabindex="0"><div id="trainingGamePitch" class="training-game-pitch"></div><div id="trainingGamePrompt" class="training-game-prompt">Click Start</div></section>
             <aside><div class="training-game-stars" id="trainingGameStars">☆☆☆</div><div class="training-game-score"><small>SCORE</small><b id="trainingGameScore">0</b></div><div class="training-game-score"><small>TIME</small><b id="trainingGameTime">30</b></div><div class="training-game-score"><small>STREAK</small><b id="trainingGameStreak">0</b></div><div class="training-game-score combo"><small>COMBO</small><b id="trainingGameMultiplier">×1</b></div><p id="trainingGameChallenge" class="training-game-challenge">Weekly challenge: 0/12 successful actions</p><div id="trainingGameLeaderboard" class="training-game-leaderboard"></div><p id="trainingGameHelp">Hit the highlighted targets accurately.</p><button id="startTrainingGame" class="primary-btn full">▶ Start drill</button><button id="simulateTrainingGame" class="secondary-btn full">⚡ Simulate instead</button></aside>

@@ -1,0 +1,43 @@
+CIRCLE XI PLAYER CAREER — BENCH PRESS V15 SCREENSHOT FIX
+
+Implemented after reviewing the V14 setup, live and close-up screenshots.
+
+PLAYER / EQUIPMENT FIXES
+- Player is now visibly supported by the bench at the head, shoulders, back and hips.
+- Rack moved farther beyond the head so it no longer crowds the face.
+- Side profile torso made thinner so the athlete no longer reads as a large rectangular block.
+- Dedicated bench-leg solver keeps both knees below the hips and both trainers planted on the floor.
+- Trainers increased again and spaced more naturally.
+- Shorts replaced with a bench-specific waistband plus individual thigh sleeves that overlap the upper legs.
+- Dedicated bench-arm solver strongly constrains elbows below wrists and toward the feet.
+- Near arm renders behind the head to prevent the forearm covering the face.
+- Barbell plates are now narrow side-on ellipses rather than large circles beside the head.
+- Bar still follows the lower-chest-to-shoulder press path.
+- Heavy/PB spotter behaviour is preserved.
+
+GUI FIXES
+- Setup guide shortened to a compact quick guide.
+- Rep tracker is smaller and now shows readable rep numbers inside each segment.
+- Load selector is more compact.
+- Live Press Power panel and J/L dock are reduced and moved lower.
+- Background wall screens are dimmer so the athlete remains the focal point.
+- Start/Simulate hierarchy is cleaner, with Simulate visually secondary.
+
+GAMEPLAY PRESERVED
+- Automatic descent.
+- Rapid alternating J/L press mechanic.
+- K remains removed.
+- Sticking point, bar velocity, failed reps, Strength development and A+ maximum grade remain intact.
+
+FINAL QA REFINEMENTS
+- Preview rack bar moved into the player's reachable range so the setup pose no longer stretches or detaches the hands.
+- Far foot target moved closer to the hips, reducing the remaining leg reach error to under 1 px in the captured setup/live pose.
+- Player head orientation corrected so the face points upward while lying supine.
+- Near/far grip points separated further to keep both arms readable.
+- Top HUD now reads REP N · DRIVE/STICK/LOCKOUT instead of duplicating the same state wording.
+- Press Power meter now uses BUILD / STRONG / MAX, so it describes power rather than incorrectly mixing bar-position labels into a power gauge.
+
+RUNTIME QA
+- Setup pose: both arms reachable with 0 px arm stretch; far-leg reach error under 1 px; near leg 0 px.
+- Live sticking-point pose: both arms 0 px stretch; elbow angles approximately 86–90 degrees.
+- JavaScript syntax validation passed.

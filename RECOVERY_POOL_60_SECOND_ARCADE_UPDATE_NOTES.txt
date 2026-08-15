@@ -1,0 +1,50 @@
+Circle XI Player Career - Recovery Pool 60 Second Arcade Update
+13 August 2026
+
+Implemented changes
+
+1. Same career player renderer in Recovery Pool
+- The controlled swimmer now uses drawVisibleFootballer(), the same player renderer used during matches.
+- Carries across the career player's saved skin tone, face/head rendering, hairstyle, hair colour, body build and proportions.
+- Pool appearance switches the match model to a topless swimming presentation with swim shorts and bare feet rather than creating a separate substitute player identity.
+- Added a swimming pose mode to the shared footballer renderer so the same model can be reused without changing match presentation.
+
+2. Fixed one minute session
+- All playable swimming sessions now run for exactly 60 seconds.
+- HUD starts at 01:00.0 and counts down to zero.
+- The user completes as many 25m lengths as possible before TIME.
+- Wall turns and length split timing remain active during the one minute session.
+
+3. Energy recovery
+- Energy still drains through repeated hard strokes.
+- Reducing stroke frequency starts light energy recovery.
+- Stopping long enough starts faster recovery.
+- Stamina directly controls how quickly the player regenerates energy.
+- Stamina also continues to reduce stroke cost and passive energy drain.
+- Very low energy reduces sustainable swim speed rather than freezing the player.
+- HUD displays RECOVERING feedback and changes the energy bar to a bright recovery state.
+
+4. Career attributes
+- Pace/Sprint Speed controls maximum swimming speed.
+- Acceleration influences how quickly swim speed builds.
+- Stamina controls stroke cost, passive drain, easy recovery, rest recovery and turn recovery.
+- Simulated swimming now also represents a one minute session using these attributes.
+
+5. Arcade UI update
+- Brighter cyan pool presentation.
+- Purple, pink, orange and yellow arcade HUD.
+- Colourful TIME LEFT, recovery, stroke and energy cards.
+- Chunkier J/L buttons and stronger interaction feedback.
+- GOOD, GREAT and PERFECT stroke callouts.
+- Green animated energy recovery state.
+- Colourful arcade results screen and length split board.
+- Results show distance, full lengths, best length, rhythm, energy and fatigue recovery.
+
+6. Recovery design
+- Recovery Swim rewards controlled pacing, rhythm and finishing with energy remaining.
+- One minute duration keeps the activity short enough to use regularly in Career Mode.
+- Swimming remains a recovery activity and removes fatigue rather than creating normal training load.
+
+Validation
+- game.js passes Node JavaScript syntax validation.
+- Final ZIP passes archive integrity validation.

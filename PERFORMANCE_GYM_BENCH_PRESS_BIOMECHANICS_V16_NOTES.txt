@@ -1,0 +1,49 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM BENCH PRESS V16
+
+Priority fixes from screenshot / visual review:
+
+1. LEG BEND DIRECTION (critical)
+- Dedicated benchLeg solver now strongly prefers the UPWARD knee solution (feet on bench).
+- Score function heavily penalises any knee that sits too low or too far right.
+- Desired knee targets sit clearly above the hips, with feet planted on the bench pad.
+- Foot targets moved onto the bench to match Smith machine feet-up positioning.
+- Knees must never solve downward.
+
+2. HAIR PLACEMENT FOR LYING HEAD
+- gymHead now detects the supine / side-on rotation (-π/2).
+- Hair mass is remapped from the upright “top” of the skull to the rear/lower arc.
+- Result: face reads upward, back of head rests toward the bench, hair sits along the lower/back curve of the head instead of floating on the left edge.
+
+3. SMITH MACHINE & BARBELL UPGRADE
+- Replaced the thin line + single ellipses with a proper side-on Smith machine barbell:
+  - Thicker metallic shaft with highlight
+  - Far (rear) plate stack: darker, slightly smaller, offset for depth
+  - Near (front) plate stack: brighter, larger, clearer hubs
+  - Visible collars/clamps
+  - Subtle grip/knurl marks in the hand zone
+- Bar path is now perfectly vertical (Smith machine style), locked at X=397.
+- Rack poles moved to X=397 to serve as vertical guide rails for the Smith machine.
+
+Preserved behaviour
+- Automatic controlled descent
+- Rapid alternating J/L press mechanic
+- Sticking point, bar velocity, failed-rep safety catch
+- Strength development and A+ grade path
+- Spotter on heavy/PB
+- Shared career-player identity / limb lengths
+
+Renderer tag: bench-side-on-biomechanics-v16
+Audit flags added: olympicBarbell, hairRearLower, kneeDownPrefer
+
+Implementation order followed:
+1. Leg bend direction + feet plant
+2. Head orientation / hair rear-lower
+3. Barbell model + depth + metallic treatment
+
+Ideal visual result
+- Athlete clearly supine on the long bench
+- Legs bent upwards, feet planted flat on the bench pad
+- Hair gathered at the back/bottom of the skull
+- Convincing Smith machine barbell with near/far depth and collars
+- Clean, perfectly vertical bar path
+- Clean, realistic bar path

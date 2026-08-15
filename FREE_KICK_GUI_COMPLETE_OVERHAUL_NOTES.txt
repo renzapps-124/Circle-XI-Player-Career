@@ -1,0 +1,58 @@
+FREE KICK TRAINING GUI COMPLETE OVERHAUL
+
+Implemented across Free Kick Technique, Fixed Target Free Kicks, and Wall Simulation:
+
+GAMEPLAY-FIRST LAYOUT
+- Removed the large central Practice Mode message from the playing area.
+- Practice/Career state is now shown as a compact badge.
+- Free-kick modal expands to a wider, taller gameplay-first layout.
+- Goal, net, wall, player, and ball are kept clear of major HUD panels.
+- Stats/sidebar becomes a compact footer outside the pitch.
+- Footer now communicates score, time, goals, accuracy, stars, objective, Start and Simulate more clearly.
+- Removed decorative equipment rack, ball crate and tiny coach icon from free-kick pitch views.
+
+COMPACT FREE-KICK HUD
+- Added player Free Kick rating and rating tier: Novice, Developing, Good, Specialist, Elite, Master.
+- Added compact current objective display.
+- Added live stars, score, success/attempt count and time.
+- Added compact power meter with a visible ideal-power sweet spot.
+- Added live numeric power percentage.
+- Added short initial aim cue without revealing the full ball trajectory.
+- Added small context-sensitive toast feedback instead of permanent centre-screen messages.
+
+TECHNIQUE CONTROLS
+- Rebuilt technique buttons as a single compact dock.
+- Clear keyboard keycaps for J/L, K/L, I/L and L.
+- Active technique has a visible SELECTED label as well as colour highlighting.
+- Added animated miniature flight previews for Curl, Dip, Knuckle, Low Driven and Normal.
+- Low Driven remains exclusive to Wall Simulation.
+- Removed the old duplicated control strip.
+- Added a dedicated ? help panel containing technique/control explanations.
+- Added a persistent Minimal HUD toggle stored locally.
+- Experienced players automatically see less tutorial microcopy after several free-kick sessions.
+
+SHOT FEEDBACK
+- HUD fades during charging/run-up/shot so the football action takes priority.
+- HUD restores after the attempt finishes.
+- Added contextual feedback including Perfect Bend, Perfect Dip, Clean Knuckle, Great Placement, Around the Wall, Over the Wall, Under the Wall, Wall Hit, Off the Post and Just Wide.
+- Fixed Targets display a subtle +500 scoring label.
+
+VISUAL CLEANUP
+- Player model is slightly larger during free-kick training.
+- Ball/shadow readability improved.
+- Mannequins use a clearer filled training-dummy silhouette.
+- Fixed-target hoops/vests are less visually dominant and sit behind play.
+- Goal/net mesh was cleaned up with more regular square spacing, subtler depth and shadows, while retaining local net deformation physics.
+- Free-kick match badge now uses the same compact keycap-based visual language.
+
+PROGRESSION UX
+- Three-star/A+ target is surfaced in the footer.
+- Existing A+ / 3-star +1 Free Kick weekly reward remains active.
+- Free Kick attribute reward banner now animates when earned.
+
+RESPONSIVE / ACCESSIBILITY
+- Desktop and narrow layouts have separate responsive sizing rules.
+- Technique dock can scroll on narrow screens rather than covering gameplay.
+- Touch devices retain one deliberate SHOOT control.
+- Technique buttons include accessible labels.
+- Selected state does not rely on colour alone.

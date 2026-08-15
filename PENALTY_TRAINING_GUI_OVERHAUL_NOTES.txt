@@ -1,0 +1,26 @@
+PENALTY TRAINING GUI OVERHAUL
+
+Implemented changes:
+- Rebuilt Penalty Practice around a clean pre-session -> countdown -> live penalty -> result/reset flow.
+- Replaced the large generic READY / Practice Mode panels with a simple 3-2-1-SHOOT countdown.
+- Removed the generic Club Leaderboard and stacked Score / Time / Streak / Combo dashboard from live Penalty Practice.
+- Live penalty gameplay expands to nearly the full available training area.
+- Added a compact penalty-specific live scoreboard showing attempts, goals, stars and pressure.
+- Added compact PEN and Composure information and penalty-taker tier feedback.
+- Added a penalty-specific technique dock for Normal, Placed, Low Driven and Panenka.
+- Added penalty-only controls: WASD aim, L Normal, J+L Placed, K+L Low Driven, I+L Panenka.
+- Removed irrelevant Shield/Tackle, Through Ball and Cross control clutter from Penalty Practice.
+- Added a compact power / PERFECT timing display.
+- Added a small aiming cursor and aiming feedback inside the goal.
+- Added dedicated session tabs for 10 Penalties, Corners, Technique, Shootout and Sudden Death.
+- Added a compact pre-session objective card rather than placing instructions over the penalty area.
+- Added a penalty Help panel and Minimal HUD option.
+- Added penalty-specific attempt feedback without blocking the goal/player/ball sight line.
+- Goalkeeper, player and ball remain clearly visible during the live kick.
+- Hid training equipment / coach decorations that do not belong in the penalty shot path.
+- Improved penalty-area markings for a cleaner football presentation.
+- Existing penalty mechanics, goalkeeper adaptation, pressure system and Development Points progression are retained.
+
+Media:
+- Included real browser-captured in-game screenshots from this updated build.
+- Included an in-game GIF assembled from sequential frames captured from the running updated drill.

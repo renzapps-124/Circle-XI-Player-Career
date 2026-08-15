@@ -1,0 +1,24 @@
+CIRCLE XI PLAYER CAREER — RECOVERY POOL REALISTIC SWIMMING ANIMATION UPDATE
+
+Implemented in the actual Recovery Pool gameplay:
+
+- Replaced the simple swimming arm swing with a procedural front-crawl cycle.
+- Each arm now moves through hand entry, catch, underwater pull, push past the hip and over-water recovery.
+- Added a tighter six-beat-style flutter kick with most movement coming from the ankles rather than excessive knee bending.
+- Added subtle shoulder/body roll linked to stroke effort.
+- Added periodic side-breathing animation every few clean alternating strokes.
+- Side breathing alternates naturally with the active arm.
+- Resting or easing off J/L now shifts the player into a streamlined glide pose.
+- Low energy slightly shortens stroke reach so fatigue is visible in the animation as well as the HUD.
+- Added a tucked body pose during wall turns.
+- Reworked the wall-turn animation to tuck, rotate, then extend into the push-off.
+- Added kick bubbles behind the feet, with intensity tied to swimming speed.
+- Hand-entry splashes continue to respond to J/L strokes.
+- NPC swimmers now use the same improved procedural swimming pose with staggered stroke and breathing phases so the squad no longer swims in lockstep.
+- The animation phase now advances smoothly from actual swimming effort rather than jumping when J/L is pressed.
+- Existing Pace, Acceleration, Stamina, 60-second Recovery Pool gameplay, energy recovery and arcade HUD remain intact.
+
+Validation:
+- game.js JavaScript syntax check passed.
+- Recovery Pool runtime test completed without the game's JS error overlay.
+- Real in-game screenshot and GIF captured from the modified build using the Recovery Pool demo state.

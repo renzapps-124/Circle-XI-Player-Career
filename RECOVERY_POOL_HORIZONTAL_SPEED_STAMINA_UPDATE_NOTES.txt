@@ -1,0 +1,46 @@
+CIRCLE XI PLAYER CAREER — RECOVERY POOL HORIZONTAL / SPEED / STAMINA UPDATE
+
+Implemented changes
+===================
+
+1. Horizontal swimmer orientation
+- Fixed the double-rotation bug that made the career player and NPC swimmers appear vertical while moving across horizontal lanes.
+- The full match player model now lies along the lane, with head, torso, arms and legs rotating together.
+- Rightward lengths face right.
+- Return lengths flip 180 degrees and face left.
+- NPC swimmers use the same horizontal match-model rendering approach.
+
+2. More visible Pace effect
+- Increased the overall swimming pace slightly.
+- Widened the Pace / Sprint Speed mapping so different career attributes are visibly different in the pool.
+- Approximate maximum swim-speed examples before mode/energy modifiers:
+  Pace 60: 2.07 m/s
+  Pace 70: 2.37 m/s
+  Pace 80: 2.67 m/s
+  Pace 90: 2.97 m/s
+  Pace 99: 3.25 m/s
+- Acceleration has a stronger effect on how quickly the swimmer reaches maximum speed.
+- Stroke animation cadence now responds more strongly to current swim speed.
+
+3. More visible Stamina effect
+- Stamina now strongly changes stroke energy cost, recovery rate and when tiredness begins to reduce swimming speed.
+- Around 90+ Stamina, the player can hold strong pace for most of the minute and recovers quickly from short rests.
+- Around 60 Stamina, fast repeated strokes cost considerably more energy and several recovery periods are useful.
+- High-Stamina players resist low-energy speed loss until much later.
+- Slowing down restores energy; stopping restores it even faster.
+
+4. NPC stat-driven swimming
+- NPC swimmers continue to use the same footballer renderer used for match players.
+- Their swimming cycle duration is now derived from their own Pace profile rather than using one arbitrary fixed speed.
+- NPC body/skin/hair/build variation remains enabled.
+
+5. Clearer arcade HUD
+- Recovery Pool HUD now shows the controlled player's Pace and Stamina.
+- Live swimming speed in m/s is displayed beside the current length progress.
+- This makes career attributes directly readable during the activity.
+
+Validation
+==========
+- game.js passed Node JavaScript syntax validation.
+- Recovery Pool was rendered through the real game HTML/CSS/JavaScript in an isolated inline browser harness.
+- The captured game frame verified horizontal career-player and NPC orientation, Pace 92 / Stamina 91 HUD values and live swimming speed.

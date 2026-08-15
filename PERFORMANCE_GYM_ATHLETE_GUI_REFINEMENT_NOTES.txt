@@ -1,0 +1,48 @@
+CIRCLE XI PLAYER CAREER - PERFORMANCE GYM ATHLETE + GUI REFINEMENT
+14 August 2026
+
+PLAYER MODEL
+- Rebuilt the Performance Gym athlete around the shared saved career-player identity.
+- Shortened and narrowed the torso for more athletic proportions.
+- Increased head readability and improved the neck connection.
+- Slimmed arm and leg joints and reduced the mechanical hinge look.
+- Added articulated hands with grip detail.
+- Reworked gym trainers to use a neutral shoe body with the saved footwear colour as an accent.
+- Added equipment-anchored two-bone IK so body parts stay connected to the equipment.
+
+EXERCISE BIKE
+- Pelvis is anchored to the saddle.
+- Both shoes remain attached to rotating pedal positions.
+- Both hands remain attached to handlebar grip anchors.
+- Elbows and knees are solved dynamically instead of using fixed straight limbs.
+- Rider lean changes with RPM, resistance and fatigue.
+- Improved far/near limb layering and repainted grip edges over the hands to sell physical contact.
+
+TREADMILL
+- Rebuilt the running pose so torso, pelvis, neck and head remain connected.
+- Running arms now bend and counter-swing rather than hanging straight down.
+- Stride length, knee bend, foot lift and forward lean respond to gait speed.
+- Feet remain aligned with the treadmill belt and incline.
+
+BENCH PRESS
+- Athlete body is anchored to the bench pad.
+- Feet are planted and knees remain flexed.
+- Hands stay locked to the bar during the whole repetition.
+- Arm IK follows the bar through lowering, drive and lockout.
+- Bar and plate layering now makes the hands appear to wrap around the bar.
+
+GUI / HUD
+- Replaced the competing top cards with a compact exercise card and session card.
+- Integrated the live target into the exercise card.
+- Enlarged the cadence/pace meter and made it the main gameplay readout.
+- Added a live target-range bracket to the cadence and speed meters.
+- Added persistent coaching prompts such as PEDAL FASTER, PERFECT CADENCE and CONTROL YOUR PACE.
+- Added PERFECT PACE feedback for the treadmill.
+- Added pedal streak feedback for the bike.
+- Added tactile key states for pressed, held and next-input controls.
+- Reduced the visual weight of decorative ceiling lights, wall screens and background athletes.
+- Darkened and thinned the main gym frame so focus stays on the player and exercise.
+
+VALIDATION
+- game.js passes Node JavaScript syntax validation.
+- Bike, treadmill and bench demo sessions were rendered through the game runtime for QA screenshots.

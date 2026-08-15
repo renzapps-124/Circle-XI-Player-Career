@@ -1,0 +1,16 @@
+Performance Gym Treadmill V10 validation
+
+JavaScript syntax: PASS
+Browser demo: PASS (no page errors in local inlined test harness)
+Renderer: canonical-match-swim-treadmill-v10
+Shared career player identity: PASS
+Fixed thigh/shin lengths: PASS
+Fixed upper arm/forearm lengths: PASS
+Proper pelvis anchor: PASS
+Shorts overlap upper thighs: PASS
+Side-view shoulder depth: PASS
+Leg stretch in tested setup/live frames: 0
+Arm stretch in tested setup/live frames: 0
+Knee flexion in tested setup/live frames: natural and non-hyperextended
+J/L gameplay preserved: PASS
+A+ remains maximum grade: PASS

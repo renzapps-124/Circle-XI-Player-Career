@@ -1,0 +1,21 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM BENCH PRESS V14
+
+- Repositioned the bench press into a cleaner true side-on presentation.
+- Longer bench now supports head, shoulders, torso and hips.
+- Rack moved behind the head to stop covering the career player.
+- Player shifted left and raised onto the pad.
+- Feet planted wider with larger trainers.
+- Dedicated elbow pole logic keeps elbows below the wrists and away from the face.
+- Near/far arms are separated for readable side-on depth.
+- Hands remain attached to the bar with visible grip overlays.
+- Barbell shortened into a shallow 3/4 side projection; near/far plates have depth.
+- Bar follows lower-chest to shoulder path instead of a perfectly vertical line.
+- Added setup/unrack staging before the automatic descent.
+- Heavy and PB loads retain spotter behaviour.
+- Live press HUD reduced and moved lower so it does not cover the athlete.
+- Press meter now reads DRIVE / STICK / LOCKOUT and bar speed is separate from press power.
+- Load selector now shows difficulty and recommended effort.
+- Live load selector hides during the set.
+- Strength Zone environmental branding added.
+- J/L rapid alternation remains the only active press input; K remains removed.
+- A+ remains the maximum grade.

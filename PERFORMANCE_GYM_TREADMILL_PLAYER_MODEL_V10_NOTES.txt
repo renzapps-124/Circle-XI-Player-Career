@@ -1,0 +1,37 @@
+Circle XI Player Career - Performance Gym Treadmill Player Model V10
+
+Implemented player-model and running-animation replacement for Treadmill Intervals.
+
+PLAYER MODEL
+- Keeps the saved shared career-player identity used by Match Day / swimming training.
+- Uses fixed upper-arm, forearm, thigh and shin lengths; no treadmill limb stretching.
+- Uses a real pelvis / hip anchor under visible gym shorts.
+- Shorts are rendered over both upper thighs so the legs visibly emerge from the garment.
+- Side-view shoulder depth replaces the old full-width shoulder separation that made arms appear detached.
+- Athletic limb mass increased: thicker thighs, calves, upper arms and forearms with tapered silhouettes.
+- Trainers are enlarged slightly and articulate from the ankle.
+- Side-on torso is slightly compressed in depth while retaining shared player body proportions.
+
+RUNNING ANIMATION
+- Rebuilt treadmill gait around stance and swing phases instead of circular leg motion.
+- Stance: foot plants ahead of the body and travels backwards with the belt.
+- Swing: rear foot lifts through recovery and prepares for the next strike.
+- Stance duration shortens at sprint speed to create a genuine flight phase.
+- Phase-aware knee pole guides allow a natural trailing leg without the old backwards-knee flip.
+- Minimum leg extension varies by speed to stop extreme folded puppet poses.
+- Arms use fixed-length two-bone IK with proper running reach rather than collapsing near the shoulder.
+- Opposite arm/leg counter-swing, body bounce, landing compression, torso counter-rotation, breathing and fatigue remain active.
+- Far-side limbs are darker and slightly offset for clearer depth separation.
+- Foot contact shadows make stance and flight easier to read.
+
+TREADMILL FIT
+- Machine deck and console reduced slightly so the player is the focal point.
+- Working speed and target display remain intact.
+- J/L interval gameplay, Pace/Acceleration/Stamina interaction and A+ maximum grade remain unchanged.
+
+VALIDATION
+- JavaScript syntax checked with node --check game.js.
+- Browser demo loaded without page errors.
+- Shared player identity audit returned true.
+- Treadmill renderer audit reports fixedBones=true, sharedMatchModel=true,
+  properPelvis=true, shortsOverThighs=true and zero leg/arm stretch in tested frames.

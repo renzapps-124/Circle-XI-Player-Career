@@ -1,0 +1,20 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM REFERENCE PLAYER MODEL UPDATE
+14 August 2026
+
+GOAL
+Replace the visual style of the controlled athlete in Performance Gym with the compact Circle XI player model shown in the supplied reference image, while keeping exercise-specific animation.
+
+IMPLEMENTED
+- Reworked the Performance Gym athlete renderer to use the reference model visual language instead of the previous semi-realistic gym body style.
+- Added a dark navy performance shirt, red shoulder piping / chest chevron, dark shorts and strong dark outlines to match the supplied player sprite.
+- Simplified the head into a larger rounded game-style head with a compact neck and restrained facial detail.
+- Added outlined rounded arms, hands, legs and shoes so the silhouette remains readable during Bike, Bench Press and Treadmill animation.
+- Kept the existing articulated gym skeleton. The same model can therefore sit on the exercise bike, lie on the bench and run on the treadmill instead of using a static pasted image.
+- Preserved career player skin tone, hairstyle, hair colour, build, body proportions and footwear identity.
+- The existing shared-player audit remains enabled, so the gym model still reads the same saved player identity values.
+
+WHY THIS APPROACH
+The supplied screenshot is a single upright pose. Using it as a flat PNG would prevent realistic pedalling, bench pressing and running. The Performance Gym now recreates that model as poseable Canvas parts, so the appearance matches the screenshot while the joints remain fully animated.
+
+VALIDATION
+- game.js passes node --check.

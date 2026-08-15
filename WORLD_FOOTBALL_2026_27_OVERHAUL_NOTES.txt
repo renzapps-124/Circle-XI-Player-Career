@@ -1,0 +1,93 @@
+CIRCLE XI PLAYER CAREER — 2026/27 WORLD FOOTBALL DATABASE OVERHAUL
+
+DATABASE SEASON
+- Database snapshot: 2026/27.
+- Verified club database: England, Spain, Germany, Italy and France.
+- 360 club records across 18 playable verified divisions/groups.
+- Every verified division has a fixed expected club count and validation checks.
+- Other countries remain playable through the legacy procedural world generator but are now explicitly labelled GENERATED rather than being presented as verified real-world data.
+
+DOMESTIC LEAGUE DATA
+- England: Premier League, Championship, League One.
+- Spain: LaLiga EA Sports, LaLiga Hypermotion, Primera Federación Groups 1 and 2.
+- Germany: Bundesliga, 2. Bundesliga, 3. Liga.
+- Italy: Serie A, Serie B, Serie C Groups A, B and C.
+- France: Ligue 1, Ligue 2 and the new professional Ligue 3 Betclic.
+- France Ligue 3 Betclic was updated to the FFF's official 18-club 2026/27 field.
+
+LEAGUE CALENDARS
+- League seasons now use the actual double round-robin total produced by league size.
+- 18 teams = 34 league matches.
+- 20 teams = 38 league matches.
+- 22 teams = 42 league matches.
+- 24 teams = 46 league matches.
+- Career calendar, league table, season-end detection and season messages use the correct total rather than a universal 38-match assumption.
+- International summer fixtures now begin after the club season instead of forcing week 49 when a longer domestic schedule is still active.
+
+PROMOTION / RELEGATION
+- Country and division-aware automatic promotion, play-off and relegation zones.
+- England: Championship/League One promotion play-offs and division-specific relegation counts.
+- Spain: LaLiga Hypermotion and Primera Federación routes separated.
+- Germany: third-place promotion/relegation play-off paths represented.
+- Italy: broader Serie B / Serie C play-off routes represented.
+- France: Ligue 2 and Ligue 3 Betclic promotion/relegation play-off paths represented.
+- User clubs can now be relegated as well as promoted.
+- Lowest playable verified divisions do not invent a fake fourth-tier database; the game explains when it has reached the playable verified boundary.
+
+CLUB / KIT DATABASE
+- Stable club IDs, country IDs and division IDs.
+- Club home identity colours and pattern families stored with each verified club.
+- Explicit home, away, third and goalkeeper kit objects generated for every verified club.
+- Added support for additional kit patterns including pinstripes, centre stripes, chest bands, contrasting sleeves and crosses.
+- Kit clash detection chooses a more suitable away/third kit and separate goalkeeper colours.
+- 2026 identity palettes added for major national teams including England, France, Spain, Germany, Italy, Portugal, Ghana, Brazil, Argentina, Netherlands, Belgium, Croatia, Scotland, Wales, Nigeria, Senegal and USA.
+- National teams now use their own national kit definitions rather than club colour generation.
+
+IMPORTANT KIT SCOPE
+- Verified club home identity colours/patterns are database-backed.
+- Where an exact season-specific away/third design is not encoded, Circle XI creates a club-compatible contrasting away/third kit. These are deliberately not labelled as exact licensed replicas.
+
+DOMESTIC CUPS
+- Correct domestic cup names attached to the five verified associations.
+- England: FA Cup + EFL Cup.
+- Spain: Copa del Rey; Supercopa only for qualifying clubs in later seasons.
+- Germany: DFB-Pokal; Super Cup only for qualifying clubs in later seasons.
+- Italy: Coppa Italia; Supercoppa only for qualifying clubs in later seasons.
+- France: Coupe de France; Trophée des Champions only for qualifying clubs in later seasons.
+- Super Cups are no longer assigned to every career club.
+- Domestic cup qualification routes distinguish Europa League and Conference League places (for example FA Cup vs EFL Cup).
+
+UEFA CLUB COMPETITIONS
+- Removed the legacy behaviour that automatically gave every new career a Champions League entry.
+- UEFA Champions League, Europa League and Conference League now use separate competition definitions.
+- Champions League: 36-team league-phase model, 8 user league-phase matches.
+- Europa League: 36-team league-phase model, 8 user league-phase matches.
+- Conference League: 36-team league-phase model, 6 user league-phase matches.
+- League-phase points, goals, estimated ranking and top-24 progression are tracked.
+- Top eight progress directly to the Round of 16; positions 9–24 enter the knockout play-off model.
+- UEFA qualifying defeat transfers are modelled from Champions League to Europa League and from Europa League to Conference League where applicable.
+- Cross-border UEFA opponent pools use the current provisional 2026/27 UEFA participant lists rather than selecting opponents from the user's domestic league.
+- First-season UEFA entry is club-specific.
+- Later seasons calculate European qualification from domestic league position, cup success and association performance.
+- England/Spain's 2026/27 European Performance Spot concept is represented and future performance spots are simulated from association performance.
+
+LEAGUE TABLE UI
+- Champions League, Europa League and Conference League qualification zones are separate.
+- Promotion, play-off and relegation zones use the current country's league rules.
+- World League Browser now uses those same rules instead of assuming positions 1–4 are continental places everywhere.
+- Verified/Generated database status is visible in the World League Browser and career setup.
+
+DATABASE AUDIT
+- Added window.CXIFootballDatabaseAudit().
+- Added a Database Audit control in the World League Browser.
+- Checks expected division sizes, duplicate clubs and missing kit palettes.
+- Current static audit: 5 verified countries, 18 verified divisions/groups, 360 clubs, 0 structural errors.
+
+SOURCE BASIS
+- Premier League official 2026/27 club/fixture information.
+- LALIGA official 2026/27 club lists.
+- Bundesliga official 2026/27 promotion/club information.
+- Lega Serie A official 2026/27 information.
+- Ligue 1/LFP and Fédération Française de Football 2026/27 information, including the official Ligue 3 Betclic field and format.
+- UEFA official 2026/27 Champions League, Europa League, Conference League and access-list information.
+- UEFA participant lists are still provisional while August 2026 qualifying is ongoing, so the database identifies the 2026/27 snapshot and does not pretend the final 36-team fields have already been determined.

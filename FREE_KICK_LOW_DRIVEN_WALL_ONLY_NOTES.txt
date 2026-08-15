@@ -1,0 +1,9 @@
+FREE KICK LOW DRIVEN WALL-ONLY UPDATE
+
+Implemented changes:
+- Low Driven free kicks have been removed from Free Kick Technique.
+- Low Driven free kicks have been removed from Fixed Target Free Kicks.
+- Low Driven remains available in Wall Simulation only.
+- The free-kick technique selector now shows only Curl, Top-Spin Dip, Knuckleball and Normal in Technique and Fixed Targets.
+- Wall Simulation still shows Curl, Top-Spin Dip, Knuckleball, Low Driven and Normal.
+- The on-screen control hint updates by mode so the UI stays consistent with available shot types.

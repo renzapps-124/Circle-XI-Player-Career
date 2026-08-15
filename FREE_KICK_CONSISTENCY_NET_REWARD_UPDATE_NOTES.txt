@@ -1,0 +1,17 @@
+FREE KICK CONSISTENCY, NET & REWARD UPDATE
+
+Implemented:
+- 90+ Free Kick Accuracy is now strongly assisted in every Free Kick Training mode.
+- 95+ Free Kick Accuracy receives master-level power/contact/placement consistency.
+- Wall Simulation preserves strong 88-89 specialist assistance and 90+ elite consistency.
+- Valid selected free-kick techniques are no longer secretly failed because a rotating target expected a different technique.
+- Curl shots now use a two-stage route: launch outside the wall/dummies, then bend back toward the chosen goal target after clearing the wall.
+- Curl spin and post-wall steering are stronger for high-rated free-kick takers.
+- Elite Curl, Dip, Knuckleball and Normal free kicks have rebalanced vertical trajectories so they can clear the visible wall and still drop inside the goal.
+- Wall collision height is now aligned more closely to the visible wall; jumping still opens a low gap for Low Driven attempts.
+- Training goal nets now have deeper square mesh, roof net, side netting, floor net and a local impact mesh.
+- Net reactions are local to the impact point and respond to shot speed and shot type.
+- Top, side and low net impacts animate the relevant section of the net.
+- A+ OR 3 stars in an eligible Free Kick Training session awards +1 Free Kick attribute.
+- The +1 Free Kick award is limited to once per career training week to prevent repeated farming.
+- The results screen shows a dedicated FREE KICKS old value -> new value +1 reward banner.

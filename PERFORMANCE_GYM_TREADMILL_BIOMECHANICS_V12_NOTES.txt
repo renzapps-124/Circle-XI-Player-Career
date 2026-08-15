@@ -1,0 +1,20 @@
+CIRCLE XI PLAYER CAREER - TREADMILL BIOMECHANICS V12
+
+Implemented treadmill-specific animation and model refinement:
+
+- Rebuilt treadmill gait around stance, loading, push-off, recovery, knee drive and preparation phases.
+- Added speed-dependent Walk, Jog, Run, Fast Run, Sprint and Max Sprint gait profiles.
+- Physical treadmill speed and visual gait speed are now separated so acceleration blends smoothly instead of snapping poses.
+- Added acceleration-specific forward lean and smoother deceleration posture recovery.
+- Forward-only knee pole guidance remains active with fixed thigh and shin lengths.
+- Improved support-load, landing compression, flight and centre-of-mass movement.
+- Feet are anchored above the treadmill deck by the trainer sole height so shoes contact the belt instead of clipping through it.
+- Trainers are 36% larger than the canonical side-rig shoe scale for clearer proportions on the treadmill.
+- Added trainer sole detail and subtle sole compression on foot strike.
+- Added treadmill-specific hand paths and elbow pole guides for more natural arm swing.
+- Shorts now have a stable pelvis/waist section plus independent thigh-following leg openings.
+- Each shorts leg overlaps the top of its corresponding thigh so the legs no longer look detached from the clothing.
+- Treadmill console now explicitly labels and displays YOUR SPEED using the same live user-speed value used by gameplay.
+- Belt marker speed is driven from the same live speed value as the treadmill display.
+- Existing J/L rapid alternation gameplay and Stamina/Pace/Acceleration development are preserved.
+- A+ remains the maximum training grade.

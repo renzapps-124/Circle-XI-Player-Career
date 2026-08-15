@@ -1,0 +1,37 @@
+Circle XI Player Career — Performance Gym Exercise Bike Animation V6
+
+Implemented
+- Master crank animation now drives both pedals from one phase, keeping pedals exactly 180 degrees apart.
+- Visual cadence is smoothed separately from input RPM so acceleration and deceleration have momentum instead of snapping.
+- Added inertial flywheel animation with rotating spokes.
+- Feet remain locked to pedal anchors and legs are solved from hip -> knee -> ankle using fixed bone lengths.
+- Knee pole guides now follow a compact forward oval path and prevent backwards knee flips.
+- Added phase-based ankle articulation so the trainer angle changes naturally around the pedal stroke.
+- Pelvis stays planted on the saddle with only subtle vertical and side-to-side weight transfer.
+- Warm Up, Tempo, Climb, Sprint and Final Sprint now use different target riding postures.
+- Added smooth posture blending between interval states.
+- Correct J/L rhythm inputs create a short physical drive pulse in the torso/hips without snapping the crank.
+- Mistimed rhythm creates a subtle temporary cadence/upper-body hesitation while keeping IK valid.
+- Chest breathing, shoulder fatigue and head stabilisation are now animated independently.
+- Hands remain attached to reachable handlebar grips; the far grip was moved closer to avoid arm stretching.
+- Shorts leg openings subtly react to alternating thigh lift.
+- Bike frame depth is redrawn over the far leg to improve near/far occlusion.
+- Small pedal/leg grounding shadows were added.
+
+Validation
+- JavaScript syntax check: PASS (node --check game.js)
+- Shared player identity audit: PASS
+- 12 crank positions sampled across a full 360 degree rotation:
+  * both knees forward in all 12 positions
+  * both feet locked in all 12 positions
+  * both handlebar reaches valid in all 12 positions
+  * no leg stretching in all 12 positions
+- Sample knee angles across the full cycle remained approximately 65.6 to 147.0 degrees.
+
+Gameplay preserved
+- J / L alternating pedal controls
+- RPM scoring and target zones
+- resistance intervals
+- energy drain
+- streak and rhythm scoring
+- training rewards / simulation / results flow

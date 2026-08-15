@@ -1,0 +1,13 @@
+Circle XI Player Career — Performance Gym Final Visual / Animation Polish
+
+Implemented:
+- Bike, Bench Press and Treadmill machine + athlete now render in one shared coordinate space for precise contact/alignment.
+- Bike: visible saddle contact, hands locked to handlebars, feet locked to pedals, thicker limbs, resistance/effort body movement and improved professional stationary bike proportions.
+- Bench Press: rebuilt athlete anatomy, planted feet, connected shoulders/elbows/wrists/hands, hands locked to bar, circular weight plates, collars, proper rack/J-hooks, padded bench and active spotter position.
+- Treadmill: distinct walk/jog/run/sprint gait ranges, belt movement tied to speed, feet follow belt surface, visible incline geometry, stronger running posture at speed.
+- Added visible fatigue cues to all three activities.
+- Added richer Performance Centre branding, wall screens, medicine balls and larger background athlete silhouettes.
+- Main live camera zooms closer to the active machine.
+- Pre-session screen no longer pretends the machine is already running: live session metrics are hidden until Start.
+- Added concise pre-session exercise card showing duration and development rewards.
+- Existing DP rewards and mini-game mechanics retained.

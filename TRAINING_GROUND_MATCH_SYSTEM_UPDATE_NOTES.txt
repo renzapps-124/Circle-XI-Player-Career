@@ -1,0 +1,46 @@
+CIRCLE XI PLAYER CAREER - TRAINING GROUND / MATCH SYSTEM UPDATE
+13 August 2026
+
+TRAINING GROUND HUB
+- Training Ground now replaces the previous Today page as the default Training view.
+- All playable training is launched from locations/coaches on the Training Ground.
+- The Training nav is simplified to Training Ground, Development, Schedule and Records.
+- Training schedule entries use Find on Ground rather than launching drills away from the hub.
+- Training Ground keeps compact status information for sessions remaining, fatigue, sharpness and intensity.
+
+PLAYER MOVEMENT / SPRINT
+- Training movement now uses career attributes rather than fixed walk/jog/sprint speeds.
+- Pace controls maximum movement and sprint speed.
+- Acceleration controls how quickly the player reaches target speed.
+- Agility contributes to turn response and deceleration.
+- Stamina affects sprint energy drain and recovery.
+- Shift now activates sprint in both the walkable Training Ground and playable training drills.
+
+BALL AT FEET / DRIBBLING
+- Controlled training-ball rendering is anchored to the footballer's visible boot line instead of the body/knee area.
+- Touch position alternates around the left/right foot during movement.
+- The training player continues to use the same visible footballer renderer used for match players.
+
+BALL FLIGHT / KICK PHYSICS
+- Training kicks no longer follow the old fixed 2D timed trajectory.
+- Ball state now includes height, vertical velocity, curve, topspin/backspin, dip, drag and bounce state.
+- Training flight uses the game's match gravity/air-drag/spin constants and match-style ball behaviour.
+- Finesse, driven, chip, cross/lofted and standard kicks have distinct launch/spin characteristics.
+- Airborne balls accelerate downward under gravity, can curve, dip, bounce and roll to a stop.
+- Player technique and relevant passing/shooting/set-piece attributes influence kick quality.
+
+GOALS / NETS
+- Full-size Training goals now use a square-mesh visual treatment and proportions consistent with match goals.
+- Goal collision includes posts and the net area, with post deflection and net damping/impact feedback.
+
+SET PIECES
+- Free Kick Academy now sets the player at the ball with a wall, goalkeeper, goal and match-style free-kick controls.
+- Penalty training now uses a penalty spot, goalkeeper and match-style shooting combinations.
+- Corner training uses a corner placement/flag/arc and match-style delivery controls.
+- Free kicks, penalties and corners keep the player at the set-piece position until the ball is struck.
+- Goalkeepers in these training scenarios use the same visible footballer rendering system as match players.
+
+VALIDATION
+- game.js passes Node JavaScript syntax validation.
+- Training Ground, dribbling, free kick, penalty and corner demo states were run in fresh browser targets without runtime JavaScript exceptions.
+- Chip trajectory testing confirmed positive vertical velocity, rising ball height, apex and falling vertical velocity under gravity.

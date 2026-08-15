@@ -1,0 +1,21 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM EXERCISE BIKE V5
+
+Implemented:
+- Reworked cycling leg IK with forward pole targets so both knees bend in the anatomical forward direction through the full crank rotation.
+- Kept canonical fixed thigh/shin lengths; the rider is never stretched to fit the machine.
+- Increased match/swimming-derived side-view arm, forearm, thigh and calf mass for a more athletic silhouette.
+- Added bike-specific limb mass tuning while preserving saved career player identity and build.
+- Reworked shorts layering so the shorts sit visibly over both thigh roots and added clearer hem/waist detail.
+- Reduced the rendered exercise bike to 88% of the previous size and moved contact anchors with the machine.
+- Adjusted handle grips and saddle/pedal anchors around the canonical athlete rather than changing player proportions.
+- Added more articulated ankle/shoe movement through the pedal cycle.
+- Added a CARDIO BAY background with two team-mate runners using animated treadmills at different speeds/phases.
+- Replaced the old bike-scene mannequin silhouettes with proportioned background runners, treadmill consoles and moving belts.
+- Added extra Performance Centre depth, glass/wall treatment, floor detailing and reduced secondary equipment contrast.
+
+Runtime validation:
+- game.js passes Node JavaScript syntax validation.
+- Shared player model identity audit returned true in the browser demo.
+- Exercise Bike pose audit reported both far and near knees as forward across captured animation frames.
+- bikeScale audit: 0.88.
+- Two background treadmill stations detected in the Exercise Bike environment.

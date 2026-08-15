@@ -1,0 +1,32 @@
+CIRCLE XI PLAYER CAREER
+CORNER AI ATTACK / DEFENCE / SINGLE-BALL UPDATE
+
+Implemented in Corner Training:
+
+TAKE THE CORNER
+- Corner Training now bypasses the generic teammate/tackling target system and always uses its dedicated corner logic.
+- Increased the box setup to 5 attacking AI players versus 5 defending AI players plus the goalkeeper.
+- Added near-post, central, far-post, late-run and back-post attacking movements.
+- WASD / arrow input now moves the delivery aiming point instead of moving the corner taker.
+- The closest attacking run to the user's aim becomes the intended receiver.
+- Crossing, Corners, Technique and Vision affect delivery accuracy and assistance toward the runner.
+- Defenders actively track attackers and contest the first contact.
+- High deliveries can be headed clear; lower deliveries can be volleyed clear.
+- Defensive clearances physically redirect the active ball away from goal rather than deleting it.
+- Attacking AI chooses Header, Volley or Half Volley according to the incoming ball height and bounce.
+- Goalkeeper save probability has been increased for reachable headers and volleys, especially central efforts.
+
+ATTACK THE CORNER
+- Strict single-ball possession: the only ball begins with the AI corner taker.
+- The controlled player never has a ball at their feet while waiting for service.
+- Pressing J/K/L/I before the AI service no longer spawns or kicks a second ball; it displays WAIT FOR THE AI DELIVERY.
+- The AI taker waits for the user to move, then crosses the real active ball into the predicted run.
+- The cross landing ring and arrival countdown remain visible during the service.
+- Header / Volley / Half Volley / Bicycle prompts continue to update from the actual incoming height and bounce.
+- The goalkeeper now has a higher but still attribute-driven chance of saving reachable user headers and volleys.
+
+RUNTIME VERIFICATION
+- Browser-rendered demo confirmed 10 AI outfield players in Take the Corner (5 attackers / 5 defenders).
+- Early finishing-button test in Attack mode confirmed ball remained at corner position (8,84), free=false, and AI taker retained ball possession.
+- AI service test confirmed ball becomes a real airborne aiCornerService with landing target and contextual contact prompt.
+- No JavaScript page errors were reported during the captured test runs.

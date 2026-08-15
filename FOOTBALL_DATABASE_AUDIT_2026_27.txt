@@ -1,0 +1,56 @@
+CIRCLE XI FOOTBALL DATABASE AUDIT — 2026/27
+
+VERIFIED COUNTRIES: 5
+VERIFIED DIVISIONS/GROUPS: 18
+VERIFIED CLUB RECORDS: 360
+STRUCTURAL ERRORS: 0
+
+ENGLAND
+- Premier League: 20 / 20 PASS
+- Championship: 24 / 24 PASS
+- League One: 24 / 24 PASS
+
+SPAIN
+- LaLiga EA Sports: 20 / 20 PASS
+- LaLiga Hypermotion: 22 / 22 PASS
+- Primera Federación · Group 1: 20 / 20 PASS
+- Primera Federación · Group 2: 20 / 20 PASS
+
+GERMANY
+- Bundesliga: 18 / 18 PASS
+- 2. Bundesliga: 18 / 18 PASS
+- 3. Liga: 20 / 20 PASS
+
+ITALY
+- Serie A: 20 / 20 PASS
+- Serie B: 20 / 20 PASS
+- Serie C · Group A: 20 / 20 PASS
+- Serie C · Group B: 20 / 20 PASS
+- Serie C · Group C: 20 / 20 PASS
+
+FRANCE
+- Ligue 1: 18 / 18 PASS
+- Ligue 2: 18 / 18 PASS
+- Ligue 3 Betclic: 18 / 18 PASS
+
+LEAGUE LENGTH CHECK
+- 18-team league -> 34 matches PASS
+- 20-team league -> 38 matches PASS
+- 22-team league -> 42 matches PASS
+- 24-team league -> 46 matches PASS
+
+CAREER RULE CHECKS
+- Automatic Champions League entry removed PASS
+- First-season UEFA entry club-specific PASS
+- Separate UCL/UEL/UECL definitions PASS
+- UCL league phase 8 matches PASS
+- UEL league phase 8 matches PASS
+- UECL league phase 6 matches PASS
+- Conference League table zone added PASS
+- Domestic cup UEFA routes separated PASS
+- Promotion + relegation supported PASS
+- Super Cups qualification-gated PASS
+- Generated fallback countries labelled as generated PASS
+
+NOTE
+The global country selector contains many countries whose domestic club pyramids were procedural in the original game. They remain playable, but are explicitly marked GENERATED. They are not counted in the verified 2026/27 audit and are not represented as real club databases.

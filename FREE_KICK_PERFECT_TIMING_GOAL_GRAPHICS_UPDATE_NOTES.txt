@@ -1,0 +1,48 @@
+FREE KICK PERFECT TIMING + GOAL GRAPHICS UPDATE
+
+Gameplay / timing
+- Free Kick Training now has a true PERFECT green-zone timing mechanic.
+- The PERFECT window scales with the player's Free Kick Accuracy:
+  * 95+ gets the widest elite window.
+  * 90+ gets a strong elite window.
+  * Lower ratings get progressively smaller windows.
+- Technique difficulty affects window size: Knuckleball is narrower, Normal is slightly more forgiving.
+- For players with 90+ Free Kick Accuracy:
+  * Releasing inside the green PERFECT zone guarantees a goal, while still using the selected shot animation and live trajectory.
+  * Curl still routes outside the wall before bending back towards goal.
+  * Dip, Knuckleball, Normal and Wall-only Low Driven retain their own flight behaviour.
+  * Releasing outside the green zone cannot score. Near misses resolve as goalkeeper saves or woodwork; larger timing errors go wide or over.
+- The goalkeeper still animates on perfect goals, but the strike is placed beyond the keeper rather than freezing the goalkeeper.
+- Timing feedback now identifies PERFECT CONTACT, EARLY RELEASE, LATE RELEASE, GREAT SAVE and OFF THE POST outcomes.
+
+Power-bar GUI
+- The green timing area is brighter, labelled PERFECT and scales with player rating/technique.
+- Added a visible moving power marker.
+- The percentage turns into PERFECT while the marker is inside the green zone.
+- The power/timing HUD is moved to the lower-left to keep the player, ball and goal centre unobstructed.
+- Technique buttons are slimmer to reduce pitch obstruction.
+
+Live-session GUI
+- The duplicate footer stats, Start and Simulate controls disappear once the free-kick session is live.
+- Score, time, stars and objective remain available in the compact pitch HUD.
+- The pitch expands vertically during the live session.
+- Wind display is smaller and less visually dominant.
+
+Goal graphics
+- Free-kick goal is larger and easier to read.
+- Thicker bright posts and crossbar with no unrealistic bottom frame bar.
+- Added visible goal-line cue.
+- Added rear support poles, depth shadow and deeper goal structure.
+- Cleaner square mesh with larger, more readable spacing.
+- Improved roof net, side net and floor net perspective.
+- Deeper back-net geometry and more visible net depth.
+- Target graphics are smaller/less opaque so they do not hide the frame.
+
+Net physics
+- Local impact cell is larger and scales with the enlarged goal.
+- Top, side and lower-net impacts retain separate reactions.
+- Curl, Dip, Knuckleball, Normal and Low Driven retain technique-specific net response strength.
+- Perfect goals still travel into the goal and trigger local net deformation rather than stopping at the line.
+
+Goalkeeper presentation
+- Free-kick goalkeeper is positioned slightly deeper and rendered slightly smaller so the goal opening remains readable.

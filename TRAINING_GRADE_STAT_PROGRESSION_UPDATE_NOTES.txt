@@ -1,0 +1,38 @@
+CIRCLE XI PLAYER CAREER – TRAINING GRADE STAT PROGRESSION UPDATE
+
+Implemented requested options 2, 3 and 4.
+
+1. DEVELOPMENT POINTS SYSTEM
+- Training grades now award clear Development Points (DP).
+- A+ = 100 base DP.
+- A = 75 base DP.
+- B = 50 base DP.
+- C = 25 base DP.
+- D = 10 base DP.
+- Development Points are banked against individual attributes.
+- Each attribute has its own progress threshold before it increases by +1.
+- Higher-rated attributes require more DP, so elite players develop more slowly.
+- The Development screen now shows current banked DP and the threshold to the next +1.
+
+2. A+ / 3 STAR EXCEPTIONAL BONUS
+- A+ or 3-star career training can award an immediate permanent +1 to the drill's primary attribute.
+- The bonus is limited to once per drill per training week to prevent repeated farming.
+- Free Kick training retains its +1 Free Kicks behaviour through the same unified system.
+- Recovery swimming does not award the permanent exceptional attribute bonus.
+
+3. GRADE-BASED SECONDARY ATTRIBUTE UNLOCKS
+- D: primary attribute only, small progress.
+- C: primary attribute only.
+- B: primary attribute + 1 secondary attribute.
+- A: primary attribute + 2 secondary attributes.
+- A+: primary attribute + up to 3 secondary attributes.
+- Secondary attributes are selected from the drill, its training focus and the player's positional development needs.
+- Secondary attributes receive smaller DP amounts than the main attribute.
+
+4. RESULTS / GUI
+- Training results now explain exactly how the grade affected development.
+- Results show the primary attribute, unlocked secondary attributes, DP earned, bank progress and any immediate +1 bonus.
+- The Training Centre Development screen includes a permanent grade reward guide.
+
+5. STABILITY
+- Added the missing Training Ground decoration renderer discovered during runtime testing so the Training Centre can render safely after a completed drill.

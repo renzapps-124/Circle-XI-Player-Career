@@ -1,0 +1,14 @@
+Circle XI Player Career — Exercise Bike GUI V7
+
+Implemented:
+- One focused bike HUD rather than repeated dashboard panels.
+- Compact top-left exercise identity / active target card.
+- Five-stage session progress timeline: Warm Up, Tempo, Sprint, Climb, Final Sprint.
+- Compact top-right live Time, Score and circular Energy status.
+- Centred pre-session Warm Up objective card; removed duplicate bottom-left setup panel for bike.
+- Smaller, cleaner Start / Simulate action card.
+- Large live cadence hero panel with target band, live RPM, resistance, Too Slow / Target / Too Fast labels and contextual feedback.
+- J/L pedal controls made visually stronger with pedal streak between them.
+- Background wall screens reduced to environmental displays rather than HUD competitors.
+- Machine console now displays the actual current RPM value.
+- Setup, live and result flows remain compatible with existing training mechanics and scoring.

@@ -1,0 +1,59 @@
+RECOVERY SWIM GUI COMPLETE OVERHAUL
+
+Base build:
+- 2026/27 World Football Database build, preserving the latest free-kick, training and database updates.
+
+Pre-session GUI
+- Cleaner session setup with the pool as the main preview.
+- Sidebar score boxes removed for swimming; session information is consolidated.
+- Session card shows 60 seconds, target distance, benchmark lengths, Pace, Stamina and best score.
+- Start Practice is the clear primary action; Simulate is a smaller secondary action.
+- Detailed swimming instructions moved to a ? help panel.
+- Persistent Minimal HUD setting added for Recovery Swim.
+
+Live session transition
+- Start/Simulate/sidebar disappear once swimming starts.
+- Pool expands to nearly the full available training area.
+- Added 3 -> 2 -> 1 -> SWIM countdown.
+- The 60-second clock does not start until the countdown finishes.
+- Stroke inputs are ignored before SWIM.
+- Countdown includes short audio cues.
+
+Live HUD
+- Distance is the primary score.
+- Compact edge HUD shows Distance, Time, Target Stars, current length, live m/s, stroke rhythm, Pace/Stamina and Energy.
+- Energy bar is thinner and uses green -> amber -> red progression.
+- Recovery state shows live +Energy/s feedback.
+- Final 10 seconds pulse subtly instead of covering the pool.
+- Minimal HUD hides secondary information while preserving essentials.
+
+J/L rhythm controls
+- One compact bottom rhythm dock replaces duplicated instructions.
+- Larger J and L keycaps.
+- Expected next stroke is highlighted.
+- Pressed keycap animates physically.
+- GOOD, GREAT, PERFECT, SAME ARM and TURN feedback appears briefly near the swimmer and fades.
+- Turn feedback and wall-turn animation remain integrated.
+
+Pool/player presentation
+- User lane is highlighted; unused lanes are slightly subdued.
+- Controlled swimmer is larger and has a subtle YOU marker.
+- NPC swimmers remain visible for first-team atmosphere.
+- Wake/splash visibility is tied to swimming effort.
+- Lane ropes are thinner and more segmented like floating buoys.
+- Added start blocks, turn pads, depth markings, tiled/deck detail and a calmer professional performance-pool surround.
+- Reduced excessive purple/white framing and colour competition.
+- Pool water uses softer caustic/shimmer motion and clearer depth.
+
+Progression / results
+- Live stars use explicit distance thresholds:
+  * 1 star: 62% of target distance
+  * 2 stars: 82% of target distance
+  * 3 stars: 100% of target distance
+- Results screen now shows those star thresholds and highlights which were earned.
+- Distance, lengths, average speed, best split, stroke rhythm, remaining energy and fatigue recovery remain visible in results.
+
+Responsive behaviour
+- Recovery Swim has dedicated smaller-screen layouts.
+- Live secondary stats collapse before covering the pool.
+- Stroke key labels simplify on smaller screens while retaining J/L controls.

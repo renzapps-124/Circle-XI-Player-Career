@@ -1,0 +1,19 @@
+CIRCLE XI PLAYER CAREER - TREADMILL INTERVALS V9
+
+Implemented:
+- Canonical Match Day/swimming player identity remains the single treadmill model.
+- Larger proportional player, thicker tapered footballer limbs, clearer shorts and trainers.
+- Forward-only running knee solve with minimum hip/ankle distance to prevent backwards knees and over-folding.
+- Six-phase running path with stance, compression, push-off, flight, knee drive and preparation.
+- Speed-dependent stride length, knee lift, arm drive, torso counter-rotation, forward lean, breathing and fatigue.
+- Startup rail-grip/step-on blend and extended cooldown/rail-grip finish.
+- Treadmill reduced visually; slimmer console/posts and live target on the physical display.
+- Belt speed tied to current km/h with subtle high-speed motion treatment.
+- J/L rapid alternation remains the primary acceleration mechanic; repeated same-key presses reduce drive.
+- Pace controls top speed; Acceleration controls rate of speed gain; Stamina controls sustained intensity/recovery.
+- Live transient milestone feedback and max-speed state.
+- Focused HUD: phase timer, interval timeline, hero speed readout, target/hold bar, stride quality and J/L rhythm dock.
+- Setup card and Start/Simulate UI reduced; redundant setup HUD removed when live.
+- Background cardio bay active in treadmill mode with two asynchronous teammate treadmill runners.
+- Existing results screen and Stamina/Pace/Acceleration development retained.
+- A+ remains the maximum grade.

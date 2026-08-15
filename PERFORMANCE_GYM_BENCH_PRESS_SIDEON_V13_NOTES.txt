@@ -1,0 +1,29 @@
+CIRCLE XI PLAYER CAREER - PERFORMANCE GYM BENCH PRESS V13
+
+Implemented:
+- True side-on Bench Press presentation with the career player lying horizontally on the bench.
+- Reduced equipment dominance and clearer player/bar relationship.
+- Automatic controlled lowering phase; K is no longer a Bench Press control.
+- Rapid J <-> L alternation now generates pressing force.
+- Same-key repeats reduce rhythm/combo and produce less force.
+- Live Press Power, Press Rate, J/L combo, Bar Drive and rep-quality feedback.
+- Dynamic bar velocity and a load-dependent sticking point.
+- Light, Working, Heavy and PB load profiles influenced by player Strength and fatigue.
+- Safe failed-rep state instead of an unsafe bar drop.
+- Side-on fixed-bone arm solve and planted-leg setup.
+- Slightly curved bench-press bar path toward the shoulders at lockout.
+- Heavy/PB spotter presentation.
+- Six-rep set progress and A+ maximum grade.
+- Bench result summary includes Weight, Reps, Fastest Rep, Peak Press Rate, Longest Combo and Failed Reps.
+- Strength development remains the primary training reward.
+
+Control scheme:
+- J and L only during the pressing phase.
+- Alternate J, L, J, L as rapidly and cleanly as possible.
+- The lowering phase is automatic.
+
+Validation:
+- game.js passes node --check.
+- Browser runtime tested automatic descent -> press -> sticking point -> lockout -> next rep.
+- Tested side-on arm solve remained within fixed-bone reach in sampled live phases.
+- Bench-specific K control and K tutorial references removed.

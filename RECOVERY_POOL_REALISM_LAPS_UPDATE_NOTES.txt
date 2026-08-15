@@ -1,0 +1,40 @@
+CIRCLE XI PLAYER CAREER — RECOVERY POOL REALISM & LAPS UPDATE
+13 August 2026
+
+RECOVERY POOL GAMEPLAY
+- Recovery Swim is now a 4-lap / 100m session in a 25m pool.
+- Sprint Swim is now a 4-lap / 100m session.
+- Endurance Swim is now a 6-lap / 150m session.
+- Each wall touch records a split time and advances the lap counter.
+- Wall turns include a short turn phase, direction reversal, push-off momentum and a small stamina-based recovery window.
+- Session HUD now shows current lap, lap progress, total distance, last split, stroke rhythm and energy.
+- Results show laps completed, best split, average split and individual lap split times.
+
+SWIMMER MODELS & ANIMATION
+- Rebuilt the pool swimmer silhouette with separate head, cap/goggles, torso, swim shorts, articulated arms and articulated legs.
+- Career player still preserves the saved skin tone.
+- Front-crawl strokes now include body roll and periodic breathing movement.
+- Flutter kicks animate continuously and their cycle visually responds to swimming speed.
+- User stroke animation remains controlled by alternating J and L.
+- NPC swimmers now use the same detailed swimmer component rather than simple bars.
+- NPCs receive varied skin tones, shorts and swimming caps.
+- NPC swimmers use animated freestyle arms, flutter kicks and realistic end-of-lane turns.
+
+WATER EFFECTS
+- Added a more animated pool surface.
+- Added wake trails behind user and NPC swimmers.
+- Added expanding ripples around moving swimmers.
+- J/L strokes create individual hand-entry splash effects.
+- NPC swimmers create continuous light splash and wake effects.
+- Wall turns trigger a more forceful change in water movement.
+
+PLAYER ATTRIBUTES
+- Sprint Speed/Pace continues to determine maximum swimming speed.
+- Acceleration continues to influence how quickly swim speed builds.
+- Stamina determines stroke cost, passive energy drain and ability to sustain pace over multiple laps.
+- Higher Stamina also improves energy recovery during wall turns.
+
+RECOVERY
+- Swimming remains active recovery training rather than a normal high-load football drill.
+- Completing the session reduces fatigue and improves match readiness.
+- Simulate remains available and now produces a full multi-lap result with generated lap split times.

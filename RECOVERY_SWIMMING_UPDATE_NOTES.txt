@@ -1,0 +1,28 @@
+CIRCLE XI PLAYER CAREER — RECOVERY SWIMMING UPDATE
+
+Implemented in the actual game build:
+
+- Replaced the previous Recovery Centre drill with a dedicated Recovery Pool swimming activity.
+- Recovery Pool is accessed from the walkable Training Ground.
+- Added three pool sessions:
+  • Recovery Swim — 50m active recovery
+  • Endurance Swim — 100m controlled recovery
+  • Sprint Swim — 50m speed challenge
+- Added Play and Simulate options directly at the Recovery Pool.
+- Swimming uses J and L as left/right strokes. Alternating the inputs creates the strongest, cleanest rhythm.
+- The player is rendered topless in swim shorts while preserving the career player's saved skin tone.
+- Pool view uses an overhead lane-based layout with six lanes, lane ropes, pool markings, water effects and other swimmers.
+- Added exact swim timer, distance, strokes, rhythm and energy HUD.
+- Pace/Sprint Speed determines maximum swimming speed.
+- Stamina determines energy drain and ability to sustain speed.
+- Recovery Swim reduces career fatigue and improves match readiness rather than applying a normal training fatigue load.
+- Recovery sessions have no normal training injury load.
+- Simulated swimming results are generated from the player's Pace and Stamina and still apply appropriate recovery benefits.
+- Swimming results show time, average speed, strokes, rhythm, energy remaining, fatigue recovered and relevant player attributes.
+
+Validation:
+- game.js JavaScript syntax check passed.
+- Inline Chromium runtime test passed with no page errors.
+- Manual J/L swimming input test confirmed swimmer movement, timer, stamina drain and live scoring.
+- Recovery Pool Play/Sim panel verified from Training Ground.
+- Simulated Recovery Swim result flow verified.

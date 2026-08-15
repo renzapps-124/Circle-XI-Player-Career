@@ -1,0 +1,26 @@
+CIRCLE XI PLAYER CAREER — SHARED PLAYER MODEL TRAINING UPDATE
+14 August 2026
+
+Goal
+- Make the controlled player in Performance Gym use the same saved player identity/model rules as matches and the rest of Training.
+
+Implemented
+- Added sharedPlayerBodyProfile(), a single source of truth for build, shoulder scale, limb mass, waist scale, head scale, height, leg scale, skin, hair, hair colour and footwear.
+- Main match/training renderer now consumes the shared body profile.
+- Performance Gym now consumes careerPlayerForTraining() plus the same shared body profile instead of inventing a separate generic gym athlete.
+- Bike, Bench Press and Treadmill all read the current career player's saved skin tone, hairstyle, hair colour, build, proportions, shirt number and footwear.
+- Gym hair now uses the same drawFootballHair() renderer/style names as match/training gameplay.
+- Gym torso was changed from a generic rectangle to a tapered training-shirt body using the shared shoulder/waist proportions.
+- Gym limbs now scale from the same saved build mass and leg scale as the match player.
+- Gym head/face gained the same identity cues: saved hair, head scaling, ears/eye/nose/mouth detail and skin shading.
+- Training clothing remains activity appropriate, but player identity/proportions are no longer replaced.
+- Exercise-specific pose systems remain separate so the same footballer can sit on a bike, lie on a bench or run side-on without changing identity.
+
+Consistency
+- Training Ground, Free Kick, Penalty, Corner and Swimming already use drawVisibleFootballer(), the main match renderer.
+- Performance Gym was the remaining outlier; this update moves it onto the same visual identity source.
+
+Validation
+- game.js passes node --check.
+- Bike, Bench Press, Treadmill and standard Free Kick Training were run in Chromium with no page/runtime JavaScript errors.
+- Fresh screenshots and the GIF were captured from the modified game running in Chromium.

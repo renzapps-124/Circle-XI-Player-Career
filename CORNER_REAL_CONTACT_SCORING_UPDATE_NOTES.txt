@@ -1,0 +1,16 @@
+Circle XI Player Career – Corner Real Contact & Scoring Update
+
+Implemented:
+- Headers, volleys, half volleys and bicycle kicks in Attack the Corner now use a real contact phase.
+- The ball no longer changes direction before the player's head/boot reaches it.
+- The finish input starts the correct animation, predicts the arrival time, and creates the shot only at the visible contact point.
+- Header contact, volley contact and bicycle-kick contact use different height/contact profiles and animation timing windows.
+- Perfect timing is now clearly recognised and gives cleaner, more accurate contact.
+- High finishing/heading/volley/technique ratings receive a modest training-only assistance boost.
+- Elite 90+ relevant finishing ratings with perfect timing have a very low goalkeeper save chance on well-placed attempts.
+- Mistimed inputs can still glance, miss or fail the contact window.
+- User-taken corners have reduced delivery error and stronger runner assistance, especially for high Corners/Crossing/Vision.
+- AI teammates attacking user corners now receive a modest training finishing advantage while defenders can still win and clear crosses.
+- AI teammate headers/volleys visibly meet the ball before the shot is released.
+- Goalkeeper saves remain possible, especially for weaker or central contacts, but quality corner chances convert more often.
+- Existing defender clearances, single-ball Attack mode, landing ring and contextual finish prompts are preserved.

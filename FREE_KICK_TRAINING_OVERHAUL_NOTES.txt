@@ -1,0 +1,41 @@
+CIRCLE XI PLAYER CAREER — FREE KICK TRAINING OVERHAUL
+
+Implemented in the real Training Centre / Set Piece Area.
+
+FREE KICK MODES
+• Free Kick Technique — learn Curl/Bend, Top-Spin Dip and Knuckleball.
+• Fixed Target Free Kicks — precision hoops and hanging vest-style goal targets.
+• Wall Simulation — match-player wall with live collision and goalkeeper.
+• Pressure 10 — 10 consecutive kicks from the same match-realistic position inside a 50-second set.
+• Random Match Situations — rotating realistic free-kick angles and distances.
+• Free Practice — practise any technique from rotating match-style locations.
+
+TECHNIQUE CONTROLS
+• Curl/Bend: select CURL and hold/release L, or use J + L.
+• Top-Spin Dip: select DIP and hold/release L, or use K + L.
+• Knuckleball: select KNUCKLE and hold/release L, or use I + L.
+• Normal: select NORMAL and hold/release L.
+
+PHYSICS
+• Curl uses strong side-spin / Magnus-style bend with a wider starting line.
+• Top-Spin Dip uses a steeper lift, stronger topspin and accelerated late drop.
+• Knuckleball uses minimal spin, higher velocity and controlled lateral / vertical wobble during flight.
+• All techniques use live gravity, drag, bounce, post, wall and net collision.
+• Match-style ball trails make the different trajectories easier to read without drawing a predicted path before the kick.
+
+MATCH CONSISTENCY
+• Training uses the same career player renderer used in matches.
+• Wall players use the match footballer renderer instead of mannequin-only placeholders in Wall / Pressure sessions.
+• Full-size training goal uses the match-style goal/net presentation.
+• Goalkeeper uses the existing training match renderer and reacts to target side and shot height.
+
+TRAINING FEEDBACK
+• Tracks goals, wall hits and precision target hits.
+• Coach feedback changes based on wall-hit rate and accuracy.
+• Pressure 10 ends after 10 attempts and tracks the set live.
+• Random / Practice sessions rotate through central, wide-left and wide-right realistic starting spots.
+
+VALIDATION
+• game.js passes Node JavaScript syntax validation.
+• Final ZIP integrity checked.
+• Screenshots and GIFs were captured by running the modified game code in an isolated Chromium render, not from concept artwork.

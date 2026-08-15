@@ -1,0 +1,18 @@
+CIRCLE XI PLAYER CAREER – CORNER TRAINING LANDING / HEIGHT / KEEPER UPDATE
+
+Implemented:
+- Attack the Corner now starts the controlled user inside the penalty area without a ball at their feet.
+- Only the AI corner taker owns the stationary ball before the service.
+- AI taker waits, predicts the user's current run and leads the cross into the expected meeting point.
+- Added a live landing ring on the pitch for incoming corners.
+- Landing ring tightens as the ball approaches and shows arrival time plus the likely contact type.
+- Contextual Header / Volley / Half Volley / Bicycle prompts update from actual ball height and player position.
+- Non-applicable finish buttons dim once the correct contact type becomes clear.
+- Reworked corner launch physics using ballistic contact-height calculation so corners remain airborne properly.
+- Inswingers and outswingers arrive around heading height.
+- Floated corners arrive higher and stay airborne longer.
+- Driven corners remain lower and faster for volley-type chances.
+- Near-post whip remains quick but still arrives at realistic aerial height.
+- Goalkeeper now saves a realistic portion of AI teammate headed/volley chances depending on contact quality, placement, Reflexes, Positioning and Handling.
+- Take the Corner retains near-post, central, far-post and late attacking runners with active defenders.
+- Removed the legacy duplicate DOM football from Corner Training so the drill has one visible active ball.

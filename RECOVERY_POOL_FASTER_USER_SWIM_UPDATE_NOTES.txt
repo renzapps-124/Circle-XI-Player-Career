@@ -1,0 +1,8 @@
+CIRCLE XI PLAYER CAREER — RECOVERY POOL FASTER USER SWIM UPDATE
+
+- Increased the controlled career swimmer's overall maximum swimming speed by 18%.
+- Increased the user's swimming acceleration by 8% so each burst reaches pace sooner.
+- Increased user stroke propulsion by 10% so alternating J/L feels more responsive.
+- Pace/Sprint Speed still controls the underlying speed curve, so higher-Pace players remain noticeably faster than lower-Pace players.
+- NPC swimmer speed is unchanged, making the controlled player feel more responsive without removing squad variation.
+- The same boost is used by simulated Recovery Pool sessions so manual and simulated results stay consistent.

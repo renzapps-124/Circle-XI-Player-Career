@@ -1,0 +1,20 @@
+PERFORMANCE GYM PLAYER MODEL — CANONICAL V4
+
+This update replaces the stretched Performance Gym athlete proportions with a canonical side-view career-player rig derived from the same saved player identity used by Match Day and Recovery Swimming.
+
+Implemented
+- Added sharedPlayerSideAthleteProfile() for consistent side-view proportions.
+- Player build changes limb/body thickness only; it no longer lengthens bones.
+- Rebuilt gym arms and legs using fixed upper-arm, forearm, thigh and shin lengths.
+- Added reach-safe two-bone IK so equipment targets cannot stretch limbs.
+- Replaced tube-like limbs with tapered overlapping polygons.
+- Reduced visible mechanical elbow/knee joint appearance.
+- Reworked torso, pelvis/shorts, neck, head and trainer proportions.
+- Performance Gym continues to use the career player's saved skin, hair, hair colour, build, boot colour and player identity.
+- Bike geometry is fitted to the canonical athlete instead of stretching the rider to the handlebars/pedals.
+- Treadmill running now uses shorter, proportional strides and fixed bone lengths.
+- Bench rack/bar placement was rebuilt around the canonical athlete so hands reach the bar without arm stretching and feet remain planted.
+- Added window.__circleGymModelAudit and canvas data-gym-renderer for development validation.
+
+Renderer audit name
+canonical-side-athlete-v4

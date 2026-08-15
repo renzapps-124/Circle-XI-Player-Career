@@ -1,0 +1,8 @@
+CIRCLE XI PLAYER CAREER - TRAINING GROUND AXIS SPEED FIX
+
+- Fixed walkable Training Ground movement feeling much faster left/right than up/down.
+- Training Ground coordinates are percentage based, so horizontal percentages represented more physical screen pixels on the wide training pitch.
+- Horizontal movement is now compensated using the live Training Ground aspect ratio.
+- Left/right and up/down movement now cover approximately the same on-screen distance for the same input duration.
+- Diagonal movement keeps the existing normalisation, Pace/Acceleration scaling and Shift sprint behaviour.
+- The correction adapts automatically to different browser/window sizes instead of using one fixed horizontal speed reduction.
