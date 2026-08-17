@@ -1,0 +1,57 @@
+ATTRIBUTE PROFILE SYNC VALIDATION
+=================================
+
+Status: PASS
+
+Runtime profile validation (CM creator values from supplied screenshots):
+- Profile category cards rendered: 3
+- Attribute rows rendered: 26
+- CM KEY attributes rendered: 5
+- JavaScript page errors: 0
+
+Category checks:
+- Technical: 13 attributes, average 62
+- Mental: 7 attributes, average 64
+- Physical: 6 attributes, average 61
+- Projected/current CM overall from creator values: 71 OVR
+
+Exact screenshot values verified in the live Profile renderer:
+Technical
+First Touch 73
+Dribbling 60
+Passing 76
+Technique 72
+Crossing 58
+Finishing 53
+Long Shots 59
+Tackling 59
+Marking 49
+Penalties 54
+Free Kicks 65
+Corners 66
+Throw Ins 60
+
+Mental
+Positioning 61
+Vision 70
+Anticipation 62
+Decisions 69
+Composure 59
+Teamwork 63
+Work Rate 63
+
+Physical
+Pace 64
+Acceleration 64
+Stamina 65
+Strength 56
+Agility 59
+Balance 59
+
+CM KEY markers verified:
+First Touch, Passing, Vision, Decisions, Stamina
+
+Data flow check:
+Player Creation submits customAttrs from initialiseCreatorAttributes(). makeCareer() clones
+customAttrs into career.player.attrs. The Profile renderer now renders the same shared
+CREATOR_ATTRIBUTE_GROUPS directly from career.player.attrs.

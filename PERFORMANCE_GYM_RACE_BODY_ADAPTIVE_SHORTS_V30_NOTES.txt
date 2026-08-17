@@ -1,0 +1,20 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM RACE BODY-ADAPTIVE SHORTS V30
+
+Implemented from Race Fluid Realism V29.
+
+CHANGES
+- Replaced the fixed Race shorts dimensions with a per-runner body-adaptive fit.
+- Shorts half-width now derives from each player's canonical Match Day pelvis width, upper-thigh mass and body build.
+- Shorts length now derives from each player's canonical thigh length rather than using one fixed Race height.
+- Each leg opening scales from the corresponding canonical upper-thigh thickness.
+- Waistband is locked to the pelvis and never stretches with the running legs.
+- Upper thighs remain covered by the shorts so the legs visibly emerge from the garment rather than from exposed hips.
+- Far and near leg-opening cuffs react subtly to the live thigh vectors while the main shorts body stays stable.
+- Added build-aware fit handling for Lean/Slim, Athletic and Strong players with safe min/max clamps.
+- Every user/AI runner calculates its own shorts fit from its own Match Day body profile; the user's dimensions are not reused for teammates.
+- Preserved the existing Match Day kit colours, V29 sprint biomechanics, Pace/Acceleration/Stamina physics, camera follow and 100m/200m/500m race modes.
+- Added runtime fit auditing fields for shorts width, height, opening width and upper-thigh overlap.
+
+RENDERER
+canonical-match-side-profile-v30
+shortsFitVersion: body-adaptive-v30

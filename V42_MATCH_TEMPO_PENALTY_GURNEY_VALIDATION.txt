@@ -1,0 +1,40 @@
+CIRCLE XI PLAYER CAREER V42 — VALIDATION REPORT
+
+STATIC VALIDATION
+PASS — game.js parses with Node syntax validation.
+PASS — slower global player/AI football baseline is enabled (MATCH_PACE_SCALE 0.64).
+PASS — acceleration response multiplier is 0.78.
+PASS — user sprint multiplier is 1.23.
+PASS — medical sequence uses its own preserved 0.76 cadence rather than the slower football pace.
+
+MATCH PENALTY FUNCTIONAL TEST
+PASS — match penalty opens the training-control interface.
+PASS — J + L selects the Placed/Finesse technique.
+PASS — holding for 0.54 seconds produced a 60% power meter.
+PASS — 60% was inside the exact training-style Placed perfect window of 49.88% to 66.12%.
+PASS — releasing the combo completed the mini game and moved the restart into the kicking phase.
+PASS — generated kick mode: finesse.
+PASS — generated shot profile: penalty-finesse.
+PASS — target lock and match-pressure data were retained in the resulting penalty plan.
+
+MEDICAL MODEL TEST
+PASS — stretcher state forced to a real loaded/carry frame for visual verification.
+PASS — loaded = true, deployed = 1, treatment = stretcher.
+PASS — source patient is the actual created match player.
+Verified source appearance in demo:
+- Name: Renny Appiah
+- Hair: Cornrows
+- Skin: #7b4b2a
+- Boots: #fde047
+- Shirt number: 8
+PASS — the loaded patient is drawn through the shared footballer renderer instead of the old generic body rectangle.
+
+BROWSER RENDER TEST
+PASS — slower-match demo rendered with 0 console/page errors.
+PASS — training-style match-penalty demo rendered with 0 console/page errors.
+PASS — created-player stretcher demo rendered with 0 console/page errors.
+
+TEMPO COMPARISON
+Normal movement ratio: 0.64 / 0.76 = 0.8421 (about 15.8% slower).
+Sprint ratio: (0.64 x 1.23) / (0.76 x 1.31) = 0.7907 (about 20.9% slower).
+Acceleration response multiplier: 0.78 (22% reduction in response rate).

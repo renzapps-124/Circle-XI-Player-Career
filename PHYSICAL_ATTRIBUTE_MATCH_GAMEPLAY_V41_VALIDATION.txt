@@ -1,0 +1,39 @@
+CIRCLE XI PLAYER CAREER — PHYSICAL ATTRIBUTE MATCH GAMEPLAY V41 VALIDATION
+
+Build base: v40 Mental Attributes user + AI build
+Physical gameplay version: v41-user-ai-physical-match-engine
+JavaScript syntax (node --check): PASS
+
+IMPLEMENTATION CHECKS
+- Pace modifies the match movement ceiling: PASS
+- Acceleration modifies speed build-up / first-step burst: PASS
+- Stamina modifies match energy drain and recovery: PASS
+- Hidden repeated-sprint reserve added: PASS
+- Strength affects shielding, shoulder challenges and collision force: PASS
+- Agility affects direction-change response and momentum redirection: PASS
+- Balance affects stumble chance, stability, velocity retention and recovery: PASS
+- Fatigue now has Stamina-scaled effects on technical execution and first touch: PASS
+- Fatigue-related injury risk is moderated by Stamina: PASS
+- AI movement also reads Pace, Acceleration and Stamina: PASS
+
+DETERMINISTIC FORMULA CHECKS
+- 90 Pace movement factor > 45 Pace movement factor: PASS
+- 90 Acceleration burst factor > 45 Acceleration burst factor: PASS
+- 90 Stamina sprint drain multiplier < 45 Stamina sprint drain multiplier: PASS
+- 90 Stamina stamina recovery multiplier > 45: PASS
+- 90 Stamina repeated-sprint reserve drains slower than 45: PASS
+- 90 Stamina repeated-sprint reserve recovers faster than 45: PASS
+
+REFERENCE VALUES
+90 rating: {"paceFactor": 1.07, "accelFactor": 1.0818, "sprintDrain": 0.7255, "sprintRecovery": 1.2364, "reserveDrainPerSecond": 5.3818, "reserveJogRecoveryPerSecond": 12.0455}
+45 rating: {"paceFactor": 0.995, "accelFactor": 0.9909, "sprintDrain": 0.9527, "sprintRecovery": 1.0182, "reserveDrainPerSecond": 7.2909, "reserveJogRecoveryPerSecond": 9.7727}
+
+RUNTIME CHROMIUM DEMOS
+- physical-v41-high: game ready, match visible, v41 version detected, 0 runtime/log errors: PASS
+- physical-v41-duel: game ready, match visible, v41 version detected, 0 runtime/log errors: PASS
+- physical-v41-low: game ready, match visible, v41 version detected, 0 runtime/log errors: PASS
+
+Captured runtime screenshots:
+- /mnt/data/physical-v41-high.png
+- /mnt/data/physical-v41-duel.png
+- /mnt/data/physical-v41-low.png

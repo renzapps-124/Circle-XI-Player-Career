@@ -1,0 +1,25 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM RACE BIOMECHANICS V26
+
+Race runner animation/model update based on the V25 model review.
+
+IMPLEMENTED
+- Rebuilt Race running around a continuous 0–1 sprint gait rather than a small set of snapping poses.
+- Full stride phases: contact/loading, stance, toe-off, recovery, knee drive and contact preparation.
+- Added a minimum hip-to-foot reach guard so the knee cannot collapse into highly folded/broken poses.
+- Maintained fixed Match Day-derived thigh, shin, upper-arm and forearm lengths.
+- Added stance-foot track locking behaviour: the planted foot remains on the track while the pelvis moves over it.
+- Added more realistic rear-leg extension and forward knee drive.
+- Added centre-of-mass bob/flight movement at high speed.
+- Rebuilt Race arms as fixed-length angular chains rather than unconstrained IK.
+- Elbows now bend in a controlled sprint direction and stay close to a realistic angle range.
+- Upper arms remain visible with clearer shoulder placement and sleeve geometry.
+- Opposite arm / opposite leg movement is phase locked.
+- Increased Race trainer size by about 20% over V25 and improved heel/sole/toe silhouette.
+- Trainers rotate through contact, toe-off, flight and landing preparation.
+- Added subtle sole compression on foot contact.
+- Added visual pose damping so changes in physical speed do not snap the skeleton between poses.
+- Capped animation cadence; higher race speed is expressed with stride length as well as cadence.
+- Preserved Match Day appearance/identity for the user and AI teammates.
+- Preserved 100m / 200m / 500m Race physics, J/L controls, world-distance movement, camera follow and race GUI.
+
+V26 renderer id: canonical-match-side-profile-v26

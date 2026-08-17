@@ -1,0 +1,9 @@
+RACE V31 VALIDATION
+
+JavaScript syntax: PASS
+Torso lean direction aligned with shoulder/head skeleton: PASS
+Pelvis-locked lower-shirt bridge: PASS
+Continuous torso-to-waist coverage: IMPLEMENTED
+Body-adaptive V30 shorts retained: PASS
+Match Day identity/body proportions retained: PASS
+Race biomechanics/camera/physics retained: PASS

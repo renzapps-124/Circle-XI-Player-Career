@@ -1,0 +1,13 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM RACE TORSO CONNECTION V31
+
+Implemented from Race Body-Adaptive Shorts V30.
+
+CHANGES
+- Fixed the Race launch torso lean so the shirt, shoulders, arms, neck and head all lean in the same direction.
+- Replaced the old linear shoulder placement with the same trigonometric lean transform used by the torso.
+- Added a pelvis-locked lower-shirt bridge behind the shorts so the torso cannot visually detach from the waist during Ready, launch, Drive or extreme stride poses.
+- The lower-shirt bridge overlaps the body-adaptive shorts waistband and remains mostly hidden in normal running.
+- Preserved Match Day identity/body proportions, V30 body-adaptive shorts, fluid sprint biomechanics, long-track camera follow, world-distance movement, Pace/Acceleration/Stamina race physics, J/L cadence controls, and 100m/200m/500m races.
+
+RENDERER
+canonical-match-side-profile-v31

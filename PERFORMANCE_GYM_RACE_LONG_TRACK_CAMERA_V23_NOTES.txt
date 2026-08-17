@@ -1,0 +1,23 @@
+PERFORMANCE GYM — RACE LONG TRACK CAMERA V23
+
+Implemented:
+- Race progression now uses world-distance as the authoritative movement state.
+- Camera follows the controlled player instead of following the race leader.
+- 100m, 200m and 500m use progressively larger world windows while remaining visibly longer than one viewport.
+- Moving world-space distance markers, start/finish lines and scrolling track texture make forward movement visible while the camera tracks the runner.
+- Longer races show distance remaining in the live HUD.
+- Removed live dependence on fixed viewport start/finish overlays.
+- Race timer now advances from the simulation timestep and freezes exactly at the user's finish time.
+- Added per-runner progress sanitisation and a race movement watchdog to recover from stalled movement states.
+- User and AI continue decelerating beyond the line while the result time remains frozen.
+- AI runners continue to complete their race after the user crosses the line; remaining runners are only projected after a safety timeout.
+- Camera remains stable through finish/deceleration.
+- Reworked Race sprint biomechanics: stronger drive-phase lean, clearer front knee drive, larger rear-leg extension, shorter high-speed ground contact, more visible flight, speed-dependent stride length, opposite arm/leg coordination and fatigue-aware stride reduction.
+- Match Day identity/rig remains the source model for the user and all team-mates.
+
+Race attribute logic retained:
+- Pace = maximum speed
+- Acceleration = speed build-up
+- Stamina = long-race retention
+- J/L rhythm = efficiency, never an attribute override
+- A+ remains maximum training grade

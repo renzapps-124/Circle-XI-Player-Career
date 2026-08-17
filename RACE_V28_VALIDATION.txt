@@ -1,0 +1,8 @@
+Race V28 validation
+- game.js JavaScript syntax: PASS
+- shorts renderer anchored to pelvis: PASS
+- near/far upper thigh overlap implemented: PASS
+- waistband and side seam implemented: PASS
+- shorts draw order after both legs: PASS
+- user and AI use same Race renderer: PASS
+- live Race capture completed through actual game DOM: PASS

@@ -1,0 +1,36 @@
+RACE V29 VALIDATION
+
+JavaScript syntax: PASS (node --check game.js)
+100m in-browser demo runtime: PASS
+500m in-browser demo runtime: PASS
+Browser page error flag during captures: FALSE
+Runner count: 6
+Shared Match Day identity: PASS
+AI canonical squad identity: PASS
+Match Day shorts retained: PASS
+Facing from velocity: PASS
+Continuous stride phase: PASS
+Continuous knee guide: PASS
+Contact-weighted centre of mass: PASS
+World-locked stance foot: PASS
+Fixed-length leg solver: PASS
+Shoulder-led arm motion: PASS
+Dynamic constrained elbow bend: PASS
+Trainer impact squash: PASS
+Phase-rate damping: PASS
+Race camera follow: PASS
+World-distance movement: PASS
+Movement watchdog recoveries during 500m capture: 0
+
+500m max-speed runtime sample:
+- Test player Pace: 84
+- Test player Acceleration: 82
+- Attribute max speed: 35.4 km/h
+- Live captured speed: 35.4 km/h
+- Position during capture: 1 / 6
+- Rhythm during capture: 100%
+- Renderer: canonical-match-side-profile-v29
+
+40 live max-sprint samples:
+- Near-knee range: 85.8–154.3 degrees
+- Near-elbow range: 84.2–103.1 degrees

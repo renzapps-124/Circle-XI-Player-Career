@@ -1,0 +1,41 @@
+CIRCLE XI PLAYER CAREER — V43 TRUE MATCH PENALTY TRAINING SYSTEM
+17 August 2026
+
+Issue corrected
+- V42 reused the Penalty Training controls and timing calculations, but still displayed them inside the old SET-PIECE STUDIO overlay.
+- This made an in-match penalty look like the old penalty system even though some of the underlying controls had changed.
+
+V43 correction
+- User-controlled match penalties no longer open SET-PIECE STUDIO.
+- Match penalties now open a dedicated Penalty Training-style presentation built from the same UI language as the training drill:
+  * PEN rating / tier chip
+  * Composure chip
+  * match-pressure meter
+  * free aim cursor on the goal
+  * live power bar
+  * green PERFECT power window
+  * Normal / Placed / Low Driven / Panenka selector
+  * the same keyboard language as Penalty Training
+- The old set-piece screen remains available for free kicks, corners, throw-ins and goalkeeper set-piece save mode only.
+
+Shared penalty controls
+- WASD / arrows: aim
+- L: Normal
+- J + L: Placed
+- K + L: Low Driven
+- I + L: Panenka
+- Hold the shot input to build power and release inside the PERFECT window.
+
+Shared calculations
+- Match penalties continue to use the same penaltyPowerWindow() and penaltyTimingResult() functions used by Penalty Training.
+- Penalties, Composure, Finishing and Technique are used in execution quality.
+- Match pressure is layered on top of the shared training mechanic rather than replacing it.
+- Goalkeepers react from their attributes and recent placement history; they do not read the user's keyboard input directly.
+
+Aim changes
+- Match penalty keyboard aiming now uses the same small, precision-oriented movement style as training instead of the old coarse set-piece grid movement.
+- Clicking directly on the goal target area also updates the exact aim point.
+
+UI separation
+- #matchPenaltyTrainingOverlay is the only taker UI opened for a user-controlled match penalty.
+- #setPieceMiniGame is explicitly hidden for that path.

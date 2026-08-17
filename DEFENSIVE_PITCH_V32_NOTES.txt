@@ -1,0 +1,48 @@
+CIRCLE XI PLAYER CAREER — DEFENSIVE PITCH V32
+
+Defensive Pitch has been rebuilt around three dedicated football-defending drills.
+
+INTERCEPTION RONDO
+- Uses recent shared Match Day player models for the user and squad teammates.
+- Six possession players circulate the ball around the outside of a marked rondo grid.
+- AI evaluates the user's position and passing-lane risk before choosing a receiver.
+- User wins the ball by physically stepping across the live pass path.
+- Interceptions and passing-lane closures score points; quicker reads earn a larger interception reward.
+- Match-style pass, movement, first-touch and interception animations are used.
+- Development profile: Agility, Positioning, Anticipation, Work Rate.
+
+1V1 DEFENDING
+- One AI teammate attacks an empty goal while the user starts goal-side.
+- Attacker reacts to user positioning with changes of direction and acceleration rather than using one fixed path.
+- K = standing tackle. L = slide tackle. I = jockey.
+- Standing tackle has shorter reach and quicker recovery; slide has greater reach and greater risk.
+- A missed tackle does not freeze the attacker: the attacker continues toward goal and can score into the empty net.
+- Clean tackles earn points; missed tackles and goals conceded reduce the score.
+- Development profile: Anticipation, Tackling, Positioning, Agility.
+
+3V3 INTERCEPTION RONDO
+- Replaces Recovery Run in the visible training list. Legacy Recovery Run selections migrate to this drill.
+- Three possession players operate around the outside of the grid.
+- User plus two AI defenders work as a defensive trio.
+- Dynamic Press / Cover / Balance responsibilities are recalculated as the ball moves.
+- AI defenders shift together and cover passing angles instead of all chasing the ball.
+- Winning the ball enters a transition phase rather than resetting immediately.
+- Defensive trio must secure two passes or the user can dribble through an EXIT.
+- Players physically move into their new roles during the role switch.
+- The former possession team then presses inside while the user's team keeps the ball outside.
+- Development profile: Teamwork, Anticipation, Decisions, Agility.
+
+SHARED DEFENSIVE PITCH UPGRADES
+- New drill-specific pitch layouts and compact live HUDs.
+- Recent Match Day body/appearance model system used instead of old generic training mannequins.
+- Jockey movement uses the actual Match Day jockey animation state.
+- Match-style passing, tackling, sliding, stretching and movement poses.
+- Live score, phase, interception/tackle information and appropriate attribute chips.
+- Ball remains physically in flight during passes/tackles/interceptions instead of teleporting between players.
+- A+ remains the maximum training grade.
+
+RUNTIME VALIDATION
+- Interception Rondo: live AI passing, user interception and lane scoring tested.
+- 1V1 Defending: clean standing tackle and empty-goal consequence tested.
+- 3V3: live interception -> secure possession -> exit -> physical role switch -> possession phase tested.
+- game.js passes Node JavaScript syntax validation.

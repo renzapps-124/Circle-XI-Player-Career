@@ -1,0 +1,22 @@
+Defensive Pitch GUI V34 Validation
+==================================
+
+Static validation
+- game.js: node --check PASSED.
+
+Headless in-game UI validation
+- Production index/styles/game logic rendered in Chromium capture harness with browser storage shim only.
+- Interception Rondo ready state: loaded with defensive-ready state, 45s clock, score 0, objective READ THE PASS.
+- Interception Rondo live state: loaded with defensive-live-session, compact HUD, full-width pitch, active AI passing and no JavaScript page errors.
+- 1v1 Defending live state: loaded with full-width defensive GUI and no JavaScript page errors.
+- 3v3 Interception Rondo live state: loaded with press/cover/balance pitch layout and no JavaScript page errors.
+- 3-second defensive countdown verified by timer staying paused during countdown before session time begins decreasing.
+- Live GUI gameplay GIF captured from the same updated build.
+- V33 3D passing preserved; live capture sequence observed ground, driven and chipped AI passes during runtime testing.
+
+Visual captures
+- Defensive-Pitch-v34-Interception-Rondo-Ready.png
+- Defensive-Pitch-v34-Interception-Rondo-Live.png
+- Defensive-Pitch-v34-1v1-Live.png
+- Defensive-Pitch-v34-3v3-Live.png
+- Defensive-Pitch-v34-GUI-Gameplay.gif

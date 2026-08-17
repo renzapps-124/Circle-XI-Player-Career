@@ -1,0 +1,29 @@
+CIRCLE XI PLAYER CAREER — V45 AI TACKLE & FOUL ANIMATION FIX
+
+AI SLIDE TACKLES
+- Added a dedicated committed slide state: plant -> slide -> recovery.
+- AI predicts one contact point when it commits and cannot home toward the ball afterwards.
+- Normal pathfinding is locked during the slide and recovery.
+- Slide velocity decays through pitch friction and is hard-capped to a short maximum distance.
+- Player collision separation no longer drags/teleports a committed slider across the pitch.
+- Missed slides finish their existing slide/recovery sequence instead of starting a second slide animation.
+- AI slide decisions now use Tackling, Anticipation and Decisions confidence.
+- Sliding from behind and sliding inside the defender's own penalty area are strongly discouraged.
+
+FOUL FREQUENCY
+- Challenges are now classified as ball-first or player-first at the contact frame.
+- Clean ball-first tackles have a very low foul chance.
+- Player-first, late, high-speed and from-behind challenges progressively increase foul risk.
+- Removed the old automatic foul for every slide from behind.
+- Removed the old rule that made an illegal collision an automatic foul when the victim was the user.
+- Slide tackle contact is handled once by the tackle system, preventing duplicate collision foul calls.
+
+FOUL PRESENTATION
+- Added foul-specific reactions: stumble forward, trip forward, leg trip, swept leg, side sweep, body stumble, body knock and knockdown.
+- Victim fall direction and severity are derived from the actual impact.
+- The fouled player's reaction and tackler's slide are preserved through the initial referee stoppage presentation.
+- The whistle/restart sequence now follows visible contact instead of visually appearing before any infringement.
+- Foul metadata now records ball-first/player-first, animation variant and severity for debugging and referee presentation.
+
+COMPATIBILITY
+- Built on v44, retaining the true Penalty Training match system, true Free Kick Training match system, slower v42 match tempo, created-player stretcher rendering, and v38-v41 attribute gameplay systems.

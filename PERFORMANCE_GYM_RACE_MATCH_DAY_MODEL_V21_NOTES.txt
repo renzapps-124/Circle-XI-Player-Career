@@ -1,0 +1,33 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM RACE MATCH DAY MODEL V21
+
+Purpose
+- Make Race runners visibly use the same player-model identity and proportions as Match Day.
+- Preserve the side-on running direction system added in Race V20.
+
+Implementation
+- Added canonicalMatchDayVisualProfile().
+- Match Day and Race now resolve unsaved squad appearance from the same deterministic player identity.
+- Saved career-player appearance always takes priority.
+- Race no longer uses the exaggerated gym side-athlete body proportions.
+- Race side profile now consumes sharedPlayerRigMetrics(..., true), the same canonical Match Day rig measurements.
+- Race uses shared Match Day head scale, torso proportions, thigh/shin widths, arm widths, hand size and player build.
+- Race uses drawFootballHair(), the Match Day hair renderer.
+- Race kit/body shading was updated to the Match Day visual language.
+- Race running changes pose only; it does not invent new player identity dimensions.
+- The entire pose still mirrors as one unit when travel direction changes.
+- AI teammates use the same canonical squad visual resolver as Match Day rather than temporary training-model random appearance.
+- Match Day squad visuals are now deterministic per player identity instead of being rerandomised independently each time.
+
+Gameplay preserved
+- 100m / 200m / 500m Race distances.
+- Pace controls maximum speed.
+- Acceleration controls speed build-up.
+- Stamina affects longer-distance performance.
+- J/L alternation controls running-efficiency access to the player's attributes.
+- Personal-best timing and Race leaderboard remain intact.
+- A+ remains the highest training grade.
+
+Validation
+- JavaScript syntax checked with node --check.
+- Race live renderer tested in Chromium with no page errors.
+- Runtime audit confirms shared Match Day identity, canonical Match Day rig metrics and canonical teammate identities.

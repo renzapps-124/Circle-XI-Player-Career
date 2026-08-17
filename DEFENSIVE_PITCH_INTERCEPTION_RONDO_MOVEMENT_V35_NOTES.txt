@@ -1,0 +1,37 @@
+DEFENSIVE PITCH INTERCEPTION RONDO MOVEMENT V35
+
+Implemented from Defensive Pitch GUI V34.
+
+INTERCEPTION RONDO AI MOVEMENT
+- All six possession AI players now move continuously instead of remaining on fixed spots.
+- Players reposition around six dynamic perimeter support zones and rotate around the grid.
+- Support choices account for the user's position, team-mate spacing and passing-lane quality.
+- Ball carriers can move/dribble while scanning, but settle before the kicking contact frame.
+- Receivers check towards predicted receiving points and passes lead moving team-mates into space.
+- The previous passer immediately performs a short give-and-go / support run after releasing the ball.
+- Non-receiving players continue to create new angles while the ball is travelling.
+- Occasional half-space movements create third-player combinations without collapsing the rondo shape.
+- AI changes support targets when the user closes one side of the grid.
+- A stationary watchdog forces a new support run if a non-receiving AI player remains inactive for too long.
+- Movement is acceleration-smoothed rather than snapping directly from idle to full speed.
+- Existing ground, driven and chipped pass physics remain active.
+
+PASS-AND-MOVE
+- Pass targeting now predicts a moving receiver's short-term position in Interception Rondo.
+- The ball is led into the receiver's path rather than always targeting their old coordinates.
+- Receiver movement is briefly stabilised around the final receiving point so players do not run away from the pass.
+- Passing animation still releases the ball at the foot-contact frame.
+
+RUNTIME VALIDATION
+- All 6 possession players were moving simultaneously in both sampled live frames.
+- Pass-and-move actions observed: 6.
+- Pass mix observed: {'ground': 2, 'driven': 2, 'chip': 2}.
+- Static-watchdog recoveries required during sample: 0.
+- Page errors: 0.
+- Player displacement between sampled frames (pitch percentage points):
+  - Kofi Mensah: 21.21
+  - Leo Hart: 11.58
+  - Callum Price: 25.38
+  - Andre Cole: 15.90
+  - Malik Johnson: 20.87
+  - Finn Doyle: 28.37

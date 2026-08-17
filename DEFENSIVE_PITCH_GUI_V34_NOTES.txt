@@ -1,0 +1,20 @@
+Circle XI Player Career — Defensive Pitch GUI V34
+===================================================
+
+- Enlarged Defensive Pitch play area and reduced dashboard chrome.
+- Removed duplicate in-pitch drill titles and faded centre helper text.
+- Rebuilt the live HUD into three compact zones: player attributes, current objective, and live session stats.
+- Attribute chips use concise icons/labels and no longer repeat the drill title.
+- Simplified the right sidebar to grade, objective, readable club leaderboard, concise controls, and Start.
+- Hidden redundant score/time cards and Simulate button inside the interactive Defensive Pitch view.
+- Live sessions now hide the entire sidebar so the football occupies almost the whole modal.
+- Replaced the oversized DEFEND panel with a small translucent control strip that fades during play.
+- Added a 3-second 3/2/1/GO countdown before Defensive Pitch AI begins.
+- Added contextual on-pitch score popups and HUD pulse feedback for interceptions/tackles/transitions.
+- Normal phase information stays in the top-centre objective chip; event banners only appear for success/miss feedback.
+- Cleaner navy/cyan/yellow colour hierarchy with red reserved for mistakes.
+- Leaderboard now shows a PB dash before the user has a score instead of 'You 0'.
+- Interception terminology is consistent across the Defensive Pitch interface.
+- Existing V33 boot-level ball placement and 3D ground/driven/chipped pass physics are preserved.
+
+- Normal training prompt is hidden outside contextual success/miss toasts, keeping the centre of the pitch clear.

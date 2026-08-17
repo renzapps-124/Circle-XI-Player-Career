@@ -1,0 +1,21 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM RACE FLUID REALISM V29
+
+Race animation polish focused on smoother contact transitions, more connected whole-body motion and better sprint readability while preserving the Match Day player model.
+
+IMPLEMENTED
+- Kept the shared Match Day identity, body rig and V28 shorts for the user and AI team-mates.
+- Reworked foot support into a continuously weighted contact curve instead of a binary contact/no-contact switch.
+- Smoothed centre-of-mass movement across landing, stance, toe-off and flight to remove the small vertical hitch at foot exchange.
+- Kept the stance foot effectively world-locked while the pelvis travels over it.
+- Replaced phase-specific knee guide formula changes with one closed continuous knee trajectory through the full stride.
+- Preserved fixed thigh and shin lengths and the existing reach clamp / knee direction protections.
+- Added smoother airborne foot timing and eased trainer rotation through recovery and landing preparation.
+- Added visible trainer impact squash during ground contact.
+- Added phase-rate damping so changes in physical speed do not instantly change the limb-cycle speed.
+- Kept cadence and stride length as separate smoothed animation drivers.
+- Added subtle shoulder/arm harmonic motion while retaining shoulder-led arm mechanics and constrained elbow angles.
+- Added subtle shirt hem secondary movement while keeping clothing anchored to the canonical body.
+- Added small, stable running-style modifiers to AI team-mates so stride timing is less mechanically identical without changing their underlying biomechanics or attributes.
+- Preserved Pace-driven maximum velocity, Acceleration-driven launch, Stamina influence in 500m, J/L rhythm, camera follow, world-distance movement, timer logic and the stuck-runner watchdog.
+
+V29 renderer id: canonical-match-side-profile-v29

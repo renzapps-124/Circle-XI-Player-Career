@@ -1,0 +1,20 @@
+CIRCLE XI V43 TRUE PENALTY TRAINING SYSTEM — VALIDATION
+17 August 2026
+
+PASS — Dedicated match penalty training overlay exists
+PASS — Match penalties open dedicated training overlay
+PASS — Dedicated overlay hides old Set-Piece Studio
+PASS — Penalty branch exits before old set-piece renderer
+PASS — Shared Penalty Training power window reused
+PASS — Shared Penalty Training timing reused
+PASS — Training-style free aim cursor present
+PASS — Training-style PERFECT power bar present
+PASS — Normal control present
+PASS — Placed control present
+PASS — Low Driven control present
+PASS — Panenka control present
+PASS — Training-style component CSS reused
+PASS — Match penalty presentation CSS present
+PASS — Legacy SET-PIECE STUDIO retained outside penalty path
+
+Result: 15/15 checks passed.

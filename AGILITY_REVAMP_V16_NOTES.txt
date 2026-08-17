@@ -1,0 +1,23 @@
+Circle XI Player Career — Performance Gym Agility V16
+
+Implemented:
+- Removed Sprint Gates from visible Physical / Performance Gym training selection.
+- Legacy Sprint Gates save IDs migrate safely to Agility.
+- Renamed Agility Slalom to Agility.
+- Rebuilt Agility as a football dribbling course with tall flexible poles.
+- Flexible pole body and ball collision detection with spring bend, wobble, damping and recovery.
+- Forgiving collisions: poles bend instead of behaving like hard walls.
+- Player contact and ball contact tracked separately for scoring and results.
+- Four course layouts with seven alternating slalom poles.
+- Tight-clearance and clean-pole scoring, clean streaks and close-control grading.
+- Shared career / Match Day player renderer retained for the controlled footballer.
+- Tighter held-ball control while in Agility.
+- Final acceleration burst after the last pole.
+- New focused Agility HUD, pole progress strip, live feedback and WASD/Shift controls.
+- Agility results report clean poles, tight clears, body/ball contacts, close control and completion time.
+- Agility development targets Agility first, then Dribbling, Acceleration, Balance and Ball Control/First Touch by grade.
+- A+ remains the maximum training grade.
+
+Validation:
+- game.js passes Node JavaScript syntax validation.
+- Browser demo completed clean pole progression and flexible-pole collision/wobble testing.

@@ -1,0 +1,21 @@
+{
+  "version": "V35",
+  "mode": "Interception Rondo",
+  "all_six_moving_state1": true,
+  "all_six_moving_state2": true,
+  "pass_and_move_actions": 6,
+  "pass_types": {
+    "ground": 2,
+    "driven": 2,
+    "chip": 2
+  },
+  "page_errors": [],
+  "displacements": {
+    "Kofi Mensah": 21.21,
+    "Leo Hart": 11.58,
+    "Callum Price": 25.38,
+    "Andre Cole": 15.9,
+    "Malik Johnson": 20.87,
+    "Finn Doyle": 28.37
+  }
+}

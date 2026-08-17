@@ -1,0 +1,31 @@
+V47 AI TEMPO + PASS ROOT CONTINUITY VALIDATION
+==========================================================
+
+01. PASS  JavaScript contains v47 match polish marker
+02. PASS  AI pace baseline restored to 1.00
+03. PASS  Opponent pace boost present
+04. PASS  Teammate pace boost present
+05. PASS  AI target speed uses higher v47 formula
+06. PASS  Opponent acceleration gets modest boost
+07. PASS  AI post movement scale cannot amplify above target
+08. PASS  Pass root continuity wrapper installed
+09. PASS  updateBall snapshots controlled-player root
+10. PASS  updateBall restores root after pass/contact-side effects
+11. PASS  Direct reception root snap removed
+12. PASS  Forward first-touch root snap removed
+13. PASS  Away first-touch root snap removed
+14. PASS  Interception lunge no longer changes root position directly
+15. PASS  Pass contact still requires possession or close loose-ball contact
+16. PASS  Representative opponent chase pace increased materially — pace70: v46≈84.2, v47≈107.8 (+28%)
+
+Checks passed: 16/16
+
+Key behaviour changes:
+- Opponent AI speed is restored by raising the actual AI target speed instead of multiplying velocity above 1 after movement.
+- Opponent Pace and Acceleration attributes still determine relative speed; the slower global match tempo remains in place.
+- updateBall is now forbidden from changing the controlled player world-root position.
+- Directed, forward and away first touches move/lead the ball and use velocity impulses instead of snapping the user model.
+- Interception stretch uses velocity/animation rather than a direct position jump.
+- Queued passes still cancel if the ball is no longer owned or within the 30-unit contact radius.
+
+Note: Chromium in this workspace currently hangs during local-file rendering, so validation is source/syntax/deterministic rather than a fabricated screenshot.

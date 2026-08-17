@@ -1,0 +1,24 @@
+PERFORMANCE GYM — RACE MODEL PROPORTIONS V25
+
+Implemented after reviewing the V24 race-model screenshots.
+
+Changes:
+- Race-only thigh length reduced by 13% and shin length by 16% so legs no longer dominate the body.
+- Hip height recalibrated for the shorter leg chain to retain an athletic sprint stance.
+- Maximum race stride and knee lift reduced to prevent over-folded/crouched poses.
+- Two-bone leg solver now penalises backwards knee solutions, over-high knees, and over-low knee positions.
+- Front-knee guide moved forward/down into a more realistic sprint drive path.
+- Rear-leg guide keeps the knee behind the hip during extension instead of folding underneath the body.
+- Upper-arm roots separated farther from the torso for side-view readability.
+- Upper arms are thicker and now include a visible sleeve/cuff marker so shoulder-to-elbow motion is readable.
+- Forearms remain linked to the same fixed Match Day arm chain.
+- Race trainer length increased by about 25%, width increased, while preserving side-profile heel/sole/toe shape.
+- No Match Day identity data was changed; the Race mode still reads the canonical career/squad appearance.
+- Race camera, 100m/200m/500m logic, Pace/Acceleration physics, J/L cadence, records and watchdog are unchanged.
+
+Validation targets:
+- No inverted knee solution.
+- Fixed thigh/shin/arm lengths in every frame.
+- Clearly visible upper arm on near-side runner.
+- Larger trainers without returning to the oversized V21/V22 shoe look.
+- Match Day identity fingerprint remains unchanged.

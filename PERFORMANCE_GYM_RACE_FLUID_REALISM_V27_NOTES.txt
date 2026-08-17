@@ -1,0 +1,26 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM RACE FLUID REALISM V27
+
+Race running-animation update focused on fluidity and biomechanical realism.
+
+IMPLEMENTED
+- Kept the canonical Match Day identity and body proportions for the user and AI teammates.
+- Reworked Race sprinting around one continuous stride phase instead of pose-to-pose snapping.
+- Added speed-smoothed cadence and stride-length drivers so animation reacts gradually to changing race speed.
+- Replaced the airborne leg path with smooth Catmull-Rom swing curves.
+- Kept the stance foot effectively world-locked while the pelvis travels over it, reducing visible skating.
+- Made the pelvis the centre of the running animation, including landing compression, flight lift and subtle fore/aft weight transfer.
+- Added smoother centre-of-mass movement across contact, stance, toe-off and flight.
+- Improved knee guides for contact, stance, toe-off, recovery, knee drive and landing preparation.
+- Preserved fixed Match Day-derived thigh and shin lengths with minimum-reach protection against broken folded poses.
+- Rebuilt arm movement as shoulder-led motion with a dynamic but constrained elbow bend.
+- Front arm swing closes the elbow slightly; rear swing opens it slightly while remaining in a natural range.
+- Opposite arm / opposite leg coordination remains phase locked.
+- Added subtle shoulder counter-motion against the pelvis to reduce rigid-torso movement.
+- Improved head stabilisation so the head moves less than the hips/torso while still retaining subtle natural motion.
+- Increased Race trainer length slightly and preserved heel/sole/forefoot/toe articulation.
+- Trainer angle now follows contact, stance, toe-off, recovery and landing preparation.
+- Ground-contact compression and flight shadow changes remain tied to the current stride phase.
+- Fatigue continues to shorten stride and reduce lift gradually rather than abruptly switching animation states.
+- Preserved 100m / 200m / 500m race distances, Pace/Acceleration/Stamina physics, J/L controls, camera follow, world-distance movement, timer logic, leaderboard and stuck-runner watchdog.
+
+V27 renderer id: canonical-match-side-profile-v27

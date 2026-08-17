@@ -1,0 +1,12 @@
+RACE V23 VALIDATION
+
+Static validation:
+- game.js passes Node JavaScript syntax validation.
+- Race world progression is distance-authoritative; runner screen position is derived from distance minus camera world position.
+- Live start/finish overlays are hidden in favour of world-space canvas markers.
+
+Runtime validation using the built-in Performance Gym Race demo:
+- 200m: canonical Match Day renderer active, player facing right, max-sprint gait, camera follows player, 35.4 km/h max speed, watchdog recoveries 0.
+- 500m: canonical Match Day renderer active, player facing right, max-sprint gait, camera follows player, distance continues while camera scrolls, watchdog recoveries 0.
+- 100m finish test: player finish timer froze at 10.63s while the post-finish simulation continued beyond 11.78s; the runner decelerated after the line and watchdog recoveries remained 0.
+- No JavaScript runtime exception was detected in the race tests. (Headless Chromium emitted only its expected autoplay AudioContext warning.)

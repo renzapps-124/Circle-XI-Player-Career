@@ -1,0 +1,23 @@
+CIRCLE XI PLAYER CAREER - PLAYER CREATION / PROFILE ATTRIBUTE SYNC
+================================================================
+
+Implemented:
+- Career Profile now uses the exact same attribute taxonomy as Player Creation.
+- Technical profile section now includes all 13 creator attributes:
+  First Touch, Dribbling, Passing, Technique, Crossing, Finishing, Long Shots,
+  Tackling, Marking, Penalties, Free Kicks, Corners, Throw Ins.
+- Mental profile section includes all 7 creator attributes:
+  Positioning, Vision, Anticipation, Decisions, Composure, Teamwork, Work Rate.
+- Physical profile section includes all 6 creator attributes:
+  Pace, Acceleration, Stamina, Strength, Agility, Balance.
+- The profile reads values directly from career.player.attrs, so values selected in
+  Player Creation are the values shown in the Profile after the career is created.
+- Important attributes for the player's position are marked with a KEY badge in the
+  Profile, matching the Player Creation concept.
+- Category averages in Profile are calculated from the exact visible creator groups.
+- Attribute Editor now also reuses the same shared creator groups, including Throw Ins,
+  preventing future attribute-list drift between creation, profile and editor.
+
+Compatibility:
+- Existing saves are not overwritten. Their current career.player.attrs values are used.
+- No attribute progression, OVR calculations, training rewards or match logic were removed.

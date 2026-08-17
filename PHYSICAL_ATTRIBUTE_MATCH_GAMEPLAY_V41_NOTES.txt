@@ -1,0 +1,33 @@
+CIRCLE XI PLAYER CAREER — PHYSICAL ATTRIBUTE MATCH GAMEPLAY V41
+
+Implemented from the Profile / Player Creation Physical attributes.
+
+PACE
+- Raises the genuine top-speed ceiling in open play.
+- Applies both on and off the ball, while Dribbling still controls on-ball retention.
+
+ACCELERATION
+- Changes how quickly velocity builds from standing and after direction changes.
+- Separates explosive players from players who are only fast once at full stride.
+
+STAMINA
+- Changes match-energy drain and recovery.
+- Adds a hidden repeated-sprint reserve that drains during sustained sprinting and refills while jogging/walking.
+- High Stamina reduces late-match technical/balance penalties and fatigue-related injury risk.
+
+STRENGTH
+- Dominates shoulder challenges, shielding and collision force.
+- Adds only a small contribution to strike velocity so it does not replace Finishing/Technique.
+
+AGILITY
+- Controls direction-change response, turning load and how sharply momentum can be redirected.
+
+BALANCE
+- Controls stability in collisions, stumble duration, velocity retention and shielding stability.
+
+MOMENTUM / CONTACT
+- Fast contact now matters; Strength determines force while Balance determines stability/recovery.
+- High Balance players are less likely to lose the ball from minor collisions.
+
+AI CONSISTENCY
+- AI players use the same Pace/Acceleration/Stamina movement ceilings and repeated-sprint reserve.

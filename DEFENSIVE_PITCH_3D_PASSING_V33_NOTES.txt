@@ -1,0 +1,63 @@
+Circle XI Player Career — Defensive Pitch 3D Passing V33
+=========================================================
+
+Defensive Pitch passing upgrades
+
+1. Boot-level ball positioning
+- Defensive Pitch no longer places a held football at the player body centre/knee line.
+- The visible football contact point is projected from the recent Match Day model's actual rig/leg scale.
+- Each player gets a boot-line contact anchor that scales with body size, including goalkeepers and differently proportioned squad members.
+- Passes render boot-to-boot while their logical pitch coordinates remain centre-to-centre, preserving interception/lane calculations.
+- User possession, AI possession and pass reception use the same visual foot-placement system.
+
+2. AI pass variety
+- AI can choose ground, driven and chipped passes.
+- Pass decisions account for distance, current and projected interception lanes, passer Passing/Vision, defender pressure and risk.
+- Blocked ground lanes increase chip probability; narrow open lanes increase driven-pass probability.
+- Early-session variety guarantees that both driven and chipped deliveries are introduced instead of relying entirely on random selection.
+- Normal AI testing produced ground, driven and chipped passes in the same Interception Rondo session.
+
+3. Driven passes
+- Separate driven-pass kick animation.
+- Ball release is synchronised to the real kick-contact timing from the shared Match Day animation profile.
+- Higher horizontal velocity than a standard pass.
+- Very low initial vertical velocity, stronger topspin and flatter trajectory.
+- Reduced rolling resistance compared with a normal ground pass.
+- Receiving player uses a firmer first-touch/cushion animation.
+
+4. Chipped passes / 3D ball flight
+- Chipped passes use x, y and z position plus vx, vy and vz velocity.
+- Gravity acts on the vertical axis each update.
+- Chipped balls use backspin, air drag and a real rise/apex/descent trajectory.
+- Landing applies grass-appropriate restitution and successive bounce damping.
+- Backspin slightly holds the ball in flight and reduces forward bounce; topspin makes driven deliveries dip/continue more aggressively.
+- The ball shadow stays on the pitch while the ball rises above it, making height readable from the top-down camera.
+
+5. Height-aware defending and control
+- Ground passes can be intercepted with the foot.
+- Low aerial balls can trigger a raised-foot block.
+- Higher reachable balls can trigger a defensive header.
+- A chip that is physically above the defender's reachable height is not intercepted simply because its 2D shadow overlaps them.
+- Receivers wait for aerial passes to descend to a controllable height and then use an aerial cushion/foot control as appropriate.
+
+6. AI prediction
+- Passing-lane risk considers where defenders are moving, not only where they are at the instant the AI decides to pass.
+- AI compares receiver distance, lane width and predicted defender movement before selecting the receiver/pass type.
+
+7. Animation/contact synchronisation
+- Pass action starts before the ball is released.
+- The ball remains at the selected boot during the kicking preparation.
+- Release time comes from kickContactTiming() for the actual ground/driven/lofted animation.
+- The selected kicking foot is sent to the shared player renderer so foot swing and release side match.
+
+Affected Defensive Pitch modes
+- Interception Rondo: full AI ground/driven/chipped passing and height-aware interceptions.
+- 3v3 Interception Rondo: the same 3D pass system during defending, securing possession and attacking-role phases.
+- 1v1 Defending: held/dribbled ball now uses the same boot-level visual anchor; its empty-goal finishing behaviour remains unchanged.
+
+Existing V32 systems preserved
+- Recent Match Day player models.
+- Interception scoring and passing-lane scoring.
+- 1v1 standing/slide tackles.
+- 3v3 press/cover/balance, possession secure phase and role transition.
+- A+ remains the maximum training grade.

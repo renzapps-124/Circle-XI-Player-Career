@@ -1,0 +1,72 @@
+POST-GOAL CENTRE KICK-OFF - V48 NOTES
+=====================================
+
+Requirement
+-----------
+After a goal, the team that conceded restarts from the centre spot with a kick-off.
+
+What was already correct
+------------------------
+The main path was in place and verified in a live browser:
+
+  goal() -> goalCelebration{kickTeam: 1 - scoringTeam}
+         -> celebration timer expires -> goal replay prompt
+         -> watch replay / continue -> setupKickoff(kickTeam, {afterGoal:true})
+
+setupKickoff() resets every active player to their formation slot, parks the ball on the
+centre spot and starts a 'kickoff' restart; arrangeRestart() then keeps each side in its own
+half and clears the centre circle apart from the taker.
+
+Defects fixed (game.js)
+-----------------------
+1. A running referee advantage could hijack the kick-off.
+   startRestart() rejects or re-routes any restart while an advantage is live. With an
+   advantage still on the books for the side that had just scored, the post-goal kick-off was
+   converted by callBackAdvantage() into a FREE KICK for the scoring team, roughly 125px off
+   the centre spot, with five players in the wrong half. A kick-off is fixed by the laws and
+   the ball is dead, so it now clears any advantage instead of deferring to it.
+
+2. setupKickoff() ignored whether the restart was actually created.
+   A refused startRestart() left playState on 'RESTART' with this.restart === null, which
+   falls through to open play - i.e. the match resumed from a loose ball on the centre circle
+   with no kick-off. It now retries with every veto suppressed, and only drops to open play
+   if that also fails.
+
+3. The replay prompt handlers depended on the celebration object.
+   watchGoalReplay() and skipGoalReplay() both early-returned unless this.goalCelebration was
+   still set, so if it were cleared while the prompt was up, the buttons and the Enter/Esc/
+   Space keys all went dead and the match froze with no kick-off. The restarting team is now
+   stored on the match (pendingKickoffTeam) when the prompt is shown, and goalRestartTeam()
+   reads it from either source.
+
+4. The replay prompt had no timeout.
+   If the answer never arrived (lost focus, swallowed input) the match sat on the prompt for
+   ever. goalReplayPromptTimer auto-continues to the kick-off after 20s. It is long enough
+   never to interrupt a deliberate choice.
+
+5. setupKickoff() now clears the celebration, the prompt and any advantage up front, so
+   nothing from the previous passage of play can survive into the restart.
+
+Verification
+------------
+Driven through the real engine in a browser (index.html?demo=tackle-fix-v45), stepping the
+fixed-timestep update loop. Every case ends with type 'kickoff', the conceding team as
+restart.team, the ball on the centre spot (525,340), 0 players in the opponent's half and
+0 players other than the taker inside the centre circle:
+
+  user scores                              -> kick-off to team 1
+  AI scores                                -> kick-off to team 0
+  prompt left unanswered (20s watchdog)    -> kick-off to team 1
+  celebration object lost while prompt up  -> kick-off to team 0
+  stale advantage for the scoring team     -> kick-off to team 1  (was: free kick, wrong side)
+  stale advantage for the conceding team   -> kick-off to team 0
+  watch replay, then replay ends           -> kick-off to team 1
+  kick-off taken                           -> OPEN_PLAY, ball leaves the centre spot
+
+Pre-match, second-half and extra-time kick-offs were re-checked and are unchanged.
+
+Not touched
+-----------
+preview.html, preview2.html, preview_head.html, _runtime_penalty_demo.html and
+__inline_test.html carry their own inlined copies of the old engine. They are debug snapshots,
+not the shipped app, so they still contain the old behaviour.

@@ -1,0 +1,35 @@
+RACE V26 VALIDATION
+
+JavaScript syntax: PASS (node --check game.js)
+100m browser runtime: PASS
+500m browser runtime: PASS
+Browser page errors: 0
+Runner count: 6
+Shared Match Day identity: PASS
+AI canonical squad identity: PASS
+Facing from velocity: PASS
+Continuous sprint gait: PASS
+Fixed-length leg solver: PASS
+Knee collapse guard: PASS
+Fixed-length arm chain: PASS
+Elbow direction guard: PASS
+Stance-foot lock: PASS
+Fluid pose damping: PASS
+Race camera follow: PASS
+World-distance movement: PASS
+Movement watchdog recoveries during captures: 0
+
+100m audit sample:
+- Test player Pace: 84
+- Test player Acceleration: 82
+- Attribute max speed: 35.4 km/h
+- Live captured speed: up to 35.4 km/h
+- Near-knee angle samples during sprint: approx 88.8–149.0 degrees
+- Near-elbow angle samples during sprint: approx 95.2–102.1 degrees
+- Race foot length factor: 2.56 x player height scale (about 20% larger than V25)
+
+500m audit sample:
+- Live speed: 35.3 km/h
+- Near knee angle: 149.9 degrees
+- Near elbow angle: 95.8 degrees
+- Browser errors: 0

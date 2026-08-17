@@ -1,0 +1,28 @@
+RACE V30 VALIDATION
+
+JavaScript syntax: PASS (node --check game.js)
+Browser-rendered 100m demo: PASS
+Browser JS error banner during clean capture: FALSE
+Runner count: 6
+Shared Match Day identity: PASS
+Body-adaptive Race shorts: PASS
+Per-runner pelvis/thigh/body-build fit: PASS
+Pelvis-locked waistband: PASS
+Thigh-derived shorts length: PASS
+Thigh-width-derived leg openings: PASS
+Upper-thigh overlap: PASS
+Independent teammate fit: PASS
+V29 continuous sprint biomechanics retained: PASS
+Race camera follow retained: PASS
+World-distance movement retained: PASS
+
+User max-sprint audit sample:
+- Renderer: canonical-match-side-profile-v30
+- Shorts fit: body-adaptive-v30
+- Half width: 2.49 internal units
+- Shorts height: 1.80 internal units
+- Leg-opening width: 2.53 internal units
+- Upper-thigh overlap: 1.06 internal units
+- Pace: 84
+- Acceleration: 82
+- Live speed: 35.4 km/h

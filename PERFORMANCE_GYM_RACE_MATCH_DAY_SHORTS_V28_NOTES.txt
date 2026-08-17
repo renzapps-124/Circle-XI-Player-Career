@@ -1,0 +1,18 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM RACE MATCH DAY SHORTS V28
+
+Implemented from Race Fluid Realism V27.
+
+CHANGES
+- Restored clearly visible shorts to the Race user and all AI team-mate models.
+- Shorts remain anchored to the pelvis instead of following either leg.
+- Increased the side-profile shorts body to Match Day-derived waist/pelvis proportions.
+- Added an explicit waistband, side seam and centre separation so the garment remains readable even when shirt/short colours are similar.
+- Added independent upper-thigh coverage for the near and far legs.
+- Each leg opening follows the direction of its thigh only for the first ~22% of the thigh, so the shorts do not stretch with the full sprint stride.
+- Upper thighs now begin underneath the shorts rather than appearing to attach directly to the shirt/hips.
+- Changed Race render order so both upper-thigh roots are masked by the shorts body while the legs still emerge naturally from the openings.
+- Preserved the V27 continuous gait, fixed bone lengths, foot locking, Pace/Acceleration race physics, camera follow and 100m/200m/500m races.
+
+RENDER FLAGS
+- matchDayShorts: true
+- shortsUpperThighOverlap: true

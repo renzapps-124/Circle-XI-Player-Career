@@ -1,0 +1,38 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM RACE MATCH MODEL V22
+
+Purpose
+- Correct the Race runner models after V21 still looked like separate crouched training characters.
+- Preserve the actual Match Day identity/proportions while making the side-on sprint readable.
+
+Model fixes
+- Race continues to consume sharedPlayerBodyProfile() and sharedPlayerRigMetrics(..., true), the canonical Match Day identity/rig source.
+- Rebuilt the side profile around a true horizontal running axis.
+- Corrected hip height. The previous pose put the hip almost one full leg length above the track, leaving no usable horizontal leg reach.
+- Added reachable-target clamping to the two-bone arm and leg solver so the renderer never stretches a shin/forearm to an impossible target.
+- Stronger forward knee drive and visible rear-leg extension.
+- Added a real high-speed flight phase while keeping the centre of mass stable.
+- Increased torso length and shoulder/chest presence to match Match Day proportions more closely.
+- Reduced oversized shorts so they wrap the pelvis instead of reading as a separate block.
+- Reduced footwear size and replaced oval shoes with a side-profile heel/sole/forefoot/toe shape.
+- Added a clearer neck and side-profile face treatment.
+- Saved Match Day hairstyle is now clipped/remapped to the back/top of the side-facing skull.
+- Near/far arms and legs have stronger depth separation.
+- Hands are smaller and elongated rather than circular.
+- Arms remain opposite the leg cycle.
+- AI team-mates use the same canonical Match Day model path and the same V22 sprint pose.
+- Race lane spacing was widened slightly to improve model separation.
+
+Race gameplay preserved
+- 100m / 200m / 500m distances.
+- Pace controls maximum velocity.
+- Acceleration controls speed build-up.
+- Stamina influences 500m performance.
+- J/L alternation controls efficiency.
+- Personal bests and leaderboard remain intact.
+- A+ remains the highest grade.
+
+Validation
+- game.js passes node --check.
+- Live Race renderer tested in headless Chromium using the game's built-in demo mode.
+- Runtime audit: canonical-match-side-profile-v22, shared Match Day identity true, Match Day rig metrics true, all AI team-mates use canonical Match identities, non-stretching IK true.
+- Demo player PAC 84 / ACC 82 reached the expected 35.4 km/h ceiling.

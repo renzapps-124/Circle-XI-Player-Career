@@ -1,0 +1,27 @@
+CIRCLE XI PLAYER CAREER — V40 MENTAL ATTRIBUTE USER + AI GAMEPLAY
+=================================================================
+
+Mental attributes are now live match systems, not just OVR/profile values.
+
+USER CONTROLLED PLAYER
+- Positioning: changes M auto-positioning/support zones, defensive goal-side guidance and onside run discipline.
+- Vision: expands passing recognition and improves creative/through-ball target assistance.
+- Anticipation: predicts loose balls, moving receivers and second-ball locations earlier.
+- Decisions: improves target interpretation, lane selection and onside buffers without overriding manual input.
+- Composure: dynamically protects passing/shooting/crossing/first-touch quality when pressed.
+- Teamwork: improves supporting angles and spacing around the current ball carrier.
+- Work Rate: increases urgency of assisted off-ball movement, with an increased stamina cost.
+
+AI TEAMMATES + OPPONENTS
+- Every AI player reads its own seven mental ratings.
+- Vision expands scanning/perception and improves receiver prediction.
+- Decisions reduce decision delay and improve the quality of AI option selection.
+- Anticipation improves reaction time, second-ball assignment and early defensive/attacking reads.
+- Positioning and Teamwork strengthen tactical target discipline, support and cover behaviour.
+- Teamwork makes one-twos/combination play more likely for suitable players.
+- Composure keeps AI technical execution and decision timing more stable under pressure.
+- Work Rate increases high-effort pressing/support/recovery activity but drains more stamina.
+
+DESIGN RULE
+Manual user input always has final authority. Mental attributes shape interpretation, assistance,
+reaction and off-ball intelligence rather than taking control away from the player.

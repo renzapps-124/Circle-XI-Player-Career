@@ -1,0 +1,28 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM RACE V19
+
+Replaces Repeated Sprints with Race.
+
+IMPLEMENTED
+- Repeated Sprints renamed/rebuilt as Race.
+- 100m, 200m and 500m selectable race distances.
+- Dedicated six-lane Performance Track environment with start/finish timing presentation.
+- Career player uses the same shared player identity/model renderer as Match Day, with training-kit colours only.
+- Five first-team team-mates race the user in separate lanes.
+- Pace is the hard maximum-speed ceiling.
+- Acceleration controls reaction/start and how quickly each runner reaches top speed.
+- Stamina adds sustained-speed retention in the 500m.
+- Rapid alternating J/L controls running efficiency; repeated/poor rhythm cannot override player attributes.
+- AI runners use the same Pace/Acceleration/Stamina rules instead of catch-up cheating.
+- Live race HUD: time, actual km/h, position, distance, cadence and rhythm.
+- Race times, position and top speed are recorded in a persistent race history.
+- Separate persistent PBs for 100m, 200m and 500m.
+- Full finishing leaderboard and new-PB banner.
+- Race development uses Pace as the primary attribute, Acceleration as a key secondary attribute and Stamina more heavily for 500m.
+- A+ remains the maximum grade.
+
+VALIDATION
+- game.js passes Node syntax validation.
+- Runtime capture verified 6 runners on track.
+- Runtime audit verified the user's race runner consumes the shared Match Day player identity/model.
+- Test player: Pace 84, Acceleration 82. Calculated maximum speed 35.4 km/h.
+- 100m and 200m setup/live test captures completed with no page errors.

@@ -1,0 +1,41 @@
+CIRCLE XI PLAYER CAREER — RACE V24 VALIDATION
+
+Static validation
+- game.js passes Node JavaScript syntax validation.
+- Race still uses distanceTravelled/world-distance progression and V23 stuck-state watchdog.
+
+Runtime 100m demo
+- No browser page errors.
+- 6 runners loaded.
+- 6 live leaderboard rows loaded.
+- User renderer: canonical-match-side-profile-v24.
+- Shared Match Day identity: PASS.
+- AI teammates use canonical squad Match Day identities: PASS.
+- Facing from velocity: right.
+- Gait reached max-sprint.
+- Camera follow active; 58m visible window.
+- Live top speed reached 35.4 km/h for the demo 84 Pace player.
+- Watchdog recoveries: 0 during capture.
+- Names above runners / lane centre alignment / larger models audit flags: PASS.
+
+Runtime 500m demo
+- No browser page errors.
+- 6 runners loaded.
+- 6 live leaderboard rows loaded.
+- Shared Match Day identity: PASS.
+- AI canonical identities: PASS.
+- Camera follow active; 94m visible window.
+- World distance remains authoritative.
+- Watchdog recoveries: 0 during capture.
+
+V24 model/presentation checks
+- Taller, more readable side-on athlete proportions.
+- Raised hips and longer torso.
+- Greater rear-leg extension and forward knee drive.
+- Stronger max-speed flight phase.
+- Near/far limb depth retained.
+- Smaller shaped trainers with heel/sole/toe silhouette.
+- Reduced shorts bulk.
+- Side-profile head/hair treatment.
+- User lane highlight + cyan marker does not alter player body.
+- Compact TIME / SPEED / POS HUD and live six-runner leaderboard.

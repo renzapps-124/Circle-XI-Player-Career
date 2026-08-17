@@ -1,0 +1,86 @@
+SET-PIECE GOALKEEPERS STAY IN GOAL - V48 NOTES
+==============================================
+
+Requirement
+-----------
+A goalkeeper must not leave his goal to join a free-kick taker. At any dead ball, a keeper who
+is not taking the restart himself belongs on his own line.
+
+Root cause
+----------
+arrangeRestart() opens by dragging every player 68% of the way back to their formation slot,
+then each restart type positions the players it cares about. Goalkeepers fell through that:
+
+  - Only SOME branches placed a keeper. The free-kick branch handled both keepers correctly,
+    which is why an ordinary free kick always looked right.
+  - Where no branch placed him, a keeper caught upfield was left at 32% of the way out - out
+    in the pitch, near the ball, for the whole set piece.
+  - Two branches actively dragged a keeper towards the ball (see 2 and 3 below).
+
+Reproduced with the keeper parked at (430,300) - roughly the centre circle - when the restart
+was awarded. Distances below are from the centre of his own goal.
+
+1. OFFSIDE INDIRECT FREE KICK - the reported case.
+   The offside branch walks players to targets set at 12-18% back towards home, which barely
+   moves anyone. The keeper's target was ~410px from his goal and 42px from the ball: he stood
+   next to the free-kick taker for the whole restart. This is also the restart where it happens
+   most, because a keeper is off his line exactly when his defence is playing the high line
+   that produced the offside.
+
+2. PENALTY - the taking side's keeper joined the queue on the edge of the box.
+   The branch placed "every player except the taker and the defending keeper" in rows behind
+   the penalty spot. That filter caught the attacking keeper, teleporting him from his own goal
+   to ~770px away, into the ruck at the edge of the area.
+
+3. GOAL KICK - the opposing keeper was pulled into midfield.
+   "Every player on the other team" was spread across x = 310..450 from the kicking team's
+   goal, which for the far keeper meant abandoning his line by ~700px.
+
+4. THROW-IN, CORNER, KICK-OFF - keeper left at 173px from his goal, i.e. the 68% lerp and
+   nothing else.
+
+Fixes (game.js, all in arrangeRestart / updateRestartMovement)
+-------------------------------------------------------------
+- New keeper pass immediately after the generic lerp: any keeper who is not the taker is put
+  on his own line (30px out, tracking the ball's y within the goal mouth). It runs BEFORE the
+  type branches, so penalty / corner / free-kick keeper placements still override it with
+  their more precise stances.
+- Penalty branch: the crowd placement now excludes goalkeepers.
+- Goal-kick branch: the opposition placement now excludes goalkeepers.
+- Offside branch: after its own two passes, keeper restart targets are re-pointed at their own
+  line, since those passes would otherwise overwrite the default.
+- updateRestartMovement(): outfielders only shuffle a few metres, so snapping them at the end
+  of the setup phase is invisible. A recovering keeper can be half a pitch out, so he keeps
+  running past the setup phase, at a sprint (235 vs 125), instead of being teleported home.
+  Measured maximum movement in a single frame during the recovery run: 3.9px.
+- The unreachable else-branch fallback was made consistent (keepers excluded) so it cannot
+  reintroduce the same bug if a new restart type ever lands there.
+
+Verification
+------------
+Driven through the real engine (index.html?demo=tackle-fix-v45), both keepers parked at
+(430,300) before the restart, measured once the restart reaches its 'ready' phase.
+Distance from the centre of the keeper's own goal - the line itself sits at 30px, and anything
+up to ~76px is the keeper shading across his goal mouth towards the ball:
+
+  restart      taking side's GK    other GK      (before the fix)
+  offside            73px             76px       ~410px / ~440px
+  free kick          34px             29px       (already correct)
+  penalty            30px             27px       ~770px  (edge of the box)
+  goal kick     43px (he takes it)    30px       ~700px
+  corner             70px             32px       173px
+  throw-in           70px             70px       173px
+  kick-off           30px             30px       173px
+
+Post-goal kick-off (V48 change before this one) re-checked and unaffected: kick-off to the
+conceding side, ball on the centre spot, nobody in the wrong half, both keepers on their lines.
+
+Note on a NaN seen during testing: running dozens of scenarios inside one page session
+eventually corrupted player coordinates in the test harness. It does not reproduce on a fresh
+load - 30s of open play and a full corner sequence are clean - and it is unrelated to these
+changes.
+
+Not touched
+-----------
+preview.html, preview2.html, preview_head.html, _runtime_penalty_demo.html and
+__inline_test.html carry their own inlined copies of the old engine.

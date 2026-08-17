@@ -1,0 +1,25 @@
+Circle XI Player Career - Performance Gym Race Directional Sprint V20
+
+Implemented
+- Replaced the rotated top-down race runner presentation with a dedicated side-on sprint pose renderer.
+- Race renderer still consumes the exact shared career/Match Day identity and anthropometric profile.
+- Full player skeleton mirrors as one unit from signed race velocity: right-moving runners face right; left-moving runners face left.
+- Head, face, hair, torso, arms, shorts, legs and trainers all mirror together.
+- Added race-specific gait states: Ready, Acceleration, Fast Run, Sprint, Max Sprint, Fatigue Sprint, Deceleration.
+- Acceleration phase uses a stronger forward lean and shorter early stride shape.
+- Sprint speed changes stride length, knee drive, flight time and arm travel rather than only animation playback rate.
+- Added stance/contact, toe-off, recovery and knee-drive phases.
+- High speed stance time shortens to permit a visible flight phase.
+- Added forefoot-oriented sprint shoe poses, landing compression and planted-foot travel.
+- Added contralateral arm/leg swing and bent-elbow sprint arm action.
+- AI teammates use the same race pose/biomechanics system as the user.
+- Each AI runner begins with an independent animation phase so the squad no longer runs in synchronised lockstep.
+- Pace and Acceleration physics remain unchanged: Pace sets the top-speed ceiling and Acceleration determines the build-up to it.
+- J/L rhythm still controls how efficiently the user accesses their attribute-defined speed.
+
+Validation
+- game.js passes Node syntax validation.
+- Headless Chromium race test completed with no page errors.
+- Shared Match Day identity audit: true.
+- Race side sprint renderer audit: race-side-sprint-v20.
+- Directional facing is derived from signed race screen velocity.

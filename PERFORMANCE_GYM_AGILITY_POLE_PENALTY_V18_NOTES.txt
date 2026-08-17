@@ -1,0 +1,9 @@
+PERFORMANCE GYM — AGILITY POLE PENALTY V18
+
+- Every unique agility pole hit now deducts 250 points immediately.
+- A pole only charges the penalty once per run, preventing repeated overlap from draining points unfairly.
+- Live feedback explicitly displays POLE HIT · -250 PTS.
+- The live score flashes red when a deduction occurs.
+- Pole-contact penalties are accumulated in agility.penaltyPoints.
+- The results screen now shows the total pole-contact point deduction and the number of penalised contacts.
+- Existing wobble, collision speed loss, moving poles, clean-streak reset and A+ grade cap remain intact.

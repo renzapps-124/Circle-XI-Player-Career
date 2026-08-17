@@ -1,0 +1,16 @@
+CIRCLE XI PLAYER CAREER — V44 TRUE FREE KICK TRAINING MATCH SYSTEM
+
+WHAT CHANGED
+- User-controlled match free kicks bypass the legacy SET-PIECE STUDIO presentation.
+- Match free kicks now open a dedicated interface built from the same Free Kick Training HUD language, technique selector and PERFECT power-window system used by the training drill.
+- Aim with WASD/arrows or click/tap directly on the goal.
+- Techniques match Free Kick Training:
+  * Curl / Bend — J + L
+  * Top-Spin Dip — K + L
+  * Knuckleball — I + L
+  * Low Driven — select LOW DRIVEN, then hold/release L
+  * Normal — select NORMAL, then hold/release L
+- The match route calls the shared freeKickPowerWindow() and freeKickTimingResult() functions, rather than using a second old timing mechanic.
+- The real match free-kick ball flight still uses matchFreeKickTrainingProfile(), preserving curl, dip, knuckle, low-driven and normal trajectories in the match engine.
+- Free Kicks is the main execution rating. Technique, Composure, shot/curve context, distance and match pressure modify consistency.
+- The old SET-PIECE STUDIO remains only for set pieces not yet migrated. User penalties use the v43 Penalty Training route and user free kicks use this v44 Free Kick Training route.

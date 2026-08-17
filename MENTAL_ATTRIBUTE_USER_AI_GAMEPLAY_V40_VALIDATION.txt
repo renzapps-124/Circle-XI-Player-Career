@@ -1,0 +1,31 @@
+CIRCLE XI V40 MENTAL ATTRIBUTE VALIDATION
+========================================
+{
+  "version": "v40-user-ai-mental-intelligence",
+  "allSevenMentalAttributesReferenced": true,
+  "anticipationReactionDelayHigh": 0.078,
+  "anticipationReactionDelayLow": 0.207,
+  "anticipationPass": true,
+  "decisionCooldownHigh": 0.317,
+  "decisionCooldownLow": 0.473,
+  "decisionsPass": true,
+  "composurePressureDeltaHigh": 4.909,
+  "composurePressureDeltaLow": -1.152,
+  "composurePass": true,
+  "visionPerceptionHigh": 279.5,
+  "visionPerceptionLow": 177.0,
+  "visionPass": true,
+  "workRateEffortHigh": 1.147,
+  "workRateEffortLow": 0.965,
+  "workRatePass": true,
+  "patchMarkers": {
+    "userMentalTarget": true,
+    "aiDecisionWrap": true,
+    "aiTacticalWrap": true,
+    "pressureComposure": true,
+    "anticipationReach": true
+  },
+  "logicPass": true
+}
+
+Node syntax check is run separately during packaging.

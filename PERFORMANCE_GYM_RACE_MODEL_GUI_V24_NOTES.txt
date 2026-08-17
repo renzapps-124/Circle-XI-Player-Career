@@ -1,0 +1,15 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM RACE MODEL + GUI V24
+
+- Increased race player rendering scale and aligned every runner to the true centre of all six track lanes.
+- Race appearance continues to use canonical Match Day identity data for the user and real squad teammates.
+- Rebuilt the side-on sprint silhouette using the shared side-athlete projection: longer torso, clearer shoulders/neck, raised hips, stronger rear-leg extension and forward knee drive.
+- Added deeper flight phase and shorter high-speed ground contact.
+- Improved near/far limb depth, arm drive, hand proportions and opposite arm/leg coordination.
+- Reduced blocky footwear and redrew trainers with heel, sole, forefoot and toe shape.
+- Reduced shorts bulk and added a clearer pelvis/leg-opening shape.
+- Improved side-profile face, ear, nose, mouth and hair placement.
+- Names now render in floating badges above each player. User has a separate cyan marker and lane highlight rather than altered body proportions.
+- Follow camera is closer for 100m/200m/500m while retaining extra look-ahead space.
+- Added compact live leaderboard and polished TIME / SPEED / POS HUD.
+- Added finer rubber-track grain and clearer lane presentation.
+- Existing world-distance movement, stuck watchdog, Pace/Acceleration physics, PBs and J/L cadence are preserved.

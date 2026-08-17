@@ -1,0 +1,39 @@
+CIRCLE XI PLAYER CAREER — V46 MATCH POLISH / SIMULATION / INJURY PASS
+
+1. Compact player-fitted stretcher
+- Deployed stretcher reduced from 68 x 24 to 55 x 19.5 game units.
+- Created-player render on the stretcher increased to 1.08 scale and centred on the pad.
+- Pillow/strap geometry and medic carry spacing retuned for the smaller frame.
+- The stretcher still reuses the actual created player's appearance rather than a placeholder body.
+
+2. Injury presentation
+- Injury substitution now has a dedicated medical visual treatment rather than the generic substitution panel.
+- Displays match minute, affected area, medical assessment pending status, and the replacement row.
+- Continue button now simulates the remaining match instead of instantly ending at the injury score.
+
+3. Rating-driven match simulation
+- New shared simulation engine uses attack, midfield, defence, goalkeeper and overall team ratings.
+- Used for missed fixtures caused by injury, in-match 'Continue to Full Time', and the pause-menu 'Simulate to Full Time' action.
+- Preserves current score/minute for in-progress matches and only simulates remaining time.
+- Handles red-card team-count effects, extra time and shootouts.
+
+4. Discipline / yellow cards
+- Foul severity is no longer modified by referee card bias.
+- A separate disciplinary decision evaluates severity, ball/player contact context, tackle type, angle, speed and persistent fouling.
+- Minor fouls are normally no-card events; warnings can occur without a booking.
+- Yellow/red cards display a reason (e.g. Late Challenge, Reckless Slide From Behind, Persistent Fouling).
+
+5. Passing teleport protection
+- Removed distant loose-ball reclaim and the old pass safety fallback.
+- A queued kick only connects while the player still owns the ball or the loose ball is within a 30-unit foot-contact radius.
+- Loose-ball kicks use the real ball contact point instead of snapping possession.
+- Added a per-frame continuity guard for impossible user-position jumps.
+
+6. Slower AI
+- Both team-mate and opponent AI use an additional 0.88 movement scale and 0.84 acceleration scale while retaining individual Pace/Acceleration differences.
+- AI movement has a hard per-update continuity cap to prevent large root-motion jumps.
+
+7. Ball weight / gravity
+- Airborne gravity increased from 418 to 486.
+- Ground rolling resistance increased (Wet 21, Normal 26, Dry 31).
+- Low-speed settling threshold increased from 4 to 5.5 so loose balls stop naturally rather than sliding around indefinitely.

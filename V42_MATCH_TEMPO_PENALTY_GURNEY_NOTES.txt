@@ -1,0 +1,42 @@
+CIRCLE XI PLAYER CAREER — V42 MATCH TEMPO / PENALTY / GURNEY UPDATE
+
+1. CREATED PLAYER ON THE GURNEY
+- Removed the generic placeholder patient body from the stretcher renderer.
+- The loaded stretcher now clones the actual injured match player and renders it with the same shared footballer renderer used during play.
+- The stretcher patient therefore inherits the created player's face/skin tone, hairstyle/hair colour, kit colours, shirt number, boots, body build and proportions.
+- The normal pitch model is hidden during transfer/carry so there is only one visible version of the injured player.
+- Safety straps and the pillow are layered over the real player model rather than replacing the body.
+- Medical walking speed is kept at its previous cutscene cadence so the slower match tempo does not make treatment sequences unnecessarily long.
+
+2. SLOWER MATCH GAMEPLAY
+- Global match pace scale changed from 0.76 to 0.64 for football movement.
+- User sprint boost changed from 1.31x to 1.23x.
+- User and AI acceleration response now uses a 0.78 response multiplier, giving movement more build-up instead of near-instant maximum speed.
+- V41 Physical attributes still matter: Pace, Acceleration, Agility, Balance, Strength and Stamina continue to differentiate players inside the slower shared baseline.
+- User and AI physical wrapper ranges were tightened so elite attributes still feel better without restoring the excessive overall speed.
+
+Approximate comparison before attribute/fatigue modifiers:
+- Normal movement baseline: about 15.8% slower than v41.
+- Full sprint baseline: about 20.9% slower than v41.
+- Acceleration response: 22% slower than v41.
+
+3. MATCH PENALTIES NOW USE PENALTY TRAINING CONTROLS
+- The old match penalty-taking UI path is bypassed/replaced by a training-style penalty controller.
+- Match penalties use the same penalty training technique definitions and green power windows.
+- Controls:
+  L = Normal
+  J + L = Placed / finesse
+  K + L = Low driven
+  I + L = Panenka
+  WASD / arrows = aim
+  Hold the technique keys, then release for power.
+- Match pressure is layered on top of the training mechanic rather than using a different penalty system.
+- Penalties, Composure, Finishing and Technique affect execution.
+- The goalkeeper reads the resulting shot rather than reading the user's raw input.
+- Normal, placed, low-driven and Panenka penalties receive distinct speed/spin/lift profiles.
+- AI penalties also use the same four training-style technique families and attribute-based placement logic.
+
+Version markers:
+- v42-slower-football-tempo
+- v42-shared-penalty-training-controls
+- v42-created-player-on-stretcher

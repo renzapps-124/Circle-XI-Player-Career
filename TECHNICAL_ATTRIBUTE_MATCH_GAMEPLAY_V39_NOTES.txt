@@ -1,0 +1,84 @@
+CIRCLE XI PLAYER CAREER — TECHNICAL ATTRIBUTE MATCH GAMEPLAY V39
+
+Purpose
+Make the Technical attributes selected in Player Creation and shown in the Profile directly affect how the user's footballer behaves during a match. User input remains important: attributes modify execution, consistency, animation timing and assistance rather than playing the match for the user.
+
+IMPLEMENTED MATCH EFFECTS
+
+1. FIRST TOUCH
+- First Touch is now the primary reception/control attribute.
+- Higher First Touch reduces loose-control probability on fast, bouncing and pressured receptions.
+- Higher First Touch shortens the control/settle animation.
+- Holding a movement direction as the ball arrives can produce a directional first touch into space.
+- Better First Touch allows a larger, cleaner escape touch without losing control.
+
+2. DRIBBLING
+- Dribbling now affects on-ball speed retention.
+- Higher Dribbling produces sharper changes of direction while carrying the ball.
+- Higher Dribbling reduces heavy-touch risk while sprinting, turning or under pressure.
+- The ball is kept physically closer to high-rated dribblers during normal and sprint dribbling.
+
+3. PASSING
+- Passing is now the dominant execution rating for normal ground passes.
+- It has a larger effect on directional error and pass-weight consistency.
+- Technique and First Touch support execution, while mental attributes still affect decision/assistance quality.
+- Low Passing remains usable with good player input but is visibly less consistent.
+
+4. TECHNIQUE
+- Technique now directly changes preparation speed for difficult football actions.
+- High Technique reduces wind-up time for first-time passes/shots, crosses, lofted passes, backheels, finesse shots, chips, volleys, bicycle kicks, free kicks and corners.
+- Existing contextual advanced kick animations continue to use Technique gates.
+
+5. CROSSING
+- Crossing is now the dominant rating in open-play cross execution.
+- Higher Crossing tightens the delivery error cone and makes target zones more repeatable.
+- Crossing continues to work with Technique, Passing and the player's selected power/aim.
+
+6. FINISHING
+- Finishing has the strongest effect on shots close to goal.
+- Higher Finishing reduces directional error and improves clean execution in the box.
+- Finishing no longer acts like a raw leg-power stat; it primarily improves execution quality.
+
+7. LONG SHOTS
+- Finishing and Long Shots now blend smoothly with distance rather than switching at a hard distance threshold.
+- Close shots rely mainly on Finishing.
+- As distance increases, Long Shots progressively becomes the dominant shooting attribute.
+- Long Shots also affects long-range shot execution consistency for AI players.
+
+8. TACKLING
+- Tackling now affects physical tackle reach and clean-contact timing as well as the success/foul calculation.
+- Better Tackling gives a slightly larger legal contact window.
+- Better Tackling reduces user tackle recovery/cooldown time.
+- Slide length/reach also reflects Tackling together with stamina and approach speed.
+
+9. MARKING
+- Marking now provides subtle user-controlled defensive assistance.
+- When the user holds SPACE to jockey without giving a movement direction, the player shades goal-side of the current opposition ball carrier.
+- Higher Marking chooses a tighter contain distance and reacts sooner.
+- The system never overrides active WASD movement.
+
+10. PENALTIES
+- Penalties is now the dominant penalty-set-piece rating.
+- Higher Penalties provides a wider perfect timing area, slower timing needle and lower aiming uncertainty.
+- Finishing, Composure, Technique and weak foot remain supporting factors.
+
+11. FREE KICKS
+- Free Kicks is now the dominant direct-free-kick rating.
+- Higher Free Kicks widens the clean timing window, slows the timing needle and reduces delivery uncertainty.
+- Technique, curve, composure and weak foot remain supporting factors.
+
+12. CORNERS
+- Corners is now the main match corner-delivery attribute.
+- Higher Corners improves the set-piece timing window and reduces target uncertainty.
+- Actual corner-flight quality now weights Corners much more heavily, with Crossing and Technique supporting it.
+
+13. THROW INS
+- Throw Ins now affects maximum range, aiming uncertainty and actual launch consistency.
+- Low ratings introduce more realistic direction and weight variation.
+- High ratings reproduce the user's chosen target more faithfully and allow longer throws.
+- Technique and Strength provide small supporting contributions.
+
+GENERAL MATCH PRINCIPLE
+Attributes modify how faithfully the footballer executes the user's command. Pressure, stamina, weak foot, body angle, movement speed and injury can still reduce effective quality, so a high Technical rating does not create guaranteed outcomes.
+
+Build marker: window.__TECHNICAL_ATTRIBUTE_GAMEPLAY_VERSION = v39

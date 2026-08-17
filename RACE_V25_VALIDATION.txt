@@ -1,0 +1,19 @@
+RACE MODEL PROPORTIONS V25 VALIDATION
+
+Browser runtime capture: PASS
+Renderer: canonical-match-side-profile-v25
+Shared Match Day identity: PASS
+Shared Match Day rig metrics: PASS
+Teammate canonical identities: PASS
+Compact Race legs: PASS
+Forward knee constraint: PASS
+Visible upper-arm sleeve/cuff: PASS
+Larger Race trainers: PASS
+True side profile: PASS
+Non-stretching IK: PASS
+Camera follow: PASS
+World-distance race movement: PASS
+Race watchdog recoveries during capture: 0
+Runtime console/page errors during capture: 0
+Demo player: Pace 84 / Acceleration 82
+Expected and observed maximum speed: 35.4 km/h

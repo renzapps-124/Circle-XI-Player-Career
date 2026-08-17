@@ -1,0 +1,43 @@
+CIRCLE XI PLAYER CAREER — PERFORMANCE GYM AGILITY RUNNING V17
+
+Agility drill redesign
+- Removed the football from Agility gameplay and rendering. This is now a pure running/change-of-direction drill.
+- The player runs through a tighter 10-pole slalom using WASD.
+- Pole spacing has been reduced substantially compared with the previous seven-pole course.
+- Flexible poles retain soft collision detection: contact bends/wobbles them instead of acting as a hard wall.
+- Every pole now also oscillates vertically with staggered speed, amplitude and phase so the course is dynamic rather than synchronized.
+- Pole collision wobble is layered on top of the vertical movement.
+
+Attribute-driven movement
+- Pace sets the player's maximum running speed.
+- Acceleration controls how quickly the player reaches/regains that speed.
+- Agility controls turn response and how much momentum is retained through sharp cuts.
+- Balance controls how much speed is retained after pole contact.
+- Sharp direction changes deliberately reduce momentum, then Acceleration drives the recovery.
+- No Shift sprint modifier is required in this drill; speed comes from the player's attributes and continuous movement input.
+
+Course & scoring
+- Ten close poles with multiple course variants.
+- Clean cuts, perfect tight cuts, retained momentum and running speed all contribute to score.
+- Pole contact breaks the clean streak and applies a small speed/score penalty.
+- The final section becomes a straight sprint so Pace has a clear visible role.
+- A+ remains the highest grade.
+
+GUI
+- Live TIME, SPEED, SCORE, CLEAN and STREAK chips.
+- 10-pole course-progress strip plus final-sprint marker.
+- Live speed uses the same actual movement speed that drives the player.
+- Live run-quality feedback: RESET & DRIVE / BUILDING SPEED / EXPLOSIVE / MAX VELOCITY.
+- Ball/dribbling prompts and ball-control metrics removed.
+
+Results
+- Clean Poles
+- Perfect Cuts
+- Pole Contacts
+- Top Speed
+- Fastest Burst
+- Agility, Acceleration, Pace and Balance development
+
+Validation
+- game.js JavaScript syntax validation passed with Node.
+- Headless in-game demo rendered 10 poles, no visible ball, live attribute-driven speed and course progression without page errors.

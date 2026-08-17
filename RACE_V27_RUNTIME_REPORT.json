@@ -1,0 +1,32 @@
+{
+  "version": "V27",
+  "renderer": "canonical-match-side-profile-v27",
+  "tests": {
+    "javascriptSyntax": "PASS",
+    "race100m": "PASS",
+    "race500m": "PASS",
+    "browserErrors": 0,
+    "runnerCount": 6,
+    "watchdogRecoveries": 0
+  },
+  "features": {
+    "sharedMatchDayIdentity": true,
+    "continuousStridePhase": true,
+    "pelvisDrivenGait": true,
+    "cubicSwingCurves": true,
+    "stanceWorldLock": true,
+    "fixedLegBones": true,
+    "shoulderLedArms": true,
+    "dynamicElbowAngle": true,
+    "headStabilisation": true,
+    "smoothedCadenceAndStride": true
+  },
+  "samples": {
+    "pace": 84,
+    "acceleration": 82,
+    "maxSpeedKmh": 35.4,
+    "liveSpeedKmh": 35.4,
+    "kneeAngleRangeDeg": [86.4, 149.8],
+    "elbowAngleRangeDeg": [85.1, 103.7]
+  }
+}

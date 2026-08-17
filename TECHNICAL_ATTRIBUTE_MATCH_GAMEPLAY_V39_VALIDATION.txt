@@ -1,0 +1,41 @@
+CIRCLE XI PLAYER CAREER — V39 VALIDATION
+
+Static validation
+- node --check game.js: PASS
+- Technical gameplay build marker detected: v39
+
+Browser runtime validation
+- Match demo loaded with the updated game code: PASS
+- Page errors during elite Passing demo: 0
+- Page errors during low Passing demo: 0
+- Page errors during Crossing demo: 0
+
+Controlled attribute comparisons under the same match conditions
+
+Passing
+- Passing 92: effective quality 79.93, direction error 5.54 degrees
+- Passing 42: effective quality 52.43, direction error 10.98 degrees
+Result: high Passing is materially more accurate and consistent.
+
+Crossing
+- Crossing 93: effective quality 79.79, direction error 8.87 degrees
+- Crossing 43: effective quality 53.79, direction error 16.81 degrees
+Result: high Crossing materially tightens delivery accuracy.
+
+Finishing vs Long Shots distance blend
+- High Finishing / low Long Shots at 130 distance: 79.01 effective
+- High Finishing / low Long Shots at 390 distance: 59.89 effective
+- Low Finishing / high Long Shots at 130 distance: 57.17 effective
+- Low Finishing / high Long Shots at 390 distance: 75.87 effective
+Result: Finishing dominates close-range execution and Long Shots progressively dominates from distance.
+
+Set pieces
+- Penalty specialist test: high rating produced a larger timing window and less uncertainty than low rating.
+- Free-kick specialist test: high rating produced a larger timing window and less uncertainty than low rating.
+- Corner specialist test: high rating produced a larger timing window and less uncertainty than low rating.
+- Throw-in specialist test: high rating produced longer range and substantially less uncertainty than low rating.
+
+Screenshots generated from the updated match build
+- technical-attributes-passing-v39.png
+- technical-attributes-low-passing-v39.png
+- technical-attributes-crossing-v39.png

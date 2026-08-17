@@ -1,0 +1,31 @@
+Defensive Pitch V33 Validation
+==============================
+
+Static validation
+- game.js: node --check PASSED.
+
+Headless in-game runtime validation
+- Actual game UI loaded using the production index.html/styles.css/game.js in an isolated capture harness.
+- JavaScript page errors: 0 in natural, forced-driven and forced-chip tests.
+
+Natural Interception Rondo AI test (9 seconds)
+- Ground passes: 3
+- Driven passes: 2
+- Chipped passes: 1
+- Confirms AI pass-type variety occurs in a normal unforced session.
+
+Forced driven-pass validation
+- passType: driven
+- ball z during flight: 0.00 (flat/ground-hugging trajectory)
+- no runtime errors.
+
+Forced chipped-pass validation
+- passType: chip
+- sampled ball z during flight: 44.67
+- confirms live vertical 3D flight/gravity path rather than a flat sprite-only pass.
+- no runtime errors.
+
+Visual captures generated from the same updated build
+- Defensive-Pitch-v33-Ball-At-Feet.png
+- Defensive-Pitch-v33-Driven-Pass.png
+- Defensive-Pitch-v33-Chip-Pass.png

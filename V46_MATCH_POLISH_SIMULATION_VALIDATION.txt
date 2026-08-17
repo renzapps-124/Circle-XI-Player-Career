@@ -1,0 +1,45 @@
+CIRCLE XI PLAYER CAREER V46 VALIDATION
+
+Static / deterministic checks: 39/39 passed
+
+Note: browser capture could not be completed because the managed Chromium process hangs in this workspace. No concept image is labelled as gameplay.
+
+PASS  JavaScript v46 marker
+PASS  Compact stretcher dimensions
+PASS  Created player enlarged on stretcher
+PASS  Compact medic carry spacing
+PASS  Dedicated injury UI class
+PASS  Injury affected area display
+PASS  Pause simulation button
+PASS  Player-off simulation
+PASS  Shared rating sim helper
+PASS  Missed injury fixture uses shared sim
+PASS  Current score preserved in live sim
+PASS  Remaining-time simulation
+PASS  Extra time simulation
+PASS  Rating-driven shootout
+PASS  Subbed-player minutes retained
+PASS  No old pass safety fallback
+PASS  Pass foot contact radius
+PASS  Loose pass uses actual contact point
+PASS  User teleport continuity guard
+PASS  AI movement slowed
+PASS  AI continuity cap
+PASS  Higher ball gravity
+PASS  Higher rolling resistance
+PASS  Earlier ball settle
+PASS  Separate discipline function
+PASS  Minor fouls can be no-card
+PASS  Warnings without cards
+PASS  Yellow threshold raised
+PASS  Yellow has reason banner
+PASS  Foul physical severity independent from card bias
+PASS  Yellow banner visual styling
+PASS  CSS injury mode styling
+PASS  Simulation rating sanity 75 vs 75 — xG 1.53-1.12
+PASS  Simulation rating sanity 78 vs 65 — xG 2.03-0.84
+PASS  Simulation rating sanity 90 vs 60 — xG 2.96-0.58
+PASS  Simulation rating sanity 60 vs 90 — xG 0.79-2.17
+PASS  v46 CSS additions brace-balanced — added 29 opening / 29 closing braces; inherited v45 imbalance unchanged
+PASS  HTML simulation button unique
+PASS  HTML sub-off overlay unique
