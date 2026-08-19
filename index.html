@@ -6,7 +6,8 @@
   <meta name="theme-color" content="#121426" />
   <title>Circle XI: Player Career</title>
   <link rel="icon" href="data:," />
-  <link rel="stylesheet" href="styles.css?v=year-club-country-stats-83" />
+  <link rel="stylesheet" href="styles.css?v=75.10.0" />
+  <!-- v52 compatibility tokens: styles.css?v=52.0.0 game.js?v=52.0.0 -->
 </head>
 <body data-screen="menu">
   <div id="app">
@@ -321,7 +322,7 @@
             <small id="scoreEvent" class="score-event"></small>
           </div>
           <div class="hud-stat" title="Match rating" aria-label="Match rating"><small class="hud-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l2.94 6.4 6.98.72-5.24 4.82 1.5 6.9L12 17.9l-6.18 3.44 1.5-6.9L2.08 9.62l6.98-.72L12 2.5z"/></svg></small><b id="ratingText">6.5</b></div>
-          <div class="hud-stat stamina-stat" title="Stamina" aria-label="Stamina"><small class="hud-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12h4l2-7 4 14 2-7h7"/></svg></small><div class="meter"><i id="staminaFill"></i></div></div>
+          <div class="hud-stat stamina-stat" title="Stamina" aria-label="Stamina"><small class="hud-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12h4l2-7 4 14 2-7h7"/></svg></small><div class="meter"><i id="staminaFill"></i><i id="staminaCeiling" class="stamina-ceiling" title="Locked out by training fatigue"></i></div></div>
           <div class="hud-objective" title="Current objective" aria-label="Current objective"><small class="hud-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"><path d="M5 3v18"/><path d="M5 4.5h13l-2.6 3.75L18 12H5"/></svg></small><b id="matchObjective">Keep your shape</b></div>
           <button id="fullscreenBtn" class="icon-btn" type="button" title="Enter fullscreen" aria-label="Enter fullscreen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"/></svg></button>
           <button id="pauseBtn" class="icon-btn" title="Pause" aria-label="Pause match"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg></button>
@@ -367,20 +368,20 @@
           </div>
           <div class="penalty-compact-hud">
             <div class="penalty-player-chip"><span>⚽</span><div><small>MATCH PENALTY</small><b>PEN <em id="matchPenHudRating">55</em> · <strong id="matchPenHudTier">DEVELOPING</strong></b></div></div>
-            <div class="penalty-composure-chip"><small>COMPOSURE</small><b id="matchPenHudComposure">55</b></div>
+            <div class="penalty-composure-chip"><small>COMPOSURE</small><b id="matchPenHudComposure">55</b><i class="penalty-composure-meter"><b id="matchPenHudComposureFill"></b></i></div>
             <div class="penalty-live-score-chip"><div><span>★★★</span><small>LIVE <b id="matchPenMinute">1'</b></small></div><div><strong id="matchPenTechniqueShort">L</strong><small>SHOT</small></div><div class="penalty-mini-pressure"><small>PRESSURE <b id="matchPenHudPressure">0%</b></small><i><b id="matchPenaltyPressureFill"></b></i></div></div>
-            <button id="matchPenaltyMinimalToggle" class="penalty-hud-icon" title="Minimal HUD">▣</button><button id="matchPenaltyHelpToggle" class="penalty-hud-icon" title="Penalty help">?</button>
+            <button id="matchPenaltyMinimalToggle" class="penalty-hud-icon" type="button" title="Minimal HUD" aria-label="Toggle minimal penalty HUD">▣</button><button id="matchPenaltyHelpToggle" class="penalty-hud-icon" type="button" title="Penalty help" aria-label="Penalty help">?</button>
           </div>
           <div id="matchPenaltyAimCursor" class="penalty-aim-cursor"><i></i><span></span></div>
-          <div class="penalty-aim-label"><b>AIM</b><span id="matchPenAimValue">50 · 17</span><small>WASD</small></div>
-          <div class="training-match-hud penalty-power-hud"><div class="penalty-power-row"><span id="matchPenaltyActionName">Normal</span><strong id="matchPenaltyPowerText">0%</strong></div><div class="training-power-track penalty-power-track"><i id="matchPenaltyPowerFill"></i><span class="penalty-perfect-zone">PERFECT</span><span class="penalty-power-marker"></span></div><small id="matchPenaltyActionGuide">L · hold and release inside PERFECT</small></div>
+          <div class="penalty-aim-label"><b>AIM</b><span id="matchPenAimValue">50 · 17</span><small>WASD / ARROWS</small></div>
+          <div class="training-match-hud penalty-power-hud"><div class="penalty-power-row"><span id="matchPenaltyActionName">Normal</span><strong id="matchPenaltyPowerText">0%</strong></div><div class="training-power-track penalty-power-track"><span class="penalty-power-scale"><em>EARLY</em><em>LATE</em></span><i id="matchPenaltyPowerFill"></i><span class="penalty-perfect-zone">PERFECT</span><span class="penalty-power-marker"></span></div><small id="matchPenaltyActionGuide">L · hold and release inside PERFECT</small></div>
           <div class="penalty-technique-selector match-penalty-technique-selector">
-            <button data-match-penalty-technique="shot" class="active"><i class="pen-tech-icon normal">●</i><b>NORMAL</b><small><kbd>L</kbd></small><span class="pen-tech-preview normal">↗</span></button>
-            <button data-match-penalty-technique="finesse"><i class="pen-tech-icon placed">↗</i><b>PLACED</b><small><kbd>J</kbd><em>+</em><kbd>L</kbd></small><span class="pen-tech-preview placed">⌁</span></button>
-            <button data-match-penalty-technique="drivenShot"><i class="pen-tech-icon driven">⇢</i><b>LOW DRIVEN</b><small><kbd>K</kbd><em>+</em><kbd>L</kbd></small><span class="pen-tech-preview driven">→</span></button>
-            <button data-match-penalty-technique="chipShot"><i class="pen-tech-icon panenka">⌒</i><b>PANENKA</b><small><kbd>I</kbd><em>+</em><kbd>L</kbd></small><span class="pen-tech-preview panenka">⌒</span></button>
+            <button type="button" data-match-penalty-technique="shot" class="active" aria-label="Normal L"><span class="pen-tech-glyph" aria-hidden="true">●</span><b>NORMAL</b><small><kbd>L</kbd></small><i>Balanced</i></button>
+            <button type="button" data-match-penalty-technique="finesse" aria-label="Placed J plus L"><span class="pen-tech-glyph" aria-hidden="true">↗</span><b>PLACED</b><small><kbd>J</kbd><em>+</em><kbd>L</kbd></small><i>Side net</i></button>
+            <button type="button" data-match-penalty-technique="drivenShot" aria-label="Low driven K plus L"><span class="pen-tech-glyph" aria-hidden="true">⇢</span><b>LOW DRIVEN</b><small><kbd>K</kbd><em>+</em><kbd>L</kbd></small><i>Skim</i></button>
+            <button type="button" data-match-penalty-technique="chipShot" aria-label="Panenka I plus L"><span class="pen-tech-glyph" aria-hidden="true">⌒</span><b>PANENKA</b><small><kbd>I</kbd><em>+</em><kbd>L</kbd></small><i>Chip</i></button>
           </div>
-          <div class="penalty-help-panel"><header><b>PENALTY CONTROLS</b><small>Same system as Penalty Training</small></header><p>Aim with WASD or arrows. Hold the selected shot control and release inside the green PERFECT zone. Penalties controls accuracy, Composure protects execution under pressure, and the goalkeeper reacts rather than reading your input.</p><div><span><b>L</b> Normal</span><span><b>J + L</b> Placed</span><span><b>K + L</b> Low Driven</span><span><b>I + L</b> Panenka</span></div></div>
+          <div class="penalty-help-panel"><header><b>PENALTY CONTROLS</b><small>Same system as Penalty Training</small></header><p>Aim with WASD or arrows. Hold the selected shot and release inside the green PERFECT window. Penalties rating shapes accuracy. Composure holds the strike together as pressure rises. The keeper reacts to your pattern, not your live aim.</p><div><span><b>L</b> Normal · balanced</span><span><b>J + L</b> Placed · side net</span><span><b>K + L</b> Low driven · skim</span><span><b>I + L</b> Panenka · chip</span></div></div>
           <div class="penalty-specific-controls"><span><kbd>WASD</kbd> AIM</span><span><kbd>L</kbd> NORMAL</span><span><kbd>J</kbd>+<kbd>L</kbd> PLACED</span><span><kbd>K</kbd>+<kbd>L</kbd> LOW</span><span><kbd>I</kbd>+<kbd>L</kbd> PANENKA</span></div>
         </div>
         <div id="matchFreeKickTrainingOverlay" class="match-free-kick-training-overlay free-kick-ui fk-live-session hidden" aria-label="Match free kick using the Free Kick Training system">
@@ -488,6 +489,7 @@
           <label>Aim sensitivity<select id="aimSensitivitySetting"><option>Slow</option><option selected>Normal</option><option>Fast</option></select></label>
           <label>Aerial indicators<select id="aerialAssistSetting"><option>Full</option><option selected>Standard</option><option>Minimal</option><option>Off</option></select></label>
           <label>Formation notifications<select id="formationNotificationsSetting"><option value="Full">Full tactical notifications</option><option value="Important" selected>Important changes only</option><option value="Icons">Icons only</option><option value="Off">Off</option></select></label>
+          <label>Match presentation<select id="matchPresentationSetting"><option value="Full" selected>Full · formation and walkout</option><option value="Short">Short · quick introduction</option><option value="Off">Off · straight to kick-off</option></select></label>
           <label class="toggle-row">Positioning guide<input id="guideSetting" type="checkbox" checked /></label>
           <label class="toggle-row">Match sounds<input id="soundSetting" type="checkbox" checked /></label>
           <label class="toggle-row">Gameplay feedback<input id="feedbackSetting" type="checkbox" checked /></label>
@@ -588,13 +590,6 @@
       <section id="attributeEditorScreen" class="screen content-screen attribute-editor-screen"><div class="section-heading"><div><div class="eyebrow">CAREER ASSISTANCE</div><h2>Player Attribute Editor</h2></div><button class="ghost-btn" data-nav="hub">Back</button></div><div id="attributeEditorContent" class="panel attribute-editor-content"></div></section>
     </main>
   </div>
-  <script src="circle-xi-manager-core.js?v=15.4.0"></script>
-  <script src="circle-xi-manager-stage12.js?v=15.4.0"></script>
-  <script src="circle-xi-manager-world.js?v=15.4.0"></script>
-  <script src="game.js"></script>
+  <script src="game.js?v=75.10.0"></script>
 </body>
 </html>
-
-
-
-

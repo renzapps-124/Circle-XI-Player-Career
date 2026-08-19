@@ -1,0 +1,15 @@
+Circle XI Player Career — Passing Academy v63 Minimal UI
+
+- Live Passing Academy sessions now hide the legacy right sidebar and expand the pitch.
+- Top HUD reduced to drill name, time, score and multiplier.
+- Chain is represented by multiplier / event feedback rather than a duplicate permanent stat.
+- Detailed accuracy/scan/progressive/interception boxes removed from live play (results still retain detailed metrics).
+- Objective reduced to a single compact contextual chip.
+- Duplicate legacy training prompt is hidden during Passing Academy.
+- Event feedback is text-first and no longer uses a wide opaque bubble over player models.
+- Pass option / power HUD only appears while a pass is actually being charged.
+- Controls use progressive disclosure: M before reception, J/K/I in possession, combos only while charging.
+- One Touch retains a compact rhythm meter as its drill-specific live mechanic.
+- Passing gate text only appears during the scan snapshot; no persistent SCAN TO READ label.
+- Passing Academy intro does not re-open over the live drill when Start is pressed.
+- Existing detailed end-of-session report is preserved.

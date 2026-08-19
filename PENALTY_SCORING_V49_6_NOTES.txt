@@ -1,0 +1,15 @@
+Circle XI Player Career v49.6 - Penalty Scoring Balance
+
+- Wider green timing zones for every penalty technique and attribute tier.
+- Softer accuracy loss just outside the green window.
+- Reduced pressure-driven dispersion and tighter final placement.
+- Goalkeepers read the chosen side less often and react later.
+- Reduced special goalkeeper assistance on user-controlled penalty saves.
+- Raised conversion rates for both live and simulated AI shootouts.
+- Existing penalty techniques, attributes, controls, and match systems remain intact.
+
+Visual audit from the supplied screenshot:
+- Player scale and perspective are inconsistent; the keeper reads as a flat icon while the taker is cropped by the HUD.
+- The goal is a shallow grid with conflicting frame angles and insufficient depth/contact shadows.
+- The pitch is flattened by an opaque green wash, duplicated field markings, and weak grass texture.
+- The crowd is reduced to dark edge noise without tiers, lighting, banners, or readable depth.

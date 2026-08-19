@@ -1,0 +1,72 @@
+CIRCLE XI PLAYER CAREER — PASSING ACADEMY V61 VALIDATION
+=========================================================
+Build: v61 Passing Academy
+Date: 2026-08-18
+
+IMPLEMENTED LIVE PASSING SESSIONS
+---------------------------------
+1. Passing Gates
+2. One Touch Combinations
+3. Through Ball Timing
+4. Switch of Play
+5. Crossing Academy
+
+BROWSER RUNTIME VALIDATION
+--------------------------
+The updated game.js was executed in Chromium using the real game source and each new session was booted and exercised through its live runtime.
+
+New passing sessions:
+PASS  Passing Gates         — incoming pass, scan, correct gate target, successful pass, reset
+PASS  One Touch Combinations — incoming pass, scan, quick/one-touch pass, combination/reset
+PASS  Through Ball Timing   — incoming pass, offside line/runner, timed through ball, receive/reset
+PASS  Switch of Play        — overloaded side, far winger target, long switch, receive/reset
+PASS  Crossing Academy      — wide receive, box targets, live delivery, receive/attack continuation
+
+Representative existing-training regression:
+PASS  Tactical Vision
+PASS  Balanced technical training
+PASS  Free Kicks
+PASS  Penalties
+PASS  Corners
+PASS  Exercise Bike
+PASS  Agility
+PASS  Recovery
+PASS  Defending
+
+TOTAL: 14 / 14 runtime scenarios passed
+Browser page errors recorded: 0 across the validated scenarios
+
+PASSING CONTROLS VERIFIED
+-------------------------
+J       Ground pass
+K       Through ball
+I       High pass / cross
+J + K   Driven pass
+J + I   Lofted pass
+K + I   Lifted through ball
+M       Scan
+
+The Passing Academy uses press/hold/release power and supports buffered first-time passes where relevant.
+
+STATIC / PACKAGE VALIDATION
+---------------------------
+PASS  node --check game.js
+PASS  Passing Academy functions are present and routed before legacy training paths
+PASS  Training HUD / overlay styles are present
+PASS  index.html references v61 assets
+PASS  Real in-game screenshots rendered from the updated source without page errors
+PASS  Animated Passing Gates capture rendered from the updated source
+PASS  ZIP integrity test (unzip -t) — no compressed-data errors
+
+REGRESSION / SAFETY ITEMS
+-------------------------
+PASS  One Touch return passes cannot repeatedly award the user's score
+PASS  Passing Gates failures cannot repeatedly score every animation frame
+PASS  Switch of Play central teammates do not steal the deliberate far-side switch target
+PASS  Successful and failed pass outcomes leave PASS_IN_FLIGHT and transition to feedback/reset
+PASS  Team-mates use one consistent team/training kit and defenders use a contrasting kit
+PASS  Ground-ball drag allows legitimate longer passing while retaining rolling resistance
+
+RESULT
+------
+PASS — v61 Passing Academy packaged successfully.

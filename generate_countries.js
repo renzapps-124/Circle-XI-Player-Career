@@ -135,7 +135,7 @@ https.get('https://restcountries.com/v3.1/all', (res) => {
             ['Wales', '??????????????', 'Europe'],
             ['Scotland', '??????????????', 'Europe'],
             ['Northern Ireland', '????', 'Europe'],
-            ['Montara', '?', 'Europe'] // Found in game as a default country
+            ['Montara', 'MT', 'Europe'] // Found in game as a default country
         ];
         
         for (const [nation, flag, continent] of extraNations) {

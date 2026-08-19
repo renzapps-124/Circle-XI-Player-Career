@@ -1,0 +1,15 @@
+Circle XI Player Career v49.5 - Grounded Control Validation
+
+JavaScript syntax check: PASS
+Grounded dribbling and movement checks: 23/23 PASS
+Dribbling and first-touch regression checks: 32/32 PASS
+Performance regression checks: 19/19 PASS
+Pre-match presentation regression checks: 65/65 PASS
+
+Deterministic controller simulations confirm:
+- A ball carried at player speed 150 remains within one world unit of its intended
+  visible foot target for a three-second straight-line run.
+- Ordinary unpressured sprinting cannot enter the loose-touch failure check.
+- Sprinting under close pressure can enter the attribute-weighted touch check.
+- Controlled movement is capped at 104% of the current authoritative target speed.
+- Skill and goalkeeper-rounding movement uses a timed path with no coordinate jump.

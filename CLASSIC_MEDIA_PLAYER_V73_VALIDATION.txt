@@ -1,0 +1,44 @@
+CLASSIC MEDIA PLAYER V73 — TORSO / LIMB PROPORTION VALIDATION
+
+Result: 37/37 checks passed
+
+PASS — V73 renderer version
+PASS — V73 canvas dataset
+PASS — Index cache v73
+PASS — Lean preset parsed — {'shoulders': 0.84, 'chest': 0.83, 'waist': 0.82, 'hips': 0.72, 'upperArm': 0.91, 'forearm': 0.86, 'thigh': 0.92, 'calf': 0.88, 'armLength': 0.83, 'muscle': 0.18, 'definition': 0.24}
+PASS — Athletic preset parsed — {'shoulders': 0.92, 'chest': 0.91, 'waist': 0.88, 'hips': 0.76, 'upperArm': 1.1, 'forearm': 1.03, 'thigh': 1.12, 'calf': 1.06, 'armLength': 0.85, 'muscle': 0.7, 'definition': 0.72}
+PASS — Strong preset parsed — {'shoulders': 1.0, 'chest': 0.99, 'waist': 0.91, 'hips': 0.79, 'upperArm': 1.28, 'forearm': 1.18, 'thigh': 1.25, 'calf': 1.17, 'armLength': 0.86, 'muscle': 0.94, 'definition': 0.88}
+PASS — Lean arms thicker than v72 — {'shoulders': 0.84, 'chest': 0.83, 'waist': 0.82, 'hips': 0.72, 'upperArm': 0.91, 'forearm': 0.86, 'thigh': 0.92, 'calf': 0.88, 'armLength': 0.83, 'muscle': 0.18, 'definition': 0.24}
+PASS — Lean legs thicker than v72 — {'shoulders': 0.84, 'chest': 0.83, 'waist': 0.82, 'hips': 0.72, 'upperArm': 0.91, 'forearm': 0.86, 'thigh': 0.92, 'calf': 0.88, 'armLength': 0.83, 'muscle': 0.18, 'definition': 0.24}
+PASS — Athletic arms thicker than v72 — {'shoulders': 0.92, 'chest': 0.91, 'waist': 0.88, 'hips': 0.76, 'upperArm': 1.1, 'forearm': 1.03, 'thigh': 1.12, 'calf': 1.06, 'armLength': 0.85, 'muscle': 0.7, 'definition': 0.72}
+PASS — Athletic legs thicker than v72 — {'shoulders': 0.92, 'chest': 0.91, 'waist': 0.88, 'hips': 0.76, 'upperArm': 1.1, 'forearm': 1.03, 'thigh': 1.12, 'calf': 1.06, 'armLength': 0.85, 'muscle': 0.7, 'definition': 0.72}
+PASS — Strong arms thicker than v72 — {'shoulders': 1.0, 'chest': 0.99, 'waist': 0.91, 'hips': 0.79, 'upperArm': 1.28, 'forearm': 1.18, 'thigh': 1.25, 'calf': 1.17, 'armLength': 0.86, 'muscle': 0.94, 'definition': 0.88}
+PASS — Strong legs thicker than v72 — {'shoulders': 1.0, 'chest': 0.99, 'waist': 0.91, 'hips': 0.79, 'upperArm': 1.28, 'forearm': 1.18, 'thigh': 1.25, 'calf': 1.17, 'armLength': 0.86, 'muscle': 0.94, 'definition': 0.88}
+PASS — Torso narrowed Lean — {'shoulders': 0.84, 'chest': 0.83, 'waist': 0.82, 'hips': 0.72, 'upperArm': 0.91, 'forearm': 0.86, 'thigh': 0.92, 'calf': 0.88, 'armLength': 0.83, 'muscle': 0.18, 'definition': 0.24}
+PASS — Torso narrowed Athletic — {'shoulders': 0.92, 'chest': 0.91, 'waist': 0.88, 'hips': 0.76, 'upperArm': 1.1, 'forearm': 1.03, 'thigh': 1.12, 'calf': 1.06, 'armLength': 0.85, 'muscle': 0.7, 'definition': 0.72}
+PASS — Torso narrowed Strong — {'shoulders': 1.0, 'chest': 0.99, 'waist': 0.91, 'hips': 0.79, 'upperArm': 1.28, 'forearm': 1.18, 'thigh': 1.25, 'calf': 1.17, 'armLength': 0.86, 'muscle': 0.94, 'definition': 0.88}
+PASS — Build muscle hierarchy — {'Lean': 0.18, 'Athletic': 0.7, 'Strong': 0.94}
+PASS — Straighter shared torso path
+PASS — Thicker upper arm base
+PASS — Thicker forearm base
+PASS — Thicker thigh base
+PASS — Thicker calf base
+PASS — Longer torso balance
+PASS — Runtime home Lean — {'classic-media-version': 'v73', 'classic-media-build': 'Lean', 'skin-tone': '#9a542d', 'hair-colour': '#4a2b15', 'hair-style': 'Braids', 'boot-colour': '#39a2ff', 'shirt-number': '17'}
+PASS — Runtime profile Lean — {'classic-media-version': 'v73', 'classic-media-build': 'Lean', 'skin-tone': '#9a542d', 'hair-colour': '#4a2b15', 'hair-style': 'Braids', 'boot-colour': '#39a2ff', 'shirt-number': '17'}
+PASS — Runtime overview Lean — {'classic-media-version': 'v73', 'classic-media-build': 'Lean', 'skin-tone': '#9a542d', 'hair-colour': '#4a2b15', 'hair-style': 'Braids', 'boot-colour': '#39a2ff', 'shirt-number': '17'}
+PASS — Runtime home Athletic — {'classic-media-version': 'v73', 'classic-media-build': 'Athletic', 'skin-tone': '#9a542d', 'hair-colour': '#4a2b15', 'hair-style': 'Braids', 'boot-colour': '#39a2ff', 'shirt-number': '17'}
+PASS — Runtime profile Athletic — {'classic-media-version': 'v73', 'classic-media-build': 'Athletic', 'skin-tone': '#9a542d', 'hair-colour': '#4a2b15', 'hair-style': 'Braids', 'boot-colour': '#39a2ff', 'shirt-number': '17'}
+PASS — Runtime overview Athletic — {'classic-media-version': 'v73', 'classic-media-build': 'Athletic', 'skin-tone': '#9a542d', 'hair-colour': '#4a2b15', 'hair-style': 'Braids', 'boot-colour': '#39a2ff', 'shirt-number': '17'}
+PASS — Runtime home Strong — {'classic-media-version': 'v73', 'classic-media-build': 'Strong', 'skin-tone': '#9a542d', 'hair-colour': '#4a2b15', 'hair-style': 'Braids', 'boot-colour': '#39a2ff', 'shirt-number': '17'}
+PASS — Runtime profile Strong — {'classic-media-version': 'v73', 'classic-media-build': 'Strong', 'skin-tone': '#9a542d', 'hair-colour': '#4a2b15', 'hair-style': 'Braids', 'boot-colour': '#39a2ff', 'shirt-number': '17'}
+PASS — Runtime overview Strong — {'classic-media-version': 'v73', 'classic-media-build': 'Strong', 'skin-tone': '#9a542d', 'hair-colour': '#4a2b15', 'hair-style': 'Braids', 'boot-colour': '#39a2ff', 'shirt-number': '17'}
+PASS — Capture v73-lean-home.png — 808584
+PASS — Capture v73-athletic-home.png — 810761
+PASS — Capture v73-strong-home.png — 811157
+PASS — Capture v73-lean-model.png — 33272
+PASS — Capture v73-athletic-model.png — 35959
+PASS — Capture v73-strong-model.png — 37714
+PASS — Comparison capture v73-body-build-comparison.png
+PASS — Animated comparison v73-body-build-comparison.gif
+PASS — JavaScript syntax checked with node --check

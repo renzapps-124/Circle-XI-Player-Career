@@ -1,0 +1,52 @@
+CLASSIC MEDIA PLAYER V73 — TORSO / LIMB PROPORTION REBALANCE
+
+Goal
+- Correct the remaining disproportion between the torso and limbs across Lean, Athletic and Strong.
+- Stop the models reading as a wide torso with overly thin arms and legs.
+
+Changes
+- Reworked all three Classic Media body presets around a narrower football-shirt torso.
+- Reduced shoulder/chest width compared with V72 for Lean, Athletic and Strong.
+- Changed the torso renderer to use one shared straighter silhouette path with a gradual chest-to-waist transition.
+- Slightly lengthened the torso by moving the shoulder line up and hip line down, improving head/torso/leg balance.
+- Increased upper-arm and forearm thickness on all three builds.
+- Increased thigh, knee and calf thickness on all three builds.
+- Reduced shorts/pelvis width again so the thicker legs do not recreate oversized hips.
+- Preserved short arm lengths from V72.
+- Preserved the muscle hierarchy: Lean < Athletic < Strong.
+- Strong still gains most of its size through deltoids, arms, thighs and calves rather than an oversized torso.
+
+Build identity
+Lean
+- Narrowest torso and pelvis.
+- Thicker limbs than V72 while remaining streamlined.
+- Straight, light footballer silhouette.
+
+Athletic
+- Balanced torso width.
+- Substantial arms and legs with visible athletic definition.
+- Clearly fuller than Lean without becoming bulky.
+
+Strong
+- Restrained torso/pelvis width.
+- Thickest upper arms, forearms, thighs and calves.
+- Muscular silhouette comes from limb/shoulder mass rather than body width.
+
+Appearance synchronisation retained
+- Skin tone
+- Hair style
+- Hair colour
+- Boot colour
+- Shirt number
+- Club kit colours/pattern
+
+Surfaces validated
+- Home
+- Profile
+- Overview
+- Player ID continues to use the same Classic Media renderer.
+
+Runtime proof
+- Lean, Athletic and Strong Home renders captured from the actual V73 runtime.
+- Individual canvas renders captured directly from the in-game renderer.
+- Profile and Overview use the V73 canvas dataset/version.

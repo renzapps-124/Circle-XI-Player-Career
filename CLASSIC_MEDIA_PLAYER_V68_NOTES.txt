@@ -1,0 +1,13 @@
+Circle XI Player Career — Classic Media Player V68
+
+- Rebuilt Lean, Athletic and Strong Classic Media Player body presets from the three supplied reference images.
+- Lean: narrow shoulders, slimmer arms/legs, lighter frame.
+- Athletic: balanced shoulder width, tapered football torso, toned limbs.
+- Strong: broader shoulders/chest, thicker arms, forearms, thighs and calves, larger hands.
+- All three retain the same overall card height/footprint so selecting a build does not change UI layout.
+- Skin tone and hair colour remain creator-controlled and now carry through explicitly to Home, Profile and Overview Classic Media models.
+- Added save migration fallbacks for old careers missing skinTone/hairColour/build.
+- Added a visible Classic Media model to the Profile hero.
+- Enlarged the Overview Classic Media model and added skin/hair colour swatches.
+- Upgraded Body Build selector from plain chips to three silhouette cards.
+- Added V68 demo routes for Home/Profile/Overview visual regression.

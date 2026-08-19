@@ -1,0 +1,18 @@
+Circle XI Player Career v49.5 - Grounded Dribbling and Movement
+
+- The visible ball now inherits every player-root movement before smoothing the
+  small offset between boot contacts, preventing it from falling behind a runner.
+- Loose touches are evaluated at real contact beats and require meaningful stress;
+  ordinary unpressured jogging and sprinting are secure.
+- Heavy-touch distance and speed have been reduced to recoverable football values.
+- Pace and acceleration are applied by one authoritative movement controller.
+  The old per-frame physical multiplier that could compound speed has been removed.
+- Sharp turns reduce speed, increase directional response and trigger a visible
+  turn-plant state. Releasing movement uses stronger braking.
+- Running phase is driven by actual root distance so the legs cannot keep cycling
+  independently of player travel.
+- Skill moves and goalkeeper-rounding now follow short, speed-limited motion paths
+  rather than changing the controlled player's coordinates instantly.
+
+All existing match, career, AI, pre-match, first-touch and performance systems are
+preserved.

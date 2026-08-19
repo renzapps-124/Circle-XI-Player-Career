@@ -1,0 +1,21 @@
+Circle XI Player Career v49.4 - Performance Validation
+
+Automated validation
+- JavaScript syntax check: PASS
+- Performance regression checks: 19/19 PASS
+- Dribbling and first-touch regression checks: 32/32 PASS
+- Pre-match presentation regression checks: 65/65 PASS
+
+Live browser stress test
+- Scenario: active rain match with AI, HUD and sprint-touch demonstration running
+- Performance mode: Auto
+- Sample duration: 12 seconds after load and warm-up
+- Average requestAnimationFrame interval: 17.24 ms
+- Adaptive render DPR: 1.25
+- Dropped catch-up batches: 1
+- Match state: running normally at 39:18, score 0-0
+- Result: PASS
+
+The adaptive renderer can reduce internal resolution and canvas render cadence on
+slower hardware while the fixed-step simulation continues to process controls,
+physics, animation and AI independently.

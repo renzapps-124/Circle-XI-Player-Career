@@ -1,0 +1,56 @@
+CIRCLE XI PLAYER CAREER — TACTICAL TRAINING v50.1
+=================================================
+
+ONE-MINUTE FORMAT
+
+- Every advanced tactical drill now lasts exactly 60 seconds.
+- The opening three-second countdown does not consume session time.
+- Standard, Score Attack and Practice are all one-minute sessions.
+- The timer changes to amber for the final 15 seconds and red for the final five.
+
+RECEIVING AND PASSING FIX
+
+- J, K or I can be pressed while the ball is travelling to the user.
+- The selected pass is visibly marked as QUEUED.
+- It executes immediately after the first touch establishes user possession.
+- Passing, through-ball, crossing and shooting controls also work normally once
+  the possession indicator reads YOUR POSSESSION.
+- Aim-based teammate selection and visible passing lanes clarify the target.
+- In All Round Circuit, the pass phase now locks J/K/I to the highlighted receiver.
+- A possession safeguard restores user ownership if the first-touch state and
+  ball-owner state briefly become unsynchronised before the pass input.
+- The live coach explicitly displays PASS READY · J after the first touch.
+
+PERMANENT BALL VISIBILITY
+
+- The football now has explicit staged, owned, released, loose and recovered states.
+- It remains visible during countdowns and scenario resets.
+- It is rendered at the user, teammate or goalkeeper when controlled.
+- A bright tracking ring and off-pitch locator make the ball easier to follow.
+- A recovery safeguard restores any ball that loses a valid possession owner.
+
+GRADING
+
+- A+ is now the highest possible tactical grade.
+- One-minute thresholds: A+ 5,500; A 4,400; B 3,300; C 2,300; D 1,300; F below 1,300.
+- Historical S and S+ tactical grades are migrated to A+ for consistent displays.
+
+GUI AND UI OVERHAUL
+
+- Larger unobstructed live pitch with the side panel removed during play.
+- Broadcast header for drill, timer, score, grade, streak and multiplier.
+- One-minute progress bar and final-seconds warning treatment.
+- Context-sensitive live coach objective and next-action panel.
+- Permanent possession status and pressure indicator.
+- Controls visibly change between locked, queueable, ready and queued states.
+- Rebuilt setup screen with session summary, A+ grade scale, modes and difficulty.
+- Responsive desktop, tablet and mobile layouts.
+- Reduced-motion accessibility support.
+
+VALIDATION
+
+- game.js syntax: passed
+- Tactical training v50.1: 62/62 checks passed
+- Complete JavaScript regression suite: 254/254 checks passed
+- Existing pre-match, match, dribbling, movement, penalties, free kicks,
+  performance and post-goal centre-reset systems remain validated.

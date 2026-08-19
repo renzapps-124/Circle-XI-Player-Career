@@ -1,0 +1,33 @@
+CIRCLE XI PLAYER CAREER V49.3
+DRIBBLING AND FIRST-TOUCH ANIMATION UPGRADE
+
+DRIBBLING
+- Contact-driven ball carrying now distinguishes close control, normal carrying,
+  sprint touches, sharp cuts and shielding.
+- The active foot alternates with the player's gait and the rendered ball eases
+  between contact points instead of snapping to a new boot.
+- High Dribbling and First Touch attributes produce tighter, shorter contacts;
+  sprinting creates a longer push without changing the existing ball physics.
+- Pressure, turn rate and movement speed select the visual touch style in real time.
+
+FIRST TOUCH
+- Ground receptions use a withdrawing inside-foot cushion.
+- Pressure can trigger sole traps or outside-foot turns.
+- Running receptions retain momentum and use a longer reaching step.
+- Aerial receptions now have distinct instep, thigh and chest-control poses.
+- Chest and thigh controls keep the ball visibly above the grass, then ease it
+  down through the contact animation without teleporting the gameplay ball.
+- Preferred foot, incoming direction, technique, composure, pressure and pitch
+  condition continue to influence the selected reception and its quality.
+
+PRESERVATION
+- Passing, shooting, defending, AI decisions, possession, fatigue, career saves,
+  pre-match presentation and the existing match physics remain intact.
+- The update is visual/contact driven and does not replace the match engine.
+
+DETERMINISTIC VISUAL TEST ROUTES
+- ?demo=touch-upgrade-close
+- ?demo=touch-upgrade-sprint
+- ?demo=touch-upgrade-cut
+- ?demo=touch-upgrade-ground
+- ?demo=touch-upgrade-aerial

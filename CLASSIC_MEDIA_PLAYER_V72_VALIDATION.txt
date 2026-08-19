@@ -1,0 +1,57 @@
+CLASSIC MEDIA PLAYER V72 — COMPACT ARMS / NARROW HIPS / MUSCULAR BUILDS VALIDATION
+
+Result: 53/53 checks passed
+
+PASS — V72 renderer version
+PASS — V72 canvas dataset
+PASS — Lean hips = 0.76 — hips:.76
+PASS — Lean armLength = 0.83 — armLength:.83
+PASS — Lean upperArm = 0.72 — upperArm:.72
+PASS — Lean forearm = 0.69 — forearm:.69
+PASS — Lean muscle = 0.14 — muscle:.14
+PASS — Lean definition = 0.2 — definition:.20
+PASS — Athletic hips = 0.82 — hips:.82
+PASS — Athletic armLength = 0.85 — armLength:.85
+PASS — Athletic upperArm = 0.96 — upperArm:.96
+PASS — Athletic forearm = 0.91 — forearm:.91
+PASS — Athletic muscle = 0.62 — muscle:.62
+PASS — Athletic definition = 0.64 — definition:.64
+PASS — Strong hips = 0.88 — hips:.88
+PASS — Strong armLength = 0.86 — armLength:.86
+PASS — Strong upperArm = 1.13 — upperArm:1.13
+PASS — Strong forearm = 1.07 — forearm:1.07
+PASS — Strong muscle = 0.9 — muscle:.90
+PASS — Strong definition = 0.82 — definition:.82
+PASS — Arms shorter than v71 Lean
+PASS — Arms shorter than v71 Athletic
+PASS — Arms shorter than v71 Strong
+PASS — Hips reduced Lean
+PASS — Hips reduced Athletic
+PASS — Hips reduced Strong
+PASS — Hip hierarchy compact
+PASS — Athletic muscle increased
+PASS — Strong muscle increased
+PASS — Strong more muscular than Athletic
+PASS — Shoulder cap rendering
+PASS — Forearm muscle contour
+PASS — Pectoral/core contours
+PASS — Shorter wrist geometry
+PASS — Shorter elbow geometry
+PASS — Appearance sync skin
+PASS — Appearance sync hair style
+PASS — Appearance sync hair colour
+PASS — Appearance sync boot colour
+PASS — Appearance sync shirt number
+PASS — V72 Home demo
+PASS — V72 Profile demo
+PASS — V72 Overview demo
+PASS — Index cache updated to v72
+PASS — JavaScript syntax
+PASS — Capture v72-lean-home.png — 911836
+PASS — Capture v72-athletic-home.png — 915544
+PASS — Capture v72-strong-home.png — 905102
+PASS — Capture v72-lean-profile.png — 643089
+PASS — Capture v72-athletic-profile.png — 643982
+PASS — Capture v72-strong-profile.png — 644395
+PASS — Capture v72-body-build-comparison.png — 549779
+PASS — Capture v72-body-build-comparison.gif — 235839

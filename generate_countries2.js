@@ -64,7 +64,7 @@ const customCountries = {
 
 const countryList = [
     // Europe
-    ["Albania", "Europe", "????"], ["Andorra", "Europe", "????"], ["Armenia", "Europe", "????"], ["Austria", "Europe", "????"], ["Azerbaijan", "Europe", "????"], ["Belarus", "Europe", "????"], ["Belgium", "Europe", "????"], ["Bosnia and Herzegovina", "Europe", "????"], ["Bulgaria", "Europe", "????"], ["Croatia", "Europe", "????"], ["Cyprus", "Europe", "????"], ["Czechia", "Europe", "????"], ["Denmark", "Europe", "????"], ["England", "Europe", "??????????????"], ["Estonia", "Europe", "????"], ["Finland", "Europe", "????"], ["France", "Europe", "????"], ["Georgia", "Europe", "????"], ["Germany", "Europe", "????"], ["Greece", "Europe", "????"], ["Hungary", "Europe", "????"], ["Iceland", "Europe", "????"], ["Ireland", "Europe", "????"], ["Italy", "Europe", "????"], ["Kazakhstan", "Europe", "????"], ["Kosovo", "Europe", "????"], ["Latvia", "Europe", "????"], ["Liechtenstein", "Europe", "????"], ["Lithuania", "Europe", "????"], ["Luxembourg", "Europe", "????"], ["Malta", "Europe", "????"], ["Moldova", "Europe", "????"], ["Monaco", "Europe", "????"], ["Montenegro", "Europe", "????"], ["Netherlands", "Europe", "????"], ["North Macedonia", "Europe", "????"], ["Northern Ireland", "Europe", "????"], ["Norway", "Europe", "????"], ["Poland", "Europe", "????"], ["Portugal", "Europe", "????"], ["Romania", "Europe", "????"], ["Russia", "Europe", "????"], ["San Marino", "Europe", "????"], ["Scotland", "Europe", "??????????????"], ["Serbia", "Europe", "????"], ["Slovakia", "Europe", "????"], ["Slovenia", "Europe", "????"], ["Spain", "Europe", "????"], ["Sweden", "Europe", "????"], ["Switzerland", "Europe", "????"], ["Turkey", "Europe", "????"], ["Ukraine", "Europe", "????"], ["Wales", "Europe", "??????????????"], ["Montara", "Europe", "?"],
+    ["Albania", "Europe", "????"], ["Andorra", "Europe", "????"], ["Armenia", "Europe", "????"], ["Austria", "Europe", "????"], ["Azerbaijan", "Europe", "????"], ["Belarus", "Europe", "????"], ["Belgium", "Europe", "????"], ["Bosnia and Herzegovina", "Europe", "????"], ["Bulgaria", "Europe", "????"], ["Croatia", "Europe", "????"], ["Cyprus", "Europe", "????"], ["Czechia", "Europe", "????"], ["Denmark", "Europe", "????"], ["England", "Europe", "ENG"], ["Estonia", "Europe", "????"], ["Finland", "Europe", "????"], ["France", "Europe", "????"], ["Georgia", "Europe", "????"], ["Germany", "Europe", "????"], ["Greece", "Europe", "????"], ["Hungary", "Europe", "????"], ["Iceland", "Europe", "????"], ["Ireland", "Europe", "????"], ["Italy", "Europe", "????"], ["Kazakhstan", "Europe", "????"], ["Kosovo", "Europe", "????"], ["Latvia", "Europe", "????"], ["Liechtenstein", "Europe", "????"], ["Lithuania", "Europe", "????"], ["Luxembourg", "Europe", "????"], ["Malta", "Europe", "????"], ["Moldova", "Europe", "????"], ["Monaco", "Europe", "????"], ["Montenegro", "Europe", "????"], ["Netherlands", "Europe", "????"], ["North Macedonia", "Europe", "????"], ["Northern Ireland", "Europe", "NIR"], ["Norway", "Europe", "????"], ["Poland", "Europe", "????"], ["Portugal", "Europe", "????"], ["Romania", "Europe", "????"], ["Russia", "Europe", "????"], ["San Marino", "Europe", "????"], ["Scotland", "Europe", "SCO"], ["Serbia", "Europe", "????"], ["Slovakia", "Europe", "????"], ["Slovenia", "Europe", "????"], ["Spain", "Europe", "????"], ["Sweden", "Europe", "????"], ["Switzerland", "Europe", "????"], ["Turkey", "Europe", "????"], ["Ukraine", "Europe", "????"], ["Wales", "Europe", "WAL"], ["Montara", "Europe", "MT"],
     // South America
     ["Argentina", "South America", "????"], ["Bolivia", "South America", "????"], ["Brazil", "South America", "????"], ["Chile", "South America", "????"], ["Colombia", "South America", "????"], ["Ecuador", "South America", "????"], ["Guyana", "South America", "????"], ["Paraguay", "South America", "????"], ["Peru", "South America", "????"], ["Suriname", "South America", "????"], ["Uruguay", "South America", "????"], ["Venezuela", "South America", "????"],
     // North America
@@ -83,6 +83,19 @@ function getYouthLabel(rep) {
     if (rep >= 65) return 'Good';
     if (rep >= 55) return 'Developing';
     return 'Basic';
+}
+
+
+const stableCountryCodes = {
+    'England':'ENG', 'Scotland':'SCO', 'Wales':'WAL', 'Northern Ireland':'NIR', 'Montara':'MT',
+    'Germany':'DE', 'Georgia':'GE', 'Greece':'GR', 'Switzerland':'CH', 'Czechia':'CZ',
+    'Netherlands':'NL', 'Portugal':'PT', 'Spain':'ES', 'France':'FR', 'Italy':'IT', 'Ireland':'IE',
+    'USA':'US', 'UAE':'AE', 'South Korea':'KR', 'North Korea':'KP', 'Ivory Coast':'CI'
+};
+function stableCountryIcon(name, flag) {
+    const raw = String(flag || '').trim();
+    if (raw && !raw.includes('?')) return raw;
+    return stableCountryCodes[name] || name.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase() || 'NAT';
 }
 
 const output = [];
@@ -116,7 +129,7 @@ for (const [name, continent, flag] of countryList) {
         name: name,
         continent: continent,
         elementId: continent,
-        elementIcon: flag,
+        elementIcon: stableCountryIcon(name, flag),
         youthLabel: getYouthLabel(rep),
         reputation: rep,
         tactical: tactical,

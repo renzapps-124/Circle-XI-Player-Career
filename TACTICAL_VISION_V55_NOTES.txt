@@ -1,0 +1,30 @@
+Circle XI Player Career — Tactical Vision Freeze Fix v55
+=========================================================
+
+Root cause fixed
+- Tactical Vision instructed the player to press M before the incoming pass.
+- Pressing M moved the state from PRE_RECEIVE to SCAN_WINDOW.
+- The v54 delivery code only released the incoming ball while the state was PRE_RECEIVE.
+- That meant a correct scan could cancel the next delivery and leave the drill appearing frozen after the preceding sequence.
+
+Reliability changes
+- Incoming delivery can now launch from PRE_RECEIVE or SCAN_WINDOW.
+- Added deliveryReleased so every tactical picture sends exactly one incoming ball.
+- Successful user passes now enter TEAMMATE_CONTROL for only ~260 ms before NEXT_SCENARIO, instead of sitting in a dead OUTCOME phase.
+- Interceptions and failed passes enter RECOVER briefly, then immediately continue.
+- Added a liveness fallback so non-decision states cannot remain idle indefinitely.
+- Added stable tactical-only actor IDs for all teammates and opponents. Ball ownership, intended receiver and pass resolution no longer depend on potentially missing/duplicate squad IDs.
+- Added tacticalActorToken / tacticalActorById as one source of truth for tactical ownership.
+- Added runtime fault isolation around the Tactical Training RAF loop. If a tactical update/render exception occurs, the session records it, safely resets the picture and schedules the next animation frame instead of the entire minigame freezing permanently.
+- Runtime diagnostic is exposed as window.__circleTrainingLastError when a fault is recovered.
+
+Validation
+- game.js JavaScript syntax: PASS
+- Tactical Training v55 regression suite: 62/62 PASS
+- Intelligent Aerial Circuit v52 regression: 49/49 PASS
+- Tactical Vision v55 extracted-runtime validation: 21/21 PASS
+- Extracted runtime stress test: 50 successful scan -> receive -> decision -> pass -> teammate control -> next scenario cycles with 0 stuck states.
+- ZIP integrity: PASS
+
+Browser capture
+- The installed Chromium binary in this workspace currently hangs even on trivial local/data pages, so a truthful live in-game screenshot/GIF could not be captured. No mock image has been presented as gameplay.

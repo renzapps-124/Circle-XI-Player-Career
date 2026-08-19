@@ -1,0 +1,93 @@
+CIRCLE XI PLAYER CAREER — V75.9
+PLAYER VITALS AUDIT: DO THE SIX METERS ACTUALLY DO ANYTHING?
+
+AUDIT RESULT (before this pass)
+-------------------------------
+  meter      | weekly training | contract | match | injury | verdict
+  -----------|-----------------|----------|-------|--------|--------------------
+  Fitness    | yes, x0.60-1.05 | no       | NO    | small  | never reached a match
+  Sharpness  | written only    | yes, 15% | NO    | no     | read in ONE place
+  Morale     | yes, x0.82-1.10 | no       | NO    | no     | never reached a match
+  Energy     | yes             | no       | yes   | yes    | fully wired (v75.3)
+  Trust      | no              | yes, 20% | yes   | no     | fully wired
+  Risk       | -               | -        | -     | -      | a fake readout
+
+Three of the six never touched a match, which is where a player would most
+expect them to matter. Sharpness was the worst: it was written by training, by
+playing, and by recovery drills, and then read exactly once, inside
+contractEvaluation. Nothing else in the game ever looked at it.
+
+Risk was not a stat at all. It was `fatigue > 65 ? 'High' : 'Low'` — a two-state
+readout of one input, sitting next to a real injury model (trainingInjuryChance)
+that also weighs fitness, training intensity, training focus, the return-from-
+injury doubt window and any medical staff you have hired. You could hire a
+Recovery Specialist for GBP 7,200 and cut your injury chance by a third without
+the Risk tile moving at all.
+
+1. FITNESS, SHARPNESS AND MORALE NOW REACH THE PITCH
+   Added a single match-day condition model where each meter owns one attribute
+   group, so the meaning of each one is legible rather than a blended fudge:
+
+     Fitness   -> Physical attributes   (x0.93 - x1.04)
+     Sharpness -> Technical attributes  (x0.94 - x1.04)
+     Morale    -> Mental attributes     (x0.96 - x1.03)
+
+   Applied to the user's attributes when a match squad is built. AI players and
+   quick-sim matches are untouched. Measured on a flat 70/70/70 player:
+
+     vitals                     band            pace  finishing  composure
+     Peak (100/100/100)         Sharp             73         73         72
+     Healthy (86/77/79)         Sharp             72         71         71
+     Flat (60/50/45)            Match ready       70         69         69
+     Wrecked (30/25/20)         Below par         67         68         68
+
+   The bands are deliberately narrow. Condition shades a performance; it does
+   not replace ability. The full swing top to bottom is 5-6 points, and the
+   validation fails if it ever exceeds 12.
+
+   Energy keeps its existing and larger job from v75.3 — the stamina ceiling,
+   drain rate, recovery rate and in-match injury multiplier.
+
+2. RISK NOW REPORTS THE REAL MODEL
+   Replaced the fatigue coin flip with five bands read straight off
+   trainingInjuryChance, with the per-session percentage shown alongside:
+
+     scenario                            band        per session
+     Fresh, normal                       Low           0.4%
+     Tired, normal                       Moderate      1.6%
+     Tired, intense                      High          4.2%
+     Spent, intense                      Severe        7.1%
+     Spent, intense + medical staff      High          4.0%
+
+   The last row is the point: hiring the Nutritionist and Recovery Specialist
+   now visibly moves the readout, which closes the loop with the v75.7 staff
+   work.
+
+3. INFORMATION ADDED TO THE RELEVANT TABS
+   - Overview: every tile now carries a hover explanation of exactly what it
+     drives, plus a live effect tag underneath the value (for example
+     "Physical +2%", "Stamina cap 91%", "1st / 2nd choice", "1.6%"). A summary
+     line under the tiles states the current match-day condition band.
+   - Training Centre: a Match Day Condition strip sits above the staff strip,
+     showing all six meters, what each is currently worth, the combined weekly
+     training multiplier, and the real per-session injury percentage. This is
+     where the meters are actually moved, so it is where the consequences are
+     now stated.
+   - Contract tab: the agent report gained a Set-piece duty line. Manager trust
+     already decided who takes free kicks, corners and penalties through
+     setPieceTrustTier, but nothing in the game ever told you that.
+
+Validation
+node PLAYER_VITALS_V75_9_VALIDATION.js — 41/41 checks passed
+  (includes VM measurement that each meter moves only its own attribute group,
+  that the total swing stays within 12 points, that risk rises with fatigue and
+  intensity, and that hired medical staff lower the readout)
+node --check game.js — PASS
+Suites re-run: CONTRACT_ACTIONS_V75_8 52/52, PROTECT_CONTACT_STAFF_V75_7 63/63,
+FINISHING_PITCH_V75_6 77/77, TRAINING_CENTRE_V75_2 46/46,
+FATIGUE_MATCH_LOAD_V75_3 40/40, MATCH_PENALTIES_V75_5 31/31,
+TRAINING_PLAYTHROUGH_V75_1 24/24.
+SQUAD_EDITOR_AUDIO_V75_4 remains 39/44 on pre-existing, unrelated audio checks.
+
+Cache token
+index.html game.js / styles.css bumped 75.8.0 -> 75.9.0

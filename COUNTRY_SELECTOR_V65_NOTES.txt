@@ -1,0 +1,5 @@
+Circle XI v65 implementation notes
+
+This update intentionally does not rely on subdivision flag emoji for England, Scotland, or Wales inside native HTML select controls. Support for Unicode tag-sequence subdivision flags varies by browser/OS and can appear as black flags, empty glyphs, or replacement/question-mark characters. Stable football abbreviations are used instead.
+
+The rest of the country database can continue using normal regional-indicator flag data. cxiSafeCountryIcon() acts as a final UI safety layer so malformed data cannot leak into the visible dropdown.

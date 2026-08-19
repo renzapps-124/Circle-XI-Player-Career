@@ -1,0 +1,23 @@
+CIRCLE XI PLAYER CAREER — TRAINING RUNTIME v60 NOTES
+====================================================
+
+WHAT CHANGED
+------------
+• Fixed the Tactical Vision / All Round Circuit startup crash caused by a null buffered pass action.
+• Restored the complete Performance Gym athlete renderer and J/L stroke-input routine used by Exercise Bike, Bench Press and Treadmill.
+• Added a shared guarded Training runtime around session open/start.
+• Added safe compatibility defaults for missing attributes in older career saves.
+• Added stale-session cleanup before opening another drill.
+• Added a 5 second boot watchdog so a failed session cannot remain permanently stuck on a loading/dead screen.
+• Added a visible recoverable error state with Retry Drill support.
+• Training cleanup now resets the watchdog and input state more reliably.
+• Added a diagnostic window.__circleTrainingRuntime API for automated testing and future debugging.
+• Updated index asset cache busting to v60.0.0.
+
+DESIGN PRINCIPLE
+----------------
+One broken drill should no longer be able to make the whole Training Centre appear dead. Shared startup failures are caught at the Training Manager boundary, while session-specific errors are surfaced as recoverable errors instead of silently stopping the game.
+
+TESTING
+-------
+All 39 registered non-hidden training sessions successfully opened and entered an active runtime state in Chromium. Sessions were also launched consecutively in one runtime to verify cleanup, and Passing was opened twice in succession to test repeat loading.

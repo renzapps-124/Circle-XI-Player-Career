@@ -1,0 +1,24 @@
+Circle XI Player Career v49.4 - Match Performance Update
+
+This update reduces match-day lag while preserving gameplay, animation, AI, career,
+pre-match presentation, dribbling and first-touch systems.
+
+Main improvements
+- Adaptive rendering lowers internal pixel density only when a sustained frame-time
+  problem is detected, then restores quality when performance recovers.
+- Low and stressed Auto modes render the canvas at 30 FPS while keeping the match
+  simulation and input polling on requestAnimationFrame.
+- Fixed-timestep catch-up is bounded so a slow frame cannot trigger a spiral of
+  excessive simulation work.
+- Players and animated crowd members outside the camera view are no longer drawn.
+- Crowd and weather particles now respect the selected detail settings.
+- Full-screen atmosphere gradients are cached instead of rebuilt every frame.
+- Duplicate rain and snow rendering has been removed.
+- Match HUD and clock updates are throttled and DOM writes are cached.
+- Costly live-canvas backdrop blur is disabled in Auto and Low performance modes.
+- Replay sampling is reduced from 30 to 20 FPS with a smaller bounded history.
+- Net meshes are captured for replay only while either net is moving, avoiding more
+  than 300 unnecessary node snapshots per idle replay frame.
+- Replay history is pruned in batches to reduce repeated array shifting.
+
+Controls, match rules, AI decisions and animation timing remain unchanged.

@@ -1,0 +1,99 @@
+CIRCLE XI PLAYER CAREER — TRAINING CENTRE REWORK (v75.2)
+Base: v75.1 Training Session Playthrough Audit
+
+SCOPE
+-----
+Remove the Schedule and Records tabs from the Training Centre, and rebuild the
+Training Ground tab UI/GUI.
+
+1) SCHEDULE AND RECORDS TABS REMOVED
+------------------------------------
+Both tabs were dead on arrival: their render branches called trainingScheduleMarkup()
+and trainingRecordsMarkup(), neither of which exists anywhere in game.js. Clicking
+either tab threw a ReferenceError and left the Training Centre blank.
+
+  before: clicking "Schedule" -> Uncaught ReferenceError: trainingScheduleMarkup is not defined
+          clicking "Records"  -> Uncaught ReferenceError: trainingRecordsMarkup is not defined
+
+Removed:
+  • both nav entries — the Training Centre nav is now Training Ground + Development
+  • both render branches
+  • the orphaned [data-training-plan-slot] and [data-locate-planned] bindings, which
+    only existed to drive the missing schedule markup
+  • the dead .schedule-centre / .records-centre header selectors in styles.css
+
+'schedule' and 'records' were added to the view-redirect guard so any persisted or
+externally set view falls back to the Training Ground instead of a blank panel.
+
+The one genuinely useful thing the Records tab promised — personal bests — is not
+lost: it now appears inline on every drill row in the training-ground zone panel.
+
+2) TRAINING GROUND UI/GUI REBUILD
+---------------------------------
+The old layout stacked three separate blocks above the pitch (a title header, a
+4-cell status strip and a keyboard-legend row), which squeezed the playable explorer
+and repeated information the in-pitch prompt already showed.
+
+New layout:
+
+  • COMMAND BAR (.tg-bar) — one compact grid row replacing all three old blocks:
+      - identity badge
+      - career sessions as three pips (filled = available, dim = used) with a
+        "2 of 3 left" / "Practice mode" readout
+      - fatigue and sharpness as colour-graded meters (green / amber / red) instead
+        of bare percentages
+      - Intensity and Difficulty selectors
+
+    Intensity and Difficulty were previously UNREACHABLE. #trainingIntensitySelect and
+    #trainingDifficultySelect were only emitted inside the disabled `if(false)` "today"
+    branch, so although the change handlers existed and were wired, no player could
+    ever reach the controls. They are now in the command bar and persist to the save.
+    Intensity feeds development gain and injury risk; Difficulty feeds drill assistance.
+
+  • COACH STRIP (.tg-coach) — surfaces the recommended drill with its facility name,
+    plus "Walk there" (moves your player to that facility and opens its panel) and
+    "Play now" (launches the drill directly). When training is locked by injury,
+    international duty or retirement, this is replaced by a lock strip (.tg-lock)
+    explaining the restriction, and the Intensity control is disabled.
+
+  • EXPLORER — now flexes to fill the remaining height instead of a fixed
+    `min(530px, 100vh - 296px)`, so removing two rows of chrome gives the pitch the
+    space back at every window size. Facility markers gained a drill-count line, and
+    the coach's recommended facility gets a pulsing COACH PICK tag.
+
+  • IN-PITCH HUD — the keyboard legend moved off the page chrome and into the pitch
+    as a compact chip row (bottom-left), and the context prompt (bottom-right) now
+    highlights when you are in range of a zone.
+
+  • ZONE PANEL — each drill row now shows its personal best and grade, or "No personal
+    best yet". The coach pick is tagged and highlighted. A session-state banner at the
+    top of the panel explains whether you are spending career sessions or in unlimited
+    practice mode, and SIM is correctly disabled in practice mode while PLAY stays open.
+
+3) FIXED: TRAINING GROUND ANIMATION LOOP LEAK
+---------------------------------------------
+bindTrainingGround() held its requestAnimationFrame handle in a local variable, so
+every re-render of the Training Ground started an additional loop while the previous
+one kept running forever against detached DOM. Each loop redraws the career player
+canvas every frame.
+
+  measured before: 1 bind -> 34 frames/s ; 6 binds -> 218 frames/s (~6 loops)
+  measured after:  1 bind -> 43 frames/s ; 6 binds ->  43 frames/s (1 loop)
+
+The handle now lives in a module-scoped trainingGroundLoop, stopTrainingGroundLoop()
+cancels any previous loop at the start of each bind, and the step function also exits
+on its own if its explorer element has been detached.
+
+VERIFICATION
+------------
+• Training Centre nav renders exactly two tabs; both open with no errors.
+• All 8 training-ground facilities open their zone panel and successfully launch a
+  drill from the PLAY button.
+• All 40 registered training sessions still open, start, accept input and close with
+  no thrown errors and no console errors.
+• Intensity and Difficulty changes persist into the career save.
+• Practice mode (0 sessions left) and the injured lock state both render correctly.
+• Layout checked at 1440x900, 1280x720, 1024x768, 1000x760 and 780x700 — no horizontal
+  or vertical overflow, no collision between the legend and the prompt, and the
+  explorer grows with available height.
+• Cache tokens bumped to 75.2.0.

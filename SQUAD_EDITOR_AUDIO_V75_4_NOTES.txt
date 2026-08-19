@@ -1,0 +1,139 @@
+CIRCLE XI PLAYER CAREER — SQUAD, ATTRIBUTE EDITOR AND MATCH AUDIO (v75.4)
+Base: v75.3 Fatigue Match Load
+
+1) VIEW SQUAD — THE WHOLE SQUAD IS NOW VISIBLE
+----------------------------------------------
+Two separate faults, one layout and one data.
+
+LAYOUT. #squadList is a fixed-height CSS grid (display:grid via .squad-list, height
+from flex:1). .squad-database-layout sat inside it as a nested grid, so its tracks got
+squeezed by the parent instead of overflowing into the parent's scrollport. Measured
+before the fix: the table wrapper was 48px tall while holding 982px of rows — about one
+player was reachable out of eighteen.
+
+The first attempt (letting the wrapper size to its content) exposed a second problem: a
+grid item that is its own scroll container contributes zero height to its row, so the
+table then rendered on top of the detail panel instead of above it.
+
+Final shape:
+  • .squad-database-layout is plain block flow by default, so the table and the detail
+    panel simply stack and cannot overlap.
+  • .squad-table-wrap is no longer a scroll container at all.
+  • #squadList does the scrolling for both axes (rows carry min-width:850px).
+  • The two-column layout returns at >=1051px, with the detail panel sticky so it stays
+    in view while you scroll a long squad.
+
+DATA. buildSquadRows() only inserted the career player when an imported club squad was
+found. On the fallback squad the user was missing from their own team sheet entirely.
+The user row is now built once and prepended on both paths, and the fallback teammate
+who shares the user's shirt number is dropped so there is no duplicate number.
+
+Verified live: 18 rows, the user present and highlighted, no overlap, every row and the
+full detail panel reachable by scrolling, at both 736px and 1400px viewport widths.
+
+2) ATTRIBUTE EDITOR — THE PRESET BUTTONS DID NOTHING
+----------------------------------------------------
+applyAttributePreset() wrote the preset values into attributeDraft and then called
+renderAttributeEditor(true). The `true` is the force flag, and the first thing a forced
+render does is resetAttributeDraft(), which re-seeds the draft from the saved
+attributes. Every one of the four preset buttons therefore threw its own work away
+before it could be displayed.
+
+  before: Max All -> First Touch stayed 73, OVR stayed 71
+  after:  Max All -> First Touch 99, OVR 99
+
+The call is now renderAttributeEditor() with no force. The forced path is untouched and
+still used where a genuine reseed is wanted.
+
+Everything else in the editor was already working and was re-checked end to end:
+steppers, range sliders, the live OVR readout, Position Specialist / Max All /
+Randomise / Restore Original, Save, Discard, Undo Last Edit, preferred foot, the weak
+foot slider and the both-footed toggle.
+
+  Position Specialist on a CM -> Passing 98, OVR 89
+  Randomise -> different values on every press
+  Save -> persists, header shows "1 saved edits", Undo restores the previous values
+
+3) MATCH AUDIO
+--------------
+FIXED: THE VOLUME SLIDERS DID NOTHING.
+settings.masterVolume, settings.crowdVolume and settings.effectsVolume were written to
+storage and read back into the Settings UI, and that was the entire extent of it — no
+audio code ever looked at them. Every sound connected straight to the master compressor.
+
+There is now a real mixer:
+
+    sound -> sfxBus (Effects)  ─┐
+                                ├─> masterCompressor -> masterGain (Master) -> output
+    crowd -> crowdBus (Crowd)  ─┘
+
+Every primitive (soundTone, soundNoise, soundModalImpact, soundGrainCloud), the crowd
+ambience bed and the UI beep now route through a bus, and saveSettings() refreshes the
+gains so a slider change is audible immediately rather than on next load.
+
+  measured: goal roar peak 0.451 at Crowd 85 -> 0.024 at Crowd 10
+            whistle peak 0.228 at Master 100 -> 0.086 at Master 40
+
+FIXED: AUDIO COULD STAY MUTED FOR A WHOLE MATCH.
+Browsers create an AudioContext suspended until a real user gesture. ensureAudioContext
+called resume(), but it is called from the game loop, not from a gesture, so the resume
+can be rejected and the match plays in silence. A one-time pointerdown/keydown/touchstart
+listener now unlocks the context.
+
+REPLACED: REFEREE WHISTLE.
+The old whistle was two plain sine tones at 1.4 kHz, which reads as a menu beep. A real
+pea whistle sits around 3.2-4 kHz and rattles, because the pea chops the tone roughly 25-30
+times a second. The new soundWhistleBlast() has three normalised partials at 3.28 kHz and
+up, a 27-31 Hz amplitude chop plus pitch flutter, a breath chiff onset and a clean cut-off.
+
+The chop is a separate multiplicative gain stage. The obvious implementation — feeding an
+LFO into the level envelope's own gain param — adds to it rather than modulating it, and
+in testing that made the whistle peak at 0.64 against a goal roar of 0.13.
+
+soundRefereeWhistle() also gives the different calls their own character rather than one
+sound for everything: full time is three blasts with the last one held, half time is two,
+advantage is a short high chirp, penalties and cards get a long insistent blast.
+
+REPLACED: GOAL CROWD.
+The old version hit peak instantly and layered sawtooth "yell" tones over the noise bed,
+which buzzed. soundCrowdRoar() swells over ~0.22s, holds for ~1.25s and decays over ~2.9s,
+built from five filtered noise layers with independently moving filters, with individual
+shouts scattered across the stereo field by two grain clouds and a second wave as the
+crowd finds its voice again. Away goals are quieter, shorter, and get a low groan from
+the home end underneath.
+
+FIXED: TACKLE VARIANTS WERE IGNORED.
+Callers pass 'slide', 'block', 'interception' and 'keeperSave', and the old code played
+one identical generic thud for all of them. Each now has its own treatment — glove slap
+and palm cushion for a save, a clean high nick for an interception, a boot/shin block,
+and studs through turf plus body contact for a slide — with the original thud retained
+as the fallback.
+
+RESULTING MIX (peak output, Master 100 / Crowd 85 / Effects 90)
+  full-time whistle  0.555
+  goal roar (home)   0.451     <- the biggest moment in the match
+  woodwork           0.370
+  away goal          0.250
+  foul whistle       0.228
+  net                0.194
+  kick               0.121
+  tackles            0.069-0.096
+  crowd ambience bed 0.014     (continuous, in a live match)
+
+A new window.__circleAudio hook (same convention as __circleTrainingRuntime) exposes
+play / whistle / roar / mix / refresh / probe for auditioning and level checking.
+
+VERIFICATION
+------------
+• SQUAD_EDITOR_AUDIO_V75_4_VALIDATION.js — 44/44 checks.
+• The three earlier suites still pass: 24/24, 46/46, 40/40.
+• All 40 training sessions open, start, take input and close with no errors.
+• A live career match runs with ambience, roar and whistle all audible, no errors.
+• Cache tokens bumped to 75.4.0.
+
+NOTE ON THE AUDIO
+-----------------
+Levels were tuned against measured peak output through an analyser, not by ear — this
+environment has no audio monitoring. The balance table above is the evidence for the
+mix, but the actual timbre of the new whistle and roar is worth a listen; the constants
+in soundWhistleBlast() and soundCrowdRoar() are the dials if anything sounds off.

@@ -1,0 +1,65 @@
+CIRCLE XI PLAYER CAREER — TACTICAL PITCH TRAINING v49.9
+=======================================================
+
+FOUR PLAYABLE PITCH DRILLS
+
+1. All Round Circuit
+   Receive different deliveries, control the physical ball, play into a moving
+   teammate, make a supporting run, receive the return and finish.
+
+2. Tactical Vision
+   Scan before receiving, read temporary pressure and lane information, then
+   choose an optimal or acceptable real passing option while the ball remains live.
+
+3. Pressing Triggers
+   Identify real and fake triggers, hold shape when required, and curve the press
+   to screen the central lane. Outcomes include direct regains, forced backwards
+   passes, clearances, delays and broken presses.
+
+4. Transition Game
+   Continuous small-sided play that switches between attack and defence whenever
+   possession changes. Break forward, support, recover centrally, cover lanes and
+   track the most dangerous runner.
+
+CONTROLS
+
+- W A S D or Arrow Keys: Move / aim
+- Shift: Sprint
+- J: Pass
+- K: Through pass
+- I: Cross / lofted pass
+- L: Shoot
+- M: Scan
+- Space: Press / tackle
+
+SESSION OPTIONS
+
+- Standard: Full normal session with career rewards
+- Score Attack: 90-second high-score session
+- Endless: Four-minute extended run
+- Practice: No career reward or tactical XP, preventing reward farming
+- Difficulty: Beginner, Easy, Normal, Hard and Elite
+
+SYSTEMS ADDED
+
+- Shared state-driven tactical engine and scenario reset flow
+- Physical ball velocity, height, gravity, bounce, friction and interceptions
+- Actual created career player model, position and attribute influence
+- Dynamic AI intensity that rises with capped streak multipliers
+- Contextual positive and negative feedback
+- S+, S, A+, A, B, C, D and F grades
+- Drill-specific metrics, best score, form history and longest streak
+- Hidden per-attribute tactical development XP
+- Responsive broadcast-style tactical pitch HUD and mobile controls
+
+VALIDATION
+
+- game.js syntax check passed
+- Tactical Training v49.9: 51/51 checks passed
+- Complete existing JavaScript regression suite passed:
+  set pieces, dribbling/first touch, grounded movement, penalties,
+  performance, post-goal centre restart and pre-match presentation
+
+Note: Automated visual browser control was unavailable in the packaging session.
+The browser playtest was therefore not recorded as passed; the executable syntax,
+state-flow and full regression validations did pass.

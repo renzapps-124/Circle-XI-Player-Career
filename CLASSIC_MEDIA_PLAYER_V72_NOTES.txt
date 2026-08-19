@@ -1,0 +1,29 @@
+CLASSIC MEDIA PLAYER V72 — BODY PROPORTION UPDATE
+
+Changes
+- Shortened the arms on Lean, Athletic and Strong so hands finish around the upper/mid thigh rather than hanging too low.
+- Reduced hip/pelvis width across all three builds.
+- Lean remains narrow and streamlined.
+- Athletic now has more visible shoulder, chest, upper-arm, forearm and core definition while keeping a compact waist/hip line.
+- Strong now has pronounced deltoid, chest, arm, thigh and calf mass but a tighter waist/hip line so it reads as muscular rather than bulky.
+- Added shoulder-cap, biceps, forearm, pectoral and core shading/contours to the Classic Media renderer.
+- Kept overall model height unchanged.
+
+Appearance synchronisation retained
+- Skin tone
+- Hair style
+- Hair colour
+- Boot colour
+- Shirt number
+- Club kit colours and patterns
+
+Surfaces
+- Home
+- Profile
+- Overview
+- Player ID
+
+Runtime captures
+- Lean, Athletic and Strong Home screens
+- Lean, Athletic and Strong Profile screens
+- Body-build comparison PNG and GIF

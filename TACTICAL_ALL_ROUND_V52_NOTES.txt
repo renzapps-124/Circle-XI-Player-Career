@@ -1,0 +1,36 @@
+Circle XI Player Career - v52.0 Intelligent Aerial Circuit
+
+ALL ROUND CIRCUIT
+- The return-pass teammate now scans candidate spaces, shields the ball, escapes pressure and reassesses the lane before passing.
+- A second movement or body feint is available when the first escape route is covered.
+- The escape decision has a 2.4-second ceiling so the circuit remains fluid.
+- A clear lane produces a grounded pass; remaining cover pressure produces a lifted return.
+
+DEFENSIVE REALISM AND FAIRNESS
+- Defenders use press, cover and staggered goal-protection roles instead of crowding the user.
+- Finishing sequences create readable, realistic gaps without making defenders stand still.
+- Defender direction changes, tackle reach, recovery and interception radius are deliberately moderated.
+- Possession losses still restart the circuit while the 60-second master timer continues.
+
+AERIAL FINISHING
+- Lifted returns open a contextual contact window.
+- J queues a header, K queues a volley, L selects the best automatic contact and I lets the ball drop.
+- Contact height, distance, timing, Finishing, Technique, Heading and Composure affect execution quality.
+- Header, volley and first-time animations use the shared match player model.
+- Headers award 750 points, volleys 850, first-time goals 650 and perfect contact adds 200.
+
+GOALKEEPER
+- The goalkeeper reads the strike after contact, sets, chooses the correct side and height, and completes a full dive.
+- Clean aerial finishes beat the goalkeeper's reach while retaining a believable attempt to save.
+- Poor or ordinary finishes can still be saved.
+
+PRESERVED
+- Real posts, crossbar, net and rebound physics.
+- Player-follow camera and longer pitch.
+- 60-second sessions, A+ maximum grade and existing career development systems.
+
+VALIDATION
+- JavaScript syntax check passed.
+- 339/339 automated feature and regression checks passed across all ten suites.
+- Live header run: TEAMMATE_ESCAPE, five moving defenders, ATTACK_CROSS, header goal, goalkeeper high dive, zero browser errors.
+- Live volley run: TEAMMATE_ESCAPE, five moving defenders, ATTACK_CROSS, volley goal, goalkeeper high dive, zero browser errors.

@@ -1,0 +1,63 @@
+CIRCLE XI PLAYER CAREER — ALL ROUND CIRCUIT v51.0
+=================================================
+
+LIVE DEFENDERS
+
+- All five defenders now move continuously with pressing, lane-covering and
+  penalty-area screening roles.
+- Defenders can physically intercept passes and use attribute-driven tackles.
+- When a defender wins the ball, the circuit enters a clear TURNOVER state and
+  restarts from the first delivery without stopping or resetting the 60-second
+  session timer.
+
+INTELLIGENT TEAMMATE RETURNS
+
+- The return passer reads nearby defenders and the active passing lane.
+- A clear lane produces a normal grounded return pass.
+- One close defender produces a lifted return over the pressure.
+- Two close defenders make the teammate carry into a new angle before playing
+  a normal pass.
+- Return passes lead the user's live movement instead of targeting a stale spot.
+
+PROPER GOAL AND SCORING
+
+- The All Round Circuit now has a full goal line, posts, crossbar and net.
+- Post and bar impacts rebound physically and are tracked as woodwork.
+- A goal only counts when the ball crosses between the posts and below the bar.
+- Successful finishes trigger a visible net ripple and award finishing plus
+  circuit-completion points.
+
+LONGER PITCH AND FOLLOW CAMERA
+
+- The circuit uses a 100 × 128 world-space pitch instead of the old fixed square.
+- Player and AI movement support the full additional length.
+- A damped player-follow camera adds movement look-ahead, keeps play framed and
+  subtly tightens for finishing while widening after turnovers.
+- Pitch markings, players, ball, goal and tactical overlays all share the same
+  camera transform.
+
+PRESERVED SYSTEMS
+
+- Every advanced tactical session remains exactly 60 seconds.
+- A+ remains the maximum grade.
+- Passing can still be queued before the first touch.
+- Existing tactical drills, career rewards, player attributes, shared player
+  models, controls and saved progress remain intact.
+
+TESTING COMPLETED
+
+- game.js syntax check passed.
+- All Round Circuit v51 validation: 36/36 checks passed.
+- Tactical training regression validation: 62/62 checks passed.
+- Complete game regression set: 290/290 checks passed across 9 suites.
+- Real browser play-through verified first touch, normal pass, sprinting support
+  run, player-follow camera, lifted return, two-defender teammate reposition,
+  physical interception, continuous-timer restart, finish, goal and net capture.
+- Browser console and page error count: 0.
+
+IN-GAME SCREENSHOTS
+
+- SCREENSHOTS/v51-all-round-live-start.png
+- SCREENSHOTS/v51-all-round-follow-camera.png
+- SCREENSHOTS/v51-all-round-finish-ready.png
+- SCREENSHOTS/v51-all-round-goal.png

@@ -1,0 +1,125 @@
+CIRCLE XI PLAYER CAREER — V75.7
+PROTECT-THE-BALL CONTACT ANIMATION + CAREER SUPPORT STAFF
+
+=========================================================================
+PART 1 — SHIELDING AND BEING MUSCLED OFF THE BALL
+=========================================================================
+
+Starting point
+The match renderer already had an isShield and an isStumble branch, but they
+were thin (a small torso lean and one arm offset each) and — more importantly —
+the Protect the Ball drill never triggered either of them. setTrainingVisualAction
+had no 'shield' or 'stumble' entry in its action map, so even a direct call would
+have fallen through to the 'pass' pose. Being muscled off the ball was a line of
+text: technicalScore(s,0,'MUSCLED OFF THE BALL',...) with nothing else happening.
+The player kept their run cycle through the whole duel and the ball stayed glued
+to their boot after losing it.
+
+1. SHIELD IS NOW A STANCE THE PLAYER HOLDS
+   - Engages on the action blend rather than a one-shot sine, so it can be held
+     for as long as SPACE is held without the pose pumping in and out.
+   - Wide braced leg base with the weight sunk through bent knees (the legs were
+     previously untouched by the shield branch).
+   - Near arm comes up across the body to hold the defender off; the far arm
+     drops low over the ball.
+   - Torso leans into the contact, head turns towards the defender.
+   - A live brace tremor driven by idleAnim keeps the stance from looking frozen.
+   - actionVariant carries which side the contact is on, worked out in body space
+     from the cross product of the player's facing and the defender's bearing, so
+     it stays correct whatever way the player is turned.
+   - The ball is now tucked to the far side of the boots, away from the defender,
+     which is what the drill has always asked the player to do.
+   - The marker jockeys throughout the duel instead of standing in a run cycle.
+
+2. BEING MUSCLED OFF IS NOW A REAL COLLISION
+   - One-shot shove that peaks then recovers, rather than a symmetric bob.
+   - Leading foot is knocked across the body and the trailing leg drags behind.
+   - Both arms fly out to catch balance, the leading arm higher than the trailing.
+   - Head and torso are thrown away from the contact.
+   - The user is physically pushed off the contact point and their momentum is
+     killed.
+   - The ball comes loose and runs towards the defender instead of staying stuck
+     to the boot; it keeps rolling through the reset window.
+   - The marker plays a shoulder-barge at the same moment.
+   - The stage shakes briefly on impact.
+   - The reset window went 700ms -> 1050ms so the animation can finish before the
+     next scenario spawns.
+
+3. PLUMBING
+   - setTrainingVisualAction(action, variant, length) now takes an explicit
+     variant and duration; the old single-argument calls are unaffected.
+   - 'shield', 'stumble' and 'shoulder' added to the action map and durations.
+
+=========================================================================
+PART 2 — CAREER SUPPORT STAFF (from the screenshot)
+=========================================================================
+
+4. EVERY STAFF NAME WAS INVISIBLE  (the defect in the screenshot)
+   The finance centre paints light cards (rgba(255,255,255,.9)) inside the dark
+   app shell. Its group label, benefit line and weekly cost all set their own
+   colour, but the staff name <b> did not, so it inherited body{color:#cbd5e1}
+   and rendered light grey on near-white — legible only as a smudge. The ledger
+   labels had the same problem.
+   Fix: the finance centre now sets its own ink, with explicit colours for the
+   staff name, the hired state and the ledger labels.
+
+5. THE FILTER ROW LIED ABOUT ITS STATE
+   The first group button was rendered with class="active" while no filtering
+   had been applied, so "Development" looked selected next to a full unfiltered
+   grid. All is now the default active pill, which matches what is shown.
+
+6. STAFF COULD NEVER BE RELEASED
+   Hiring was permanent: once hired you paid the weekly cost for the rest of the
+   career with no way out. Owned cards now carry a Release action that removes
+   the staff member and the weekly cost, logs it to the ledger and posts an inbox
+   message.
+
+7. THE ELITE AGENT DID NOTHING AT ALL
+   A GBP 9,000 purchase with a GBP 650 weekly cost — the most expensive hire in
+   the game and the largest recurring drain — had no effect anywhere in the code.
+   It now feeds suggestedContractOffer() and submitContractCounter():
+
+     term                 without agent   with agent
+     Weekly wage                  6,200        6,700
+     Signing bonus               21,100       24,900
+     Appearance bonus               325          350
+     Goal bonus                     425          475
+     Contract weeks                 156          182
+
+   (evaluation 71, current wage 4,200) plus a one-step lift to the offered squad
+   role, and roughly a quarter less club resistance to wage and role counters.
+
+8. TWO MORE BENEFITS WERE ONLY WRITTEN ON THE CARD
+   - Sports Psychologist promised to "protect morale" but touched only attribute
+     development. Negative post-match morale swings are now cut to 62%.
+   - Performance Nutritionist promised to "improve recovery" but only reduced
+     injury chance. Nutritionist (+18%) and Recovery Specialist (+12%) now scale
+     both the weekly recovery focus and the recovery-pool drill.
+   Every one of the eight hires is now wired to a gameplay hook, and the
+   validation fails if any id is left without one.
+
+9. THE STAFF NOW SHOW UP WHERE YOU TRAIN
+   A support-staff strip sits at the top of the Training Centre listing who is
+   hired, what each one does, the weekly bill, and the live effect totals
+   (technical / finishing / physical / mental training rates, injury risk,
+   recovery rate, contract terms, opposition detail). It links straight back to
+   the hire screen. With nobody hired it explains what the staff would do.
+   This joins the analyst's existing hook in the fixture panel, so hires are now
+   visible in the Training Centre, the fixture preview, contract talks, weekly
+   training, recovery and injury rolls.
+
+Validation
+node PROTECT_CONTACT_STAFF_V75_7_VALIDATION.js — 63/63 checks passed
+  (includes a VM replay of the protect duel that asserts the shield stance is
+  held every frame, the barge fires with a contact side, the user is shoved, and
+  the ball comes loose towards the defender and keeps rolling)
+node --check game.js — PASS
+Suites re-run: FINISHING_PITCH_V75_6 77/77, TRAINING_CENTRE_V75_2 46/46,
+FATIGUE_MATCH_LOAD_V75_3 40/40, MATCH_PENALTIES_V75_5 31/31,
+TRAINING_PLAYTHROUGH_V75_1 24/24.
+FINISHING_PITCH_V75_6 had one assertion updated: it pinned the shielded ball to
+technicalBallAnchor(s.player,2.2,0), which is now defender-aware.
+SQUAD_EDITOR_AUDIO_V75_4 remains 39/44 on pre-existing, unrelated audio checks.
+
+Cache token
+index.html game.js / styles.css bumped 75.6.0 -> 75.7.0

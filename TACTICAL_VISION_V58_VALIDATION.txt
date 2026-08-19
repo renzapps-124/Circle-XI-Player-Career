@@ -1,0 +1,106 @@
+Circle XI Player Career — Tactical Vision v58 Validation
+
+JavaScript syntax: PASS
+
+Dedicated v58 checks:
+PASS v58 marker
+PASS cache bust
+PASS shared team kit function
+PASS opposition kit function
+PASS team kit applied to all mates
+PASS opposition kit consistent
+PASS mental targets only team mates
+PASS direction priority strengthened
+PASS pass aim memory
+PASS persistent mental pass target
+PASS team identity rings
+PASS correct intended token comparison
+PASS live ball at feet recovery
+PASS rejection diagnostic
+PASS passing labels clarified
+PASS all AI teammates same primary
+PASS all AI teammates same shorts/socks
+PASS AI teammates match user training palette
+PASS opponents share contrasting kit
+PASS right input selects right teammate
+PASS left input selects left teammate
+PASS up input selects forward teammate
+PASS down input selects back teammate
+PASS aim direction persists briefly
+
+Tactical Vision v58: 24/24 checks passed
+
+Lifecycle regression:
+PASS v57 marker
+PASS cache bust
+PASS scan non-blocking
+PASS vision queue enabled
+PASS receipt unlocks controls
+PASS stale owner recovery before gating
+PASS pass target score is mutable
+PASS best target is mutable
+PASS scan keeps incoming state
+PASS receive opens decision
+PASS J after scan works
+PASS queue after scan works
+PASS stale owner repaired
+PASS 50 cycles no pass lock
+
+Tactical Vision v58 lifecycle: 14/14 checks passed
+
+All Round Circuit regression:
+PASS v52 runtime marker
+PASS v52 cache busting
+PASS profile exposes intelligent aerial identity
+PASS state rail contains teammate escape
+PASS state rail contains attack cross
+PASS space scan evaluates multiple candidates
+PASS space scan scores pressure
+PASS space scan scores passing-lane clearance
+PASS teammate always enters escape phase
+PASS teammate shields during escape
+PASS teammate has second escape movement
+PASS escape phase has a hard deadline
+PASS lane is reassessed after movement
+PASS blocked floor selects lifted return
+PASS clear floor selects grounded return
+PASS defenders use press-cover balance
+PASS finishing shape deliberately staggers
+PASS defenders retain live movement
+PASS defender tackle reach is controlled
+PASS attacking interception radius is reduced
+PASS lifted return opens aerial window
+PASS aerial controls can be queued
+PASS J selects header
+PASS K selects volley
+PASS L selects contextual auto finish
+PASS I lets the ball drop
+PASS aerial contact uses ball height
+PASS header animation is used
+PASS aerial quality uses player attributes
+PASS header metric exists
+PASS volley metric exists
+PASS first-time metric exists
+PASS header awards 750 points
+PASS volley awards 850 points
+PASS first-time finish awards 650 points
+PASS perfect aerial contact awards 200
+PASS keeper dive begins after contact
+PASS keeper uses shot-side and height
+PASS keeper has reaction step
+PASS keeper moves through a dive arc
+PASS clean aerial finish beats keeper reach
+PASS goal copy names aerial technique
+PASS overlay teaches aerial controls
+PASS control dock labels change contextually
+PASS v52 escape UI styling exists
+PASS v52 aerial UI styling exists
+PASS v52 keeper UI styling exists
+PASS 60-second master session preserved
+PASS A+ remains the maximum grade
+
+V52 All Round Circuit: 49/49 checks passed
+
+Runtime capture attempt:
+- Chromium was launched headlessly against a localhost copy of the actual game.
+- The Chromium process timed out before producing a screenshot in this workspace, so no mock image has been labelled as real gameplay.

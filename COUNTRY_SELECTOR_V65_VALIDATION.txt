@@ -1,0 +1,38 @@
+Circle XI Player Career v65 — Country Selector Encoding Fix
+
+Issue reproduced from user screenshot:
+- Create-a-player nationality dropdown showed question marks before Scotland and Wales.
+- The fictional Montara entry displayed a lone question mark.
+- The root cause was corrupted/unsupported icon data in the country database, especially subdivision flag tag sequences and literal question-mark placeholders.
+
+Fixes applied:
+1. Replaced unstable UK subdivision flag sequences with reliable football abbreviations:
+   England = ENG
+   Scotland = SCO
+   Wales = WAL
+   Northern Ireland = NIR
+2. Replaced Montara's placeholder '?' with MT.
+3. Corrected Georgia's malformed flag sequence to the Georgia flag data.
+4. Added cxiSafeCountryIcon(country), which detects missing, question-mark, overlong, or unsupported tag-sequence country icons and falls back to a stable text abbreviation.
+5. Both Create Player nationality dropdown and Career World country dropdown now use the safe icon renderer.
+6. National-team preview/country metadata also uses the sanitised icon.
+7. Hardened the country generator scripts so future regeneration cannot reintroduce the same broken question-mark output.
+8. Updated game.js cache version to v65.0.0.
+
+Validation:
+PASS  Countries parsed: 199
+PASS  No country elementIcon contains a question mark
+PASS  England = ENG
+PASS  Scotland = SCO
+PASS  Wales = WAL
+PASS  Northern Ireland = NIR
+PASS  Montara = MT
+PASS  Georgia flag data corrected
+PASS  Safe icon helper installed
+PASS  Nationality dropdown routed through safe icon helper
+PASS  Career-country dropdown routed through safe icon helper
+PASS  v65 cache bust applied
+PASS  game.js Node syntax check
+
+Target result:
+The country dropdown never displays rows such as '???????? Scotland', '???????? Wales', or '? Montara'.

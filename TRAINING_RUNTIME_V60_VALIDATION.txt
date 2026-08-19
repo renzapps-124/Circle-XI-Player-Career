@@ -1,0 +1,102 @@
+CIRCLE XI PLAYER CAREER — TRAINING RUNTIME v60 VALIDATION
+==========================================================
+Build: v60.0-training-runtime-reliability
+Date: 2026-08-18
+
+PURPOSE
+-------
+Restore the shared Training Centre runtime after a regression where training sessions could fail to initialise or appear not to load.
+
+ROOT CAUSES FIXED
+-----------------
+1. Tactical training startup crash:
+   The Tactical HUD treated a null bufferedAction as an object because typeof null === "object", then attempted to read primaryKey from null. The check is now null-safe.
+
+2. Performance Gym runtime corruption:
+   The shared performance-gym athlete renderer was truncated/corrupted and contained input/stroke logic in the wrong function. The complete shared athlete renderer and performanceGymStroke routine have been restored.
+
+3. Fragile global training boot path:
+   Training opening/starting now runs through a guarded runtime manager with compatibility defaults, cleanup, watchdogs, visible recovery state, retry support and diagnostic status.
+
+RUNTIME SAFEGUARDS
+------------------
+- Validates session ID before launch.
+- Applies safe defaults for missing player attributes in older saves.
+- Clears stale training state before opening another drill.
+- Uses a 5 second load/start watchdog.
+- Converts startup exceptions into a recoverable training error state instead of a dead screen.
+- Restores the Retry Drill action after boot failure.
+- Clears held/pressed training input state on cleanup.
+- Clears training watchdogs on exit.
+- Exposes window.__circleTrainingRuntime for diagnostic smoke tests.
+- Asset cache version updated to v60.0.0.
+
+AUTOMATED BROWSER SMOKE TEST
+----------------------------
+Method: Actual v60 HTML/CSS/game.js executed in headless Chromium using a test-only in-memory storage shim. Each session was opened, started, allowed to render/update, checked for browser runtime errors, then closed before the next session.
+
+39 / 39 NON-HIDDEN TRAINING SESSIONS PASSED STARTUP:
+- Finishing
+- 1v1 Finishing
+- Pressure Finishing
+- First-Time Finishing
+- Long Range
+- Aerial
+- Passing
+- One Touch
+- Through Balls
+- Switch Play
+- Crossing
+- Dribbling
+- First Touch
+- Defending
+- 1v1 Defending
+- 3v3 Defending
+- Agility
+- Repeat Sprints
+- Exercise Bike
+- Bench Press
+- Treadmill Intervals
+- All Round Circuit / Balanced
+- Tactical Vision / Mental
+- Pressing
+- Transition
+- Positioning
+- Free Kick Technique
+- Free Kick Targets
+- Free Kick Wall
+- Penalties
+- Corners
+- Weak Foot
+- Recovery
+- Swim Endurance
+- Swim Sprint
+- GK Reaction
+- GK 1v1
+- GK Crosses
+- GK Distribution
+
+SEQUENTIAL SESSION SWITCHING
+----------------------------
+39 / 39 sessions successfully opened and started consecutively in one browser runtime with cleanup between sessions.
+
+REPEAT-SESSION TEST
+-------------------
+Passing session opened -> started -> closed -> opened -> started again.
+Result: PASS, 0 runtime errors on both launches.
+
+EXTENDED RENDER TESTS
+---------------------
+Representative sessions were left actively updating beyond initial boot, including Tactical Vision, All Round Circuit, Passing, Exercise Bike, Bench Press, Treadmill, Penalties, Corners, Free Kick Technique, Recovery and Agility.
+Result: PASS on all completed representative checks, with no browser runtime errors.
+
+SOURCE / PACKAGE CHECKS
+-----------------------
+- node --check game.js: PASS
+- Training asset cache version: v60.0.0
+- Tactical Vision v60 demo route: registered
+- ZIP integrity: PASS (see packaged build verification)
+
+RESULT
+------
+PASS — the shared Training runtime now boots every registered non-hidden session in the automated browser smoke suite and recovers safely if a future session startup exception occurs.

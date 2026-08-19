@@ -1,0 +1,41 @@
+Circle XI Player Career — Tactical Vision v56 Validation
+========================================================
+
+Build target:
+  v56.0-tactical-vision-scan-receive-pressure-loop
+
+Core Tactical Vision validation:
+  30/30 PASS
+
+Verified behaviours:
+- Scenario starts with AI feeder in possession.
+- Feeder automatically releases the incoming pass.
+- Live state advances to PRE_RECEIVE_SCAN.
+- M scan works while the pass is travelling.
+- Early / Good / Perfect / Late scan grades are present.
+- Vision changes the size of the scan snapshot (1 / 2 / 3 options in deterministic probes).
+- No-scan receptions continue to DECISION_WINDOW rather than freezing.
+- Pre-receive pass buffering is disabled for Tactical Vision.
+- Presser / Interceptor / Cover AI roles exist and are updated live.
+- Incoming interceptions resolve to feedback and continuation.
+- Outgoing interceptions resolve to feedback and continuation.
+- Press contact can dispossess a user who holds the ball too long.
+- Decision timeout resolves to feedback and continuation.
+- Successful pass resolves to feedback then NEXT_SCENARIO.
+- Pass watchdog covers USER_PASS / PASS_RESOLUTION.
+- Permanent pass-target assistance is hidden in Tactical Vision.
+- Scan information is temporary snapshot data.
+- Runtime liveness recovery remains enabled.
+- 50 repeated scan → receive → pass → reset cycles completed with 0 stuck states in the extracted state-machine stress test.
+
+Regression validation:
+- JavaScript syntax: PASS (node --check game.js)
+- All Round Circuit v52: 49/49 PASS
+- Tactical Ball/Pass v53 regression: 21/22 PASS; the single failure is only the expected old v53 version-marker check. All 21 functional ball/pass checks passed.
+- Penalty scoring regression: 15/15 PASS
+- Attribute set-piece regression: 20/20 PASS
+
+Browser capture note:
+- A Chromium headless render was attempted against a localhost demo route.
+- The managed Chromium process hung and was killed by timeout before producing a screenshot.
+- No mock image has been substituted for a real in-game capture.

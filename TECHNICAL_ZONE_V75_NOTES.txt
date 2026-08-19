@@ -1,0 +1,65 @@
+CIRCLE XI PLAYER CAREER — TECHNICAL ZONE OVERHAUL v75
+Base: v74 Finishing Pitch Overhaul
+
+Implemented four live Technical Zone drills using the shared player/ball renderer and career attributes.
+
+1) CLOSE CONTROL COURSE
+- Technical Zone drill: Dribbling · Agility · Balance.
+- Three rotating course layouts: slalom + bursts, figure-8 + gates, quick-feet + turns.
+- WASD movement, M close-control modifier, Shift acceleration bursts.
+- Close-control quality uses 45% Dribbling + 30% Agility + 25% Balance.
+- Touch distance expands with sprint speed and sharp turns, and contracts with M.
+- Cones/poles can be physically clipped; ball contact deflects the ball and slows the player.
+- Cone touch, ball hit and heavy touch penalties are tracked.
+- Checkpoints prevent one mistake from restarting the whole course.
+- Losing control restarts from the latest checkpoint.
+- Difficulty modifies control assistance and gate tolerance.
+
+2) FIRST TOUCH ESCAPE
+- Technical Zone drill: First Touch · Composure · Dribbling.
+- Six incoming service variations: ground, driven, diagonal, lofted, bouncing and pass-behind.
+- AI feeder and live pressing defender.
+- First-touch quality uses 50% First Touch + 25% Composure + 25% Dribbling.
+- User movement direction before reception determines the escape touch.
+- The defender reacts to the actual ball position rather than a hidden target.
+- A directional safe zone is generated away from pressure.
+- User must carry the ball into the safe zone to complete the escape.
+- Difficulty changes defender pressure and escape-space size.
+
+3) PROTECT THE BALL
+- Technical Zone drill: Strength · Balance · First Touch.
+- SPACE enters the shielding state; WASD changes body position and turns.
+- Shield quality uses 45% Strength + 35% Balance + 20% First Touch.
+- Defender pressure is resolved as a progressive physical contest instead of instant possession loss.
+- Ball-side/body orientation changes shielding effectiveness.
+- Standing still increases defender leverage, preventing passive shielding exploits.
+- Two scenario types rotate: Hold-Up Play and Shield → Turn.
+- Turn variation requires escaping through a live gate after resisting contact.
+- Difficulty changes contact pressure and available escape space.
+
+4) WEAK FOOT DEVELOPMENT
+- Moved into the Technical Zone.
+- 60-second circuit cycles: Passing → Crossing → Finishing.
+- Strong foot is locked for technical actions.
+- J = weak-foot pass, I = weak-foot cross, L = weak-foot finish.
+- Actual weak-foot rating modifies execution instead of replacing Passing/Crossing/Finishing/Technique/Composure.
+- Existing weak-foot career progression is preserved, including weakFootProgress, star-rating growth and eventual both-footed development.
+- Live UI shows weak-foot star rating and progression percentage.
+
+SHARED TECHNICAL ZONE SYSTEM
+- One Technical Zone runtime routes all four drills through shared movement, ball, renderer, scoring and result systems.
+- 60-second live sessions.
+- Dedicated compact Technical Zone HUD with objective, live status, score, streak, penalty and contextual controls.
+- Drill-specific result metrics added for Close Control, First Touch Escape, Protect the Ball and Weak Foot Development.
+- Existing career appearance/player renderer is used.
+- v74 Finishing Pitch systems remain present.
+- Browser cache tokens bumped to v75.0.0.
+
+REAL RUNTIME CAPTURES
+- v75-close-control-course.png
+- v75-first-touch-escape.png
+- v75-protect-the-ball.png
+- v75-weak-foot-development.png
+- v75-technical-zone-gameplay.gif
+
+The screenshots/GIF were captured from the real v75 game code in Chromium using a localStorage test shim for the isolated capture document. They are not generated concept art.

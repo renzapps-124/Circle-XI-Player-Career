@@ -75,6 +75,19 @@ def get_continent(region, subregion):
         return 'South America'
     return region
 
+SPECIAL_COUNTRY_CODES = {
+    'England':'ENG', 'Scotland':'SCO', 'Wales':'WAL', 'Northern Ireland':'NIR', 'Montara':'MT',
+    'Germany':'DE', 'Georgia':'GE', 'Greece':'GR', 'Switzerland':'CH', 'Czechia':'CZ',
+    'Netherlands':'NL', 'Portugal':'PT', 'Spain':'ES', 'France':'FR', 'Italy':'IT', 'Ireland':'IE',
+    'USA':'US', 'UAE':'AE', 'South Korea':'KR', 'North Korea':'KP', 'Ivory Coast':'CI'
+}
+
+def stable_country_icon(name, flag):
+    raw = str(flag or '').strip()
+    if raw and '?' not in raw:
+        return raw
+    return SPECIAL_COUNTRY_CODES.get(name) or ''.join(ch for ch in name if ch.isalpha())[:3].upper() or 'NAT'
+
 def youth_label(rep):
     if rep >= 85: return 'Elite'
     if rep >= 75: return 'Great'
@@ -117,7 +130,7 @@ for c in data:
         'name': name,
         'continent': continent,
         'elementId': continent,
-        'elementIcon': flag,
+        'elementIcon': stable_country_icon(name, flag),
         'youthLabel': youth_label(rep),
         'reputation': rep,
         'tactical': tactical,
@@ -125,7 +138,7 @@ for c in data:
     })
 
 # Add missing UK nations
-for nation, flag in [('England', '??????????????'), ('Wales', '??????????????'), ('Scotland', '??????????????'), ('Northern Ireland', '????')]:
+for nation, flag in [('England', 'ENG'), ('Wales', 'WAL'), ('Scotland', 'SCO'), ('Northern Ireland', 'NIR')]:
     if nation not in [x['name'] for x in output]:
         rep = custom_countries.get(nation, {}).get('rep', 70)
         colors = custom_countries.get(nation, {}).get('color', ['#ffffff', '#000000'])
@@ -134,7 +147,7 @@ for nation, flag in [('England', '??????????????'), ('Wales', '??????????????'),
             'name': nation,
             'continent': 'Europe',
             'elementId': 'Europe',
-            'elementIcon': flag,
+            'elementIcon': stable_country_icon(nation, flag),
             'youthLabel': youth_label(rep),
             'reputation': rep,
             'tactical': {'risk': 60, 'transition': 70, 'control': 65, 'defence': 70, 'pressing': 65},
@@ -161,4 +174,4 @@ new_content = pattern.sub(js_code, content)
 with open('game.js', 'w', encoding='utf-8') as f:
     f.write(new_content)
 
-print(f\"Successfully added {len(output)} countries.\")
+print(f"Successfully added {len(output)} countries.")

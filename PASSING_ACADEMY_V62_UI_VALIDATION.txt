@@ -1,0 +1,48 @@
+Circle XI Player Career — Passing Academy UI/UX v62 Validation
+
+BUILD VALIDATION
+================
+PASS — game.js parses with Node syntax validation.
+PASS — styles.css and index.html contain the v62 Passing Academy presentation and cache version.
+PASS — 24/24 targeted source assertions passed.
+
+TARGETED ASSERTIONS
+===================
+PASS — Passing Academy intro card.
+PASS — Compact live top HUD.
+PASS — Dynamic objective banner.
+PASS — Live accuracy/scan/progressive/interception metrics.
+PASS — One Touch rhythm UI.
+PASS — Contextual pass controls.
+PASS — Pass-power sweet-zone logic.
+PASS — Tiered score popup feedback.
+PASS — Passing Gates SAFE label.
+PASS — Passing Gates LINE BREAK label.
+PASS — Blocked-lane / LANE CLOSING presentation.
+PASS — Through-ball timing/offside presentation support.
+PASS — Switch-of-play congestion scan support.
+PASS — Crossing landing-zone visual support.
+PASS — Contextual pass-trajectory preview.
+PASS — Passing-specific end-of-session report.
+PASS — Passing Academy Training Centre cards.
+PASS — Mini pitch card styling.
+PASS — Drill-specific accent styling.
+PASS — Responsive/mobile Passing Academy layout.
+PASS — Dedicated v62 runtime/demo route.
+PASS — CSS cache version 62.0.0.
+PASS — JS cache version 62.0.0.
+PASS — Pass power/action state cleared between scenarios.
+
+RUNTIME VISUAL CHECKS
+=====================
+Real renders from the updated v62 game source were captured for:
+PASS — Passing Gates with active scan/gate labels.
+PASS — Passing Gates contextual pass controls.
+PASS — One Touch Combinations with rhythm meter active.
+PASS — Crossing Academy with run/landing visualisation.
+
+The captured screens show the real game UI/runtime, not recreated concept artwork.
+
+FINAL PACKAGE
+=============
+ZIP integrity is checked after packaging.

@@ -1,0 +1,46 @@
+Circle XI Player Career - Pre-Match Presentation V49
+
+V49.1 Handshake Animation Upgrade
+- Every home player is paired with the corresponding away player using one shared contact point.
+- Greetings now run through approach, turn, reach, contact, shake, release, and move-on phases.
+- Pairs animate in a short wave down the lineup instead of moving simultaneously.
+- Both players face and look toward one another; early arrivals hold their approach until their shared phase begins.
+- Eased hand reach/release, synchronized shake cycles, wrist rotation, shoulder lean, head nod, and forward-leg weight shift improve body language.
+- Deterministic timing variation keeps the line natural while created-player and central featured greetings last slightly longer.
+- Skip and state-transition cleanup removes every handshake pose before jogging to formation or enabling gameplay.
+
+V49.2 Formation Preview GUI Upgrade
+- Rebuilt the formation comparison as two larger broadcast cards with club-colour headers, larger crests, kit swatches, Home/Away labels, manager identity, and prominent formation badges.
+- Added a responsive side-by-side layout for wide screens and stacked formation cards for narrow screens.
+- Home and away teams reveal sequentially; each XI arrives by unit in goalkeeper, defence, midfield, attacking-midfield/wing, and striker order.
+- Player markers now show shirt number, position, surname, goalkeeper styling, captain support, condition warnings, and a stronger pulsing YOU marker.
+- Miniature pitches now include mowing stripes, grass depth, team-colour glow, complete markings, and a direction-of-attack indicator.
+- Actual match tactical profiles supply playing style, press, tempo, and manager information.
+- Formation-derived matchup notes compare midfield numbers, defensive lines, attacking numbers, and width using the real shared formation slots.
+- The user matchup note explains the created player's actual match role.
+- The role spotlight now renders the real created-player model and shows shirt number, match position, overall, preferred foot, natural role, selection status, manager instruction, and role brief.
+- Anonymous stage dots were replaced by a labelled Matchday, Formations, Your Role, Walkout, and Kickoff progress line.
+- Cards slide outward at the end of the state so the stadium/tunnel presentation becomes visible beneath them.
+
+Implemented
+- Nine-state pre-match controller: stadium, formations, user role, tunnel, walkout, lineup, handshakes, jog to positions, and kickoff readiness.
+- Actual starting XIs, team colours, formations, player names, shirt numbers, ratings, and the created player's selected match position.
+- A shared formation library used by presentation markers, kickoff positions, and tactical AI targets.
+- Eleven supported formations: 4-3-3, 4-2-3-1, 4-4-2, 4-1-4-1, 4-3-2-1, 4-1-2-1-2, 3-4-3, 3-5-2, 5-4-1, 5-3-2, and 5-2-3.
+- Existing match player instances are moved through tunnel, walkout, lineup, handshake, and formation paths. Created-player appearance and kit data are preserved.
+- Referee and assistant referees lead the procession; the referee carries the match ball.
+- Movement is continuous while visible. Walkout uses waypoints and jog-to-shape uses speed-limited movement.
+- Player controls and match AI remain locked until the state machine completes and setupKickoff performs final cleanup.
+- SPACE skips one phase. A second quick press, held SPACE, ENTER, or ESC skips safely to kickoff.
+- Match Presentation setting: Full, Short, or Off. Full remains the default.
+
+Preserved
+- Existing half-time, full-time, trophy, replay, substitution, medical, dismissal, set-piece, AI, formation-change, and gameplay systems.
+
+Testing
+- JavaScript syntax validation.
+- Static V49 source validation covering formation definitions, state structure, shared data, movement, controls, visuals, and skip cleanup.
+- Browser runtime validation of all nine states with actual 5-3-2 vs 4-3-3 match data.
+- Complete natural run from stadium establishing shot through kickoff.
+- Two-step skip test from locked presentation state to enabled gameplay.
+- Browser console warning/error inspection: none found during the state and full-run tests.

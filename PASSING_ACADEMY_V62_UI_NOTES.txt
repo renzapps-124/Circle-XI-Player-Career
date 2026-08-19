@@ -1,0 +1,64 @@
+Circle XI Player Career — Passing Academy UI/UX Overhaul v62
+
+IMPLEMENTED
+===========
+1. Shared Passing Academy visual language
+   - Drill-specific accents while retaining one consistent HUD architecture.
+   - Passing Gates: green.
+   - One Touch Combinations: cyan.
+   - Through Ball Timing: purple.
+   - Switch of Play: gold.
+   - Crossing Academy: orange.
+
+2. Football-first live HUD
+   - Compact top strip for drill identity, timer, score, chain and multiplier.
+   - Dynamic objective banner that follows the actual phase of the repetition.
+   - Compact live panel for accuracy, scans, progressive actions and interceptions.
+   - Removed the need for the player to read a large static wall of instructions during play.
+
+3. Contextual passing controls
+   - Pass panel reacts to the current input/action.
+   - Ground / Through / High controls remain easy to see.
+   - Combo options are exposed contextually rather than dominating the pitch.
+   - Pass action panel includes power and a dynamic sweet zone based on the chosen pass.
+
+4. Passing Gates presentation
+   - Scan can reveal SAFE, PROGRESSIVE, LINE BREAK and BLOCKED gate identities.
+   - Closing lanes receive a LANE CLOSING warning/pulse.
+   - Gate value/difficulty is communicated visually without permanently covering the training area.
+
+5. One Touch Combinations presentation
+   - Dedicated rhythm meter.
+   - Flow tiers build with the passing chain and show higher-tempo states such as ONE TOUCH.
+   - Movement targets use a cleaner directional cue.
+
+6. Through Ball Timing presentation
+   - Run arrow and defensive/offside-line context.
+   - Timing feedback includes EARLY / PERFECT / OFFSIDE style states close to the football action.
+
+7. Switch of Play presentation
+   - Scan-time congestion information highlights overloaded, crowded and free areas.
+   - Receiving/landing space is represented rather than only drawing attention to the teammate's body.
+
+8. Crossing Academy presentation
+   - Attacker run arrows for near/far/central movements.
+   - Predicted landing area visualisation.
+   - Landing uncertainty scales with relevant player quality, giving attributes a visible effect.
+
+9. Live feedback
+   - Tiered feedback so routine actions stay compact and big football moments receive stronger presentation.
+   - Score popups appear close to the created player.
+   - Progressive actions and perfect pass weight can contribute to the presentation/scoring feedback.
+
+10. End-of-session report
+   - Passing Academy-specific report shows pass success, scans, average release time, progressive actions, pass weight and interceptions.
+   - Grade breakdown is presented as individual performance dimensions rather than only one final letter grade.
+
+11. Training Centre cards
+   - Passing Academy sessions now use dedicated cards with a short football concept, mini pitch diagram, attribute tags, personal best/grade and difficulty.
+
+12. Reliability polish
+   - Scenario reset now also clears old pass-action/power-guide state so UI feedback cannot leak into the next repetition.
+   - CSS/JS cache version moved to v62.0.0.
+
+The goal of the redesign is to keep the pitch as the primary source of information and make the UI explain the football problem instead of competing with it.

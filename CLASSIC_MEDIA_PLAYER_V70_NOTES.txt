@@ -1,0 +1,35 @@
+CLASSIC MEDIA PLAYER V70 — LEAN MODEL REFINEMENT
+
+Changes
+- Lean build is slightly fuller than V69 without becoming Athletic-sized.
+- Shoulder width increased from 0.88 to 0.94.
+- Chest width increased from 0.90 to 0.96.
+- Upper arm mass increased from 0.78 to 0.86.
+- Forearm mass increased from 0.75 to 0.82.
+- Thigh mass increased from 0.82 to 0.88.
+- Calf mass increased from 0.79 to 0.84.
+- Lean arm length reduced from 1.03 to 0.94, keeping hands higher and closer to normal footballer proportions.
+- Waist reduced to 0.86 against 0.96 chest / 0.94 shoulders for a cleaner streamlined shoulder-to-waist taper.
+- Hip width increased slightly to 0.92 so the body no longer looks under-sized through the pelvis.
+- Neck width/length adjusted to 0.92 / 1.00 while preserving the connected neck introduced in V69.
+- Lean remains clearly slimmer than Athletic and Strong.
+
+Appearance synchronisation retained
+- Skin tone
+- Hairstyle
+- Hair colour
+- Boot colour
+- Shirt number
+- Club kit colours and patterns
+
+Career surfaces using the shared renderer
+- Home
+- Profile
+- Overview
+- Player ID
+
+Validation
+- 39/39 targeted checks passed.
+- JavaScript syntax passed.
+- Runtime screenshots rendered from the updated game source through Playwright.
+- Home, Profile and Overview each reported the Lean V70 renderer dataset with the requested skin/hair customisation.

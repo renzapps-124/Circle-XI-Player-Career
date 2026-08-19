@@ -1,0 +1,162 @@
+CIRCLE XI PLAYER CAREER — FINISHING PITCH V75.6 (DEFECT FIXES)
+
+Scope
+Bug-fix pass over the six V74 Finishing Pitch drills. No new drills, no changed
+drill identities — the V74 design is kept and the parts of it that did not
+actually work are repaired.
+
+1. SHOT RESOLUTION RESOLVED TOO EARLY  (critical)
+   updateFinishingPitchBall settled every shot on the first frame the ball
+   entered the goal band (b.y <= bottomPct + 1.4) and then latched b.resolved.
+   Two consequences:
+   - The judgement happened before the ball reached the point it was aimed at,
+     so goal-mouth height (encoded in y) was read at the goal-line edge instead.
+     Top-corner, top-left/right and high-centre zones were mathematically
+     unreachable — targetDist was ~16 units against a 5.4 unit radius.
+   - onFrame required b.y <= bottomPct while the trigger allowed bottomPct + 1.4,
+     so whether a clean shot counted depended on where the frame step landed.
+   Fix: the ball is now resolved on the plane it was actually struck towards.
+   The crossing point is interpolated between the previous and current frame
+   (b.prevX/prevY/prevZ), so impact x and z are exact and frame-rate independent.
+   Measured in FINISHING_PITCH_V75_6_VALIDATION.js with a perfectly aimed shot
+   and jittered frame times (240 runs per zone):
+
+     zone            old on-frame  old target  new on-frame  new target
+     LOW NEAR               19%        100%          100%       100%
+     LOW FAR                19%        100%          100%       100%
+     TOP LEFT               24%          0%          100%       100%
+     TOP RIGHT              24%          0%          100%       100%
+     HIGH CENTRE            21%          0%          100%       100%
+     LOW CENTRE             21%        100%          100%       100%
+
+   Woodwork is now resolved from the real goal posts, and over-the-bar,
+   wide-of-the-frame and off-target now read back as distinct outcomes.
+
+2. PRESSURE FINISHING WAS UNWINNABLE  (critical)
+   During SERVICE the markers moved to 1.5–1.8 units from a stationary receiver,
+   and the POSSESSION check ended the attempt at nearest < 2.65 with no grace.
+   The attempt therefore died on the first frame after every reception.
+   Fix: markers hold a real stand-off while the ball travels (~3.9 units),
+   the tackle radius is 1.85, and a defender cannot win the ball until 500ms
+   after reception. Close-down speeds are now 7.2–7.8 against a 15–19 user jog,
+   so the pressure comes from the short window rather than an instant loss.
+   Long-range close-down was rebalanced the same way (11.5 -> 7.8), which gives
+   roughly 1.0s to release before the lane closes against a 2600ms window.
+
+3. THE FOOTBALL WAS INVISIBLE FOR MOST OF EVERY ATTEMPT  (critical)
+   drawTrainingSharedEngine only rendered the free ball when the drill had no
+   team-mates (plus explicit exceptions for corners, defensive and passing).
+   Every Finishing Pitch drill spawns a feeder and defenders, so the free-ball
+   branch never ran, and the carried-ball branch was gated the same way. The DOM
+   fallback ball is class legacy-training-ball, which is display:none!important,
+   so nothing drew it.
+   The only football that ever appeared was the one drawn at the feeder's boot
+   during RESET — which is exactly the reported symptom: the ball vanishes the
+   moment it is passed, in all six sessions. Measured by evaluating the real
+   render gates out of game.js against each drill phase:
+
+     phase                          before   after
+     RESET (feeder holds it)           6/6     6/6
+     SERVICE (pass in flight)          0/6     6/6
+     POSSESSION (user carrying)        0/6     6/6
+     SHOT (strike in flight)           0/6     6/6
+     RESOLVED (after the outcome)      0/6     6/6
+
+   Fix: the free-ball gate now covers the finishing pitch, and a carried-ball
+   branch draws the football on the user's boot line (same anchor the defensive
+   drill uses) while userHasBall is set. Exactly one football is drawn in every
+   phase — no double ball during the feeder's hold.
+
+4. THE REQUESTED TECHNIQUE WAS NEVER SHOWN  (major)
+   A technique mismatch costs 0.12 quality and makes success impossible, but the
+   requested finish was never displayed anywhere. Added finishingTechniqueHint()
+   and surfaced it in three places: the illuminated zone marker, the service
+   callout and the action guide (e.g. "K+L LOW DRIVEN", "J+K+L KNUCKLE").
+
+5. RESULT METRICS WERE GENERIC  (major)
+   trainingResultMetrics had no Finishing Pitch branch, so drill-specific labels
+   ("Keeper beaten", "Off-ball movement", "Header timing") were rendered against
+   generic accuracy/reaction/energy values, and every counter the drill tracked
+   was dead. Added a real branch backed by new tracking: shots, techniqueMatches,
+   receptions, lostToDefender, targetHits, timingSamples, powerSamples. blocks
+   is now produced too (see 7).
+
+6. ANTICIPATION DID NOT SIZE THE CONTACT WINDOW  (moderate)
+   The V74 notes state Anticipation controls the first-time/aerial contact
+   window; the code used a fixed 8.5 radius on both the ball and kick sides.
+   The window is now lerp(6.4, 10.6) across the attribute range, and first-time
+   timing quality is measured against that same window.
+
+7. SMALLER CORRECTNESS FIXES
+   - The final timeout branch had no b.resolved guard and could record a second
+     attempt for a shot that had already been settled.
+   - Lane defenders can now charge a shot down, which is what the previously
+     dead "blocks" counter was for.
+   - The keeper dived on every strike (gk.action = keeperSave ? 'dive' : 'dive').
+     It now stays set for shots that were never going near the frame.
+   - Pressure finishing's second defender was gated on s.attempts % 2 === 1,
+     which is always false at initialisation. Dead clause removed.
+   - 1v1 zone selection indexed the open-zone list with idx % 3, so the fourth
+     open zone could never be chosen.
+   - The first-time cut-back service was played from y = 18, behind the goal
+     line. Moved to y = 27.
+   - const window = ... shadowed the global window object inside the ball update.
+
+8. THE DRILL SURFACE HAD NO STYLING AT ALL
+   .finishing-goal-target / .controlled-finishing / .finishing-box-line and the
+   data-finishing-feedback tone had zero CSS rules, so the "illuminated goal
+   zones" rendered as the generic 58px purple movement target with 25px label
+   text overflowing it, and the box line was invisible. Added a lit goal-zone
+   marker with a readable zone label and technique chip, the penalty/six-yard
+   box outline, and success/miss/objective stage tinting. The zone glow animates
+   box-shadow only, so it no longer overrides the composure shrink transform
+   (CSS animations outrank inline styles, which is why the shrink never showed).
+
+9. TECHNICAL ZONE BALL SAT AT HEAD HEIGHT, NOT AT THE FEET  (major)
+   Every technical zone ball placement was written as player + direction * d
+   against the player's logical x/y. That anchor is the middle of the body: the
+   match renderer draws upright sprites whose boots are footY(11.45) * modelScale
+   below it, about 28px on a 760x480 stage. Two placements were worse still and
+   set the ball explicitly above the player (player.y - 3.5 for the weak-foot
+   stance and the protect spawn, player.y - 2.8 for the weak-foot strike), and
+   because every technical setup faces the player up the pitch, the directional
+   lead pushed it further up-screen again.
+   Result on a body roughly 48px tall:
+
+     case                            before    after
+     weak foot stance                  45px      0px
+     weak foot strike                  42px      0px
+     protect spawn                     45px     11px
+     protect shield                    46px     11px
+     close control (tight touch)       38px     10px
+     first touch (best settle)         43px     15px
+
+   (height of the ball above the boot line). At 42-46px on a 48px body the ball
+   was drawn level with the player's head.
+   Fix: added technicalBallAnchor(player, lead, side), which starts from the
+   same boot-line helper the rest of the training code uses
+   (defensiveBallContactAnchor) and then applies the drill's touch distance in
+   the direction of travel. Applied to all nine placements: close-control carry
+   and checkpoint restart, first-touch settle and escape carry, protect spawn
+   and shield frame, weak-foot stance and strike. Standing balls now sit exactly
+   on the boot line; carried balls sit a touch distance in front of the boots,
+   so a heavy touch still reads as the ball running away from the player. The
+   weak-foot ball is also offset towards the weaker foot.
+   Touch distance, gate radii and cone collision maths are unchanged — only the
+   anchor the offsets are measured from moved.
+
+Validation
+node FINISHING_PITCH_V75_6_VALIDATION.js  — 77/77 checks passed
+node --check game.js                      — PASS
+Existing suites re-run: TRAINING_CENTRE_V75_2 46/46, FATIGUE_MATCH_LOAD_V75_3
+40/40, MATCH_PENALTIES_V75_5 31/31, TRAINING_PLAYTHROUGH_V75_1 24/24.
+TRAINING_PLAYTHROUGH_V75_1 executes technicalProtectUpdate in a VM, so its
+context was given the new technicalBallAnchor dependency (the real function,
+with a stand-in for the stage-rect helper it calls). No assertion was changed.
+SQUAD_EDITOR_AUDIO_V75_4 reports 39/44. Those five failures are pre-existing and
+unrelated: they assert whistle/beep/tackle audio code (e.g. 3280*pitch, the pea
+trill oscillator, the brown-noise tackle fallback) that is absent from game.js
+entirely, in functions this pass does not touch.
+
+Cache token
+index.html game.js / styles.css bumped 75.5.0 -> 75.6.0

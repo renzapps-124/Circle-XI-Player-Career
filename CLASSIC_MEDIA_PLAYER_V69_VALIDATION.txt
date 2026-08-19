@@ -1,0 +1,41 @@
+CLASSIC MEDIA PLAYER V69 VALIDATION
+38/38 checks passed
+
+PASS — V69 version marker
+PASS — Lean build preset
+PASS — Athletic build preset
+PASS — Strong build preset
+PASS — shoulders hierarchy Lean < Athletic < Strong — 0.88 < 1.04 < 1.2
+PASS — upperArm hierarchy Lean < Athletic < Strong — 0.78 < 1.0 < 1.25
+PASS — forearm hierarchy Lean < Athletic < Strong — 0.75 < 0.95 < 1.18
+PASS — thigh hierarchy Lean < Athletic < Strong — 0.82 < 1.02 < 1.22
+PASS — calf hierarchy Lean < Athletic < Strong — 0.79 < 0.97 < 1.15
+PASS — Connected neck comment/implementation
+PASS — Neck overlaps jaw connection
+PASS — Torso uses rounded shoulder curves
+PASS — Torso uses flat hem
+PASS — Old diamond torso centre-point removed from V69 renderer
+PASS — Compact renderer no longer uses 1.35 stretch
+PASS — Skin tone comes from saved creator value
+PASS — Hair style comes from saved creator value
+PASS — Hair colour comes from saved creator value
+PASS — Boot colour comes from saved creator value
+PASS — Shirt number comes from saved creator value
+PASS — Renderer audit tracks build
+PASS — Renderer audit tracks skin
+PASS — Renderer audit tracks hair colour
+PASS — Renderer audit tracks hair style
+PASS — Renderer audit tracks boots
+PASS — Home screen uses shared renderer
+PASS — Profile tab uses shared renderer
+PASS — Overview tab uses shared renderer
+PASS — Player ID uses shared renderer
+PASS — Old save appearance migration retained
+PASS — Creator still exposes skin colour
+PASS — Creator still exposes hair colour
+PASS — Creator still exposes Lean Athletic Strong
+PASS — Cache version bumped
+PASS — V69 demo route supports appearance parameters
+PASS — JavaScript syntax
+PASS — Renderer runtime across 3 builds x 4 card sizes — PASS renderer runtime 12 renders; builds and custom appearance preserved
+PASS — V69 CSS block balanced — 4 opens / 4 closes

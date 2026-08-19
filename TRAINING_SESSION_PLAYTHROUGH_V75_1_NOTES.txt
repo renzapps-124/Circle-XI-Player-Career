@@ -1,0 +1,80 @@
+CIRCLE XI PLAYER CAREER — TRAINING SESSION PLAYTHROUGH AUDIT (v75.1)
+Base: v75 Technical Zone Overhaul
+
+METHOD
+------
+All 40 registered non-hidden training sessions were opened, started, played with live
+input and closed inside the real game running in Chromium, driven through the existing
+window.__circleTrainingRuntime diagnostic API. Three passes were run:
+
+  1. Boot/teardown smoke pass  — open → start → play → close, per drill.
+  2. Randomised-input pass     — 5s of live WASD / J K L I / M / Shift / Space per drill.
+  3. No-input soak pass        — 10s per drill with no input, to expose stalls and
+                                 runaway scoring loops that only appear when the user
+                                 does nothing.
+
+Note: the automated harness replaces requestAnimationFrame with a timer-based shim so
+the loops keep running while the browser pane is not compositing. Session countdown
+rates measured under the shim are not representative; state-machine transitions,
+attempt counts and error counts are.
+
+ISSUES FOUND AND FIXED
+----------------------
+
+1) PROTECT THE BALL — runaway failure loop and permanent scenario stall  [CRITICAL]
+   technicalProtectUpdate() resolved the physical contest on every frame, without
+   checking that the duel was still live. Once t.pressure reached 1 the drill:
+     • called technicalScore(..., success=false) every frame, and
+     • re-armed t.resetAt to performance.now()+700 every frame,
+   so the reset gate `t.phase==='reset' && performance.now()>=t.resetAt` could never
+   fire while the defender stayed in contact.
+   Measured before fix: 96 attempts / 96 mistakes in 4 seconds, phase locked in 'reset'
+   for the rest of the 60 second session.
+   Fix: contact resolution is now gated on a `duelLive` flag (phase 'shield' or 'turn'),
+   and pressure/hold/stationary are cleared when the duel is lost.
+   Measured after fix: 4 attempts in 10 seconds, phases cycling shield → reset → shield.
+
+2) FIRST TOUCH ESCAPE — permanent stall in the 'service' phase        [CRITICAL]
+   technicalFirstTouchUpdate() had no watchdog on the 'service' phase. Reception only
+   happened when the ball came within 4.7 units of the player, so if the user moved away
+   from the pass the ball simply rolled on, decelerated and stopped. The phase never
+   advanced and the drill was dead for the remainder of the session.
+   Measured before fix: 15 seconds, 0 attempts, ball 53 units away and still in 'service'.
+   Fix: technicalSetupFirstTouch() records t.serviceAt, and the service phase now resets
+   the scenario with a scored miss when the ball leaves the pitch, when the service has
+   been live for more than 5 seconds, or when the ball has come to rest out of reach.
+   The reception test is additionally gated on the phase still being 'service' so a
+   watchdog reset and a reception cannot both fire on the same frame.
+   Measured after fix: service times out at ~5s, scores the miss and cycles normally.
+
+3) LEAKED 'passing-academy-live' CLASS DISABLES THE START BUTTON       [CRITICAL]
+   startPassingAcademyTraining() adds `passing-academy-live` to #trainingGameModal, but
+   it was only removed in finishControlledTraining() — never in closeTrainingDrill() and
+   never on open. Closing a Passing Academy drill early left the class on the modal, and
+   the unscoped stylesheet rule
+
+       #trainingGameModal.passing-academy-live #startTrainingGame,
+       #trainingGameModal.passing-academy-live #simulateTrainingGame
+           { opacity:.42; pointer-events:none }
+
+   then applied to every drill opened afterwards. Reproduced live: with Protect the Ball
+   open, the Start button computed to pointer-events:none / opacity:0.42, so no further
+   training session could be started until the page was reloaded.
+   Fix: closeTrainingDrill() now also clears passing-academy-live, passing-academy-ui,
+   gym-bench-ui, race-ui, tactical-training-ui, tactical-setup and tactical-live-session,
+   and openTrainingDrillCore() clears every live-session class before setting up a drill.
+
+VERIFIED HEALTHY
+----------------
+• All 40 sessions open, start, accept input and close with no thrown errors, no console
+  errors and no unhandled rejections, in all three passes.
+• The v60 training runtime guards (watchdog, recoverable error state, stale-session
+  cleanup) never had to engage — no session entered the 'error' status.
+• Tactical drills (All Round Circuit, Tactical Vision, Pressing Triggers, Transition
+  Game) already carry per-state watchdogs, e.g. PASS and FINISH time out after 6s.
+• 1v1 Defending guards its concede path with `att.hasBall`, so it cannot double-fire.
+• Off-pitch coordinates seen in the All Round Circuit are correct: that drill runs on
+  TACTICAL_ALL_ROUND_PITCH, which is 128 units tall rather than 100.
+• Balls leaving the pitch in the generic drills are handled by the existing `settled`
+  rule in updateTrainingBall(), which retires the ball after its max life and records
+  the attempt.

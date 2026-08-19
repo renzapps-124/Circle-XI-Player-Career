@@ -1,0 +1,132 @@
+CIRCLE XI PLAYER CAREER — FATIGUE MATCH LOAD (v75.3)
+Base: v75.2 Training Centre Rework
+
+REQUEST
+-------
+High fatigue should increase the rate of injuries, and should lower in-game stamina
+in proportion to how high the fatigue is.
+
+Before this change the Training Centre FATIGUE meter was almost inert. It nudged
+training injury risk slightly (and only above 48%, and only meaningfully on Intense
+intensity), and it had no effect whatsoever on matches: the career player kicked off
+every fixture at 100 stamina and recovered back to 100 regardless.
+
+THE MODEL
+---------
+One shared curve drives everything, so the meter reads as a single stat.
+
+  load = clamp((fatigue - 20) / 80, 0, 1)
+
+Below 20% fatigue there is no penalty at all. From there it ramps linearly:
+
+  fatigue | load | stamina ceiling | drain  | recovery | match injury
+  --------|------|-----------------|--------|----------|-------------
+       20 | 0.00 |          100.0  |  x1.00 |    x1.00 |       x1.00
+       40 | 0.25 |           91.5  |  x1.14 |    x0.91 |       x1.21
+       60 | 0.50 |           83.0  |  x1.27 |    x0.81 |       x1.43
+       80 | 0.75 |           74.5  |  x1.41 |    x0.72 |       x1.64
+      100 | 1.00 |           66.0  |  x1.55 |    x0.62 |       x1.85
+
+Helpers: careerFatigueLoad(), careerFatigueMatchProfile() and matchCareerFatigue(game),
+which caches one profile per match instance.
+
+1) IN-MATCH STAMINA
+-------------------
+• The career player now kicks off at the fatigue ceiling rather than 100. AI players
+  are untouched and still start at 100.
+• Stamina recovery is capped at that ceiling, so the top of the bar is simply
+  unavailable while you are carrying fatigue — resting cannot buy it back.
+• Recovery is also slower (down to 62% rate) and sprinting burns stamina faster
+  (up to +55%).
+• The v41 physical-attribute layer, which post-processes user stamina each frame,
+  now clamps to the ceiling too instead of a hardcoded 100.
+
+Measured live at 80% fatigue: kickoff stamina 74.5, recovery plateaued at exactly
+74.5, and sprint drain came out at x1.422 against a predicted x1.4125 over ~11
+seconds of open play per condition.
+
+2) INJURIES
+-----------
+Match injuries — checkInjury() multiplies the final risk by the fatigue injury
+multiplier, for the user only. Measured live with a fixed contact severity: user risk
+2.500% at 0 fatigue vs 4.093% at 80 fatigue (x1.638 against a predicted x1.6375),
+while AI players stayed at 2.500% in both conditions.
+
+Training injuries — trainingInjuryChance() previously only responded to fatigue above
+48%, and barely at all outside Intense sessions. It now starts responding at 30% and
+carries a squared term so the last stretch of the meter is disproportionately
+dangerous.
+
+  chance per session (fitness 90)
+  fatigue |  Light | Normal | Intense
+       0  |  0.15% |  0.45% |   2.10%     <- unchanged from before
+      40  |  0.40% |  0.70% |   2.57%
+      60  |  1.06% |  1.36% |   3.79%
+      80  |  1.91% |  2.21% |   5.37%
+     100  |  2.95% |  3.25% |   7.30%
+
+Low-fatigue behaviour is deliberately identical to before, so nothing gets harder
+until fatigue is actually a problem. Risk still respects the original .001-.09 clamp
+and the existing nutritionist / recovery-specialist investment discounts.
+
+Fatigue above 82% can now also produce a severe training injury on its own, where
+previously that required Intense intensity as well.
+
+3) MAKING IT LEGIBLE
+--------------------
+A hidden penalty is a bad penalty, so the cost is stated in two places.
+
+• Training Ground command bar: the FATIGUE meter carries a tooltip, and once the
+  penalty is live a coloured line appears under the meters, e.g.
+      "⚠ Match stamina capped at 75% · burns 41% faster · injury risk +64%"
+  Below the floor it reads "No match penalty at this fatigue level".
+• Match HUD: the stamina meter now draws the locked-out portion as a hatched red
+  tail, so you can see at a glance how much of the bar fatigue has taken away.
+
+SCOPE NOTES
+-----------
+• Quick Match is a standalone exhibition and deliberately does not inherit career
+  training fatigue — it always runs at a neutral profile. Verified live: Quick Match
+  kicks off at 100 with a 0% locked tail, a career fixture at 74.5 with 26%.
+• Training drills keep their own independent per-drill energy. Fatigue was not applied
+  there on purpose: training is what generates fatigue, so feeding it back into drill
+  energy would compound into a spiral. Say the word if you want that too.
+
+VERIFICATION
+------------
+• FATIGUE_MATCH_LOAD_V75_3_VALIDATION.js — 40/40 checks.
+• All 40 training sessions still open, start, take input and close with no errors.
+• Cache tokens bumped to 75.3.0.
+
+ALSO FIXED: STALE DEFERRED TRAINING CALLBACKS (found while regression testing)
+------------------------------------------------------------------------------
+The 40-drill regression turned up an intermittent crash in Weak Foot Development:
+
+  TypeError: Cannot read properties of undefined (reading '0')
+      at spawnControlledTarget (game.js:5486)
+      at recordTrainingAction
+
+Cause: closing a drill does not cancel timeouts that have already been scheduled.
+Every deferred callback in the training code guards itself with
+`if(trainingGameState===s)` — "is my session still the live one" — except the six
+inside recordTrainingAction and one in the penalty countdown, which only checked
+`if(trainingGameState)`, i.e. "does any session exist".
+
+So finishing an action in one drill, closing it, and opening another within the
+360-760ms timeout window let the old drill's callback run against the new session.
+When the new session was a Technical Zone drill (which has no controlled-target index,
+because it runs its own scenario system) spawnControlledTarget computed
+`undefined++` -> NaN, indexed a preset array with NaN, and threw.
+
+Fix:
+  • all seven guards now use `trainingGameState===s`, matching the other 13 sites
+  • spawnControlledTarget returns early for any session without a controlled-target
+    index, so a leaked call can never touch a scenario-driven drill
+  • the preset lookup falls back safely instead of indexing with NaN
+
+Verified with 72 rapid open/start/play/close cycles over the exact drill sequence that
+reproduced it (penalties -> corners -> weakfoot -> the three Technical Zone drills):
+zero errors, where the same stress reliably threw before.
+
+This was pre-existing and unrelated to fatigue; it surfaced because the fatigue work
+required another full pass over all 40 sessions.

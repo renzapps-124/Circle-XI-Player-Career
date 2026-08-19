@@ -1,0 +1,62 @@
+CIRCLE XI PLAYER CAREER — FINISHING PITCH V74
+
+Scope
+Rebuilt the six Finishing Pitch drills as distinct live football scenarios rather than generic target-shooting variants.
+
+1. TARGET FINISHING
+- Feeder plays into the user from changing angles and box positions.
+- Goal zones illuminate in low near/far, top corners, high centre and low centre areas.
+- The target shrinks and moves as the attempt develops; Composure slows the shrink rate.
+- The requested finish rotates between normal, finesse, low driven and chip techniques.
+- Scoring weighs Finishing, Technique, Composure, power fit, placement and technique selection.
+- Missing the scoring zone or using the wrong technique breaks the streak.
+
+2. 1V1 FINISHING
+- Feeder releases the user into a true one-on-one.
+- Goalkeeper advances from the line, narrows the angle and tracks the attacker.
+- A recovering defender closes from behind.
+- The user can carry the ball with normal movement, alter the angle and choose normal, finesse, driven or chip finishes.
+- Delaying too long lets the keeper smother the situation.
+- Quality uses Finishing, Composure, Dribbling and Technique.
+
+3. PRESSURE FINISHING
+- User begins off the ball and must attack the service.
+- One defender closes on Standard/Beginner; higher pressure is used at harder settings.
+- A very short post-reception shooting window forces quick decisions.
+- Defenders physically close the user and can end the attempt if they reach tackling range.
+- Quality uses Finishing, Composure, Off Ball and Technique, with an extra pressure penalty for nearby markers.
+
+4. FIRST TIME FINISHING
+- Service arrives from varied cut-back/cross/through-ball style angles.
+- A settling touch is not allowed.
+- The user must strike while the ball is inside the live first-time contact window.
+- L gives a normal first-time finish; normal shot combinations still provide placed, driven and chipped contacts.
+- Quality uses Finishing, Anticipation and Technique plus timing at the moment of contact.
+
+5. LONG RANGE SHOOTING
+- User starts 20–30+ yard equivalents from goal.
+- A defender closes the shooting lane after reception.
+- L power, J+L placed/curl, K+L driven, I+L chip and J+K+L knuckle are available.
+- Quality uses Long Shots, Technique and Composure.
+- Successful tighter placement and correct technique score more highly.
+
+6. AERIAL FINISHING
+- Whipped/lofted aerial service is played into the box.
+- User must attack the delivery inside the live contact window.
+- J = Power Header
+- K = Glancing Header
+- L = Directed Header
+- Higher difficulties add stronger aerial defensive pressure.
+- Quality uses Heading, Anticipation, Finishing and Technique.
+
+Shared upgrades
+- All six drills use a detailed full-size goal, live goalkeeper, shared match player renderer and career appearance/kit identity.
+- Goalkeeper save chance uses Reflexes, Positioning and Handling, plus placement and shot quality.
+- Goalkeeper uses directional high/mid/low dive variants.
+- Goal net animation is triggered on successful finishes.
+- Every drill is now a 60-second Finishing Pitch session.
+- Dedicated results metrics and Finishing Pitch HUD copy were added for all six drills.
+- Automatic scenario resets keep the session flowing after goals, saves, misses, blocks and failed timing.
+
+Version marker
+window.__FINISHING_PITCH_VERSION = 'v74-six-drill-overhaul'

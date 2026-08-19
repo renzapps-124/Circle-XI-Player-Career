@@ -1,0 +1,42 @@
+CLASSIC MEDIA PLAYER V70 — LEAN MODEL REFINEMENT
+39/39 checks passed
+
+PASS — V70 renderer marker
+PASS — Canvas audit marker V70
+PASS — Lean shoulders parsed — 0.94
+PASS — Lean chest parsed — 0.96
+PASS — Lean waist parsed — 0.86
+PASS — Lean hips parsed — 0.92
+PASS — Lean upperArm parsed — 0.86
+PASS — Lean forearm parsed — 0.82
+PASS — Lean thigh parsed — 0.88
+PASS — Lean calf parsed — 0.84
+PASS — Lean armLength parsed — 0.94
+PASS — Lean shoulders fuller than V69 — 0.94 > 0.88
+PASS — Lean chest fuller than V69 — 0.96 > 0.90
+PASS — Lean upper arms fuller than V69 — 0.86 > 0.78
+PASS — Lean thighs fuller than V69 — 0.88 > 0.82
+PASS — Lean arms shorter than V69 — 0.94 < 1.03
+PASS — Lean arms shorter than Athletic — 0.94 < 1.01
+PASS — Lean remains slimmer than Athletic shoulders
+PASS — Lean remains slimmer than Athletic chest
+PASS — Lean remains slimmer than Athletic limbs
+PASS — Lean torso has streamlined taper — waist 0.86 chest 0.96 shoulders 0.94
+PASS — Connected neck retained
+PASS — Rounded torso retained
+PASS — Skin customisation retained
+PASS — Hair colour customisation retained
+PASS — Hair style customisation retained
+PASS — Boot customisation retained
+PASS — Shirt number customisation retained
+PASS — Home renderer retained
+PASS — Profile renderer retained
+PASS — Overview renderer retained
+PASS — Player ID renderer retained
+PASS — V70 demo routes present
+PASS — Game cache version bumped
+PASS — JavaScript syntax
+PASS — Runtime screenshot created: v70-lean-home.png — 959597
+PASS — Runtime screenshot created: v70-lean-profile.png — 668541
+PASS — Runtime screenshot created: v70-lean-overview.png — 445972
+PASS — Live renderer smoke test — Playwright capture completed with Lean datasets on Home/Profile/Overview and zero page errors

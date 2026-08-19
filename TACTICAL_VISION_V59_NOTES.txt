@@ -1,0 +1,59 @@
+Circle XI Player Career — Tactical Vision v59
+Full Match Passing Toolkit
+
+Purpose
+- Tactical Vision now exposes the same controlled passing toolkit used in normal matches instead of a reduced J/K/I-only training implementation.
+- Scanning remains an awareness event and never blocks passing.
+- The v58 same-kit teammate / contrasting defender identity system is preserved.
+
+Passing controls in Tactical Vision
+- J: Ground pass
+- K: Through ball
+- I: High pass / cross
+- J + K: Driven pass
+- J + I: Lofted pass
+- K + I: Lifted through ball
+
+Input behaviour
+- Tactical Vision now uses a match-style press/hold/release lifecycle for J, K and I.
+- Holding the first pass key and pressing a compatible second pass key creates the same combination as the match controller.
+- Hold time contributes to pass power rather than every Tactical Vision pass using a fixed velocity.
+- The combo is resolved once one of its held keys is released.
+- The HUD shows the currently selected combination before release.
+
+First-time passing
+- All six pass types can be queued while the incoming ball is travelling after the user has scanned.
+- Queued combinations preserve their exact action. Example: K+I remains a lifted through ball when released on the first touch.
+- The first-time flag is recorded separately so the training controller can score/track quick-release play.
+
+Ball behaviour
+- Ground pass: grounded, moderate lead and controlled weight.
+- Through ball: stronger lead into the runner's path.
+- High pass / cross: genuine lift with an aerial trajectory.
+- Driven pass: grounded, faster and firmer with a clear lane preference.
+- Lofted pass: higher trajectory, useful when a floor passing lane is blocked.
+- Lifted through ball: combines aerial lift with the strongest run-leading behaviour.
+- Tactical ball metadata records pass type, lofted/driven state, power, intended receiver and pass-flight lifecycle.
+
+Target selection
+- The same user-team-only targeting from v58 remains in place.
+- Directional aim remains the primary target selector.
+- Through/lifted-through actions value progressive runners more strongly.
+- Lofted actions tolerate blocked ground lanes better.
+- Driven passes favour clearer direct lanes.
+
+UI
+- Tactical Vision now displays a live combination strip:
+  J+K DRIVEN · J+I LOFTED · K+I LIFTED THROUGH
+- When a combination is held, the strip changes to the active combination.
+- J/K/I button labels explain both their single action and available combination.
+- Scan and receive instructions explicitly teach the full match passing toolkit.
+
+Team identity retained from v58
+- The created player and all AI teammates use the same team/training kit palette.
+- Opposition defenders use one consistent contrasting kit.
+- Passing targets continue to exclude defenders.
+
+Build
+- game.js marker: v59.0-tactical-vision-full-match-passing
+- index.html cache bust: game.js?v=59.0.0 / styles.css?v=59.0.0

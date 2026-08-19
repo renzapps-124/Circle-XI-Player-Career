@@ -1,0 +1,11 @@
+CLASSIC MEDIA PLAYER V69 — PROFILE MODEL PROPORTION FIX
+
+- Rebuilt Classic Media player renderer around one connected anatomical skeleton.
+- Lean / Athletic / Strong now alter mass and proportions while retaining one overall height.
+- Neck is drawn continuously from jaw into the torso and the collar overlays the connection.
+- Replaced diamond-like torso with rounded shoulders, tapered sides and a flat shirt hem.
+- Arms and legs use more realistic shoulder/elbow/wrist and hip/knee/ankle relationships.
+- Compact profile cards no longer use the previous stretched 1.35x torso-focused scale.
+- Skin tone, hairstyle, hair colour, boot colour and shirt number are read from saved creator data on every render.
+- Home, Profile, Overview and Player ID all use the same renderer and same persisted appearance source.
+- Old save defaults remain in ensureCareerIdentity.

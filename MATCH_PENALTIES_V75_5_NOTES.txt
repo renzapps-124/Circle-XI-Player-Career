@@ -1,0 +1,132 @@
+CIRCLE XI PLAYER CAREER — MATCH PENALTY REBALANCE (v75.5)
+Base: v75.4 Squad / Attribute Editor / Match Audio
+
+REQUEST
+-------
+Make match penalties easier to score when aimed well; make AI opponents and AI
+team-mates score more often; make low penalty ratings produce more misses, woodwork
+and goalkeeper saves.
+
+THE HEADLINE PROBLEM: A MATCH PENALTY COULD NOT MISS
+-----------------------------------------------------
+Three separate clamps made an off-target penalty geometrically impossible at any
+rating, for the user and for the AI alike:
+
+  • finalAimX was clamped to .025-.975, which maps to a goal-line target of 271-409.
+  • gy was then clamped a second time to goalTop+5 .. goalBottom-5 (270-410).
+  • target height was lerp(30, 3.5, finalAimY), so the ball topped out at 30 units
+    against a 43-unit crossbar.
+
+The goal is scored on y in (270, 410) and z < 40. Every penalty therefore arrived
+inside the frame by construction. The only outcomes the engine could produce were
+"goal" and "keeper save" — never wide, never over, effectively never the woodwork.
+
+Worse, the old numbers actively punished good placement. Modelled at the shipped
+formulas, aiming down the middle scored MORE than aiming at a corner:
+
+  BEFORE, user, perfect timing        GOAL    SAVE   WOOD    OFF
+    corner aim, rating 30            51.6%   48.4%     0%     0%
+    corner aim, rating 90            63.0%   37.0%     0%     0%
+    centre aim, rating 60            72.1%   27.9%     0%     0%   <- best option
+  BEFORE, AI taker
+    rating 30                        50.4%   49.6%     0%     0%
+    rating 60                        57.2%   42.8%     0%     0%
+    rating 90                        96.0%    4.0%     0%     0%
+
+WHAT CHANGED
+------------
+1) The frame is now reachable from outside. The second gy clamp opens to
+   goalTop-46 .. goalBottom+46, the aim clamps allow overshoot (user -.17..1.17,
+   AI -.16..1.16), and the height map became piecewise: inside the aim range it
+   spans 34 down to 0, and a negative finalAimY (an overhit) climbs at 74 per unit,
+   which clears the 43 crossbar. A deliberate top-corner aim still lands at ~32 and
+   stays under the bar; only genuine scatter puts it over.
+
+2) Placement is rewarded. aimQ (how far from the middle you pointed) went from 15%
+   of the quality mix to 24%, and the error band widened at the bottom and tightened
+   at the top: lerp(.078, .0045) became lerp(.205, .0075).
+
+3) Low ratings spray it. That same wider error band means a rating-30 taker sits
+   ~2.3 standard deviations from the near post on a corner aim, where a rating-99
+   taker sits ~9. Misses, posts and saves all fall out of that naturally rather than
+   being special-cased.
+
+4) AI takers place it better. This single branch serves opposition penalties and the
+   user's own team-mates, so both improved together: corner offset lerp(.20,.42) ->
+   lerp(.24,.415), scatter lerp(.075,.018) -> lerp(.155,.040). The elite end was
+   pulled marginally in from .42 to .415 so top takers stop aiming at the post itself.
+
+5) The keeper is beaten by a good penalty. Side-read chance dropped from
+   clamp(.23 + …, .09, .50) to clamp(.185 + …, .06, .42), a strong taker suppresses
+   the read harder (.003 -> .0042 per point), and the taker-threat reach penalty rose
+   from 4.4 to 7.4.
+
+RESULT
+------
+  AFTER, AI taker (opponents and team-mates)
+  rating |  GOAL |  SAVE |  WOOD |  OFF
+      30 | 57.8% | 38.4% |  2.9% |  0.9%
+      45 | 62.4% | 34.1% |  2.9% |  0.6%
+      60 | 69.0% | 28.0% |  2.7% |  0.3%
+      75 | 78.8% | 18.8% |  2.2% |  0.1%
+      90 | 91.4% |  7.0% |  1.6% |    0%
+      99 | 97.4% |  1.6% |  1.0% |    0%
+
+  AFTER, user aimed into a corner, perfect timing
+  rating |  GOAL |  SAVE |  WOOD |  OFF
+      30 | 69.0% | 26.1% |  4.0% |  0.9%
+      60 | 79.4% | 19.9% |  0.7% |    0%
+      90 | 86.1% | 13.9% |    0% |    0%
+      99 | 87.7% | 12.3% |    0% |    0%
+
+  AFTER, user aimed straight down the middle, perfect timing
+      30 | 50.5% | 49.5%        60 | 54.8% | 45.2%        90 | 60.3% | 39.7%
+
+  AFTER, user corner aim but mistimed
+      30 | 66.5% | 26.1% | 5.4% | 2.0%        90 | 85.5% | 14.4% | 0% | 0%
+
+Aiming at a corner is now clearly better than the middle at every rating, which is
+the opposite of the old behaviour. Rating drives conversion across a ~30 point range
+for AI takers and ~19 points for the user. Woodwork and off-target both appear and
+both fall away as the rating climbs.
+
+SCOPE NOTE
+----------
+The Penalty Practice TRAINING DRILL is deliberately untouched. performPenaltyTrainingKick
+uses the same expression shapes as the match code and sits earlier in game.js, which is
+an easy thing to edit by accident — the validation script scopes its scrape to
+takePenaltyTrainingSetPiece for exactly that reason.
+
+HOW THE NUMBERS WERE PRODUCED
+-----------------------------
+MATCH_PENALTIES_V75_5_MODEL.js reproduces the shipped aim formulas and goal geometry
+by scraping the live constants out of game.js, then runs 40,000 penalties per cell.
+Run it against any copy of game.js:
+
+    node MATCH_PENALTIES_V75_5_MODEL.js game.js
+
+It is a model of the aim and geometry, not a full engine simulation. The parts it
+models exactly are the ones the constants control: aim distribution, where the ball
+crosses the line, its height there, and whether that is inside the frame. The keeper
+is approximated — a committed dive covers a band on the guessed side and leaves the
+centre open — using the engine's own read probabilities and reach formula. So treat
+the absolute save percentages as indicative and the goal/woodwork/off-target
+structure and the before/after direction as solid.
+
+The one hard, non-modelled fact: before this change the clamps made off-target and
+woodwork outcomes impossible, and after it they are not.
+
+VERIFICATION
+------------
+• MATCH_PENALTIES_V75_5_VALIDATION.js — 31/31 checks.
+• The four earlier suites still pass: 24/24, 46/46, 40/40, 44/44.
+• Cache tokens bumped to 75.5.0.
+
+NOT DONE
+--------
+No live in-match measurement. The match screen saturates this environment's renderer
+(requestAnimationFrame runs at roughly 1 fps with the pane composited), so the match
+clock barely advances and a penalty restart never reaches its 'ready' phase. The
+changes are arithmetic inside existing code paths and add no new API surface, but the
+conversion rates above have not been confirmed against the running engine — worth a
+few penalties in a real match to sanity-check the feel.

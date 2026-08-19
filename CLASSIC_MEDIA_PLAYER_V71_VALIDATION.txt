@@ -1,0 +1,59 @@
+CLASSIC MEDIA PLAYER V71 — SLIM STRAIGHT BODY VALIDATION
+
+Result: 55/55 checks passed
+
+PASS — V71 renderer version
+PASS — V71 canvas dataset
+PASS — Lean shoulders — 0.88
+PASS — Lean chest — 0.87
+PASS — Lean waist — 0.83
+PASS — Lean hips — 0.86
+PASS — Lean upperArm — 0.73
+PASS — Lean forearm — 0.71
+PASS — Lean thigh — 0.76
+PASS — Lean calf — 0.74
+PASS — Lean armLength — 0.91
+PASS — Athletic shoulders — 0.96
+PASS — Athletic chest — 0.95
+PASS — Athletic waist — 0.9
+PASS — Athletic hips — 0.92
+PASS — Athletic upperArm — 0.89
+PASS — Athletic forearm — 0.86
+PASS — Athletic thigh — 0.9
+PASS — Athletic calf — 0.87
+PASS — Athletic armLength — 0.96
+PASS — Strong shoulders — 1.05
+PASS — Strong chest — 1.04
+PASS — Strong waist — 0.98
+PASS — Strong hips — 0.99
+PASS — Strong upperArm — 1.05
+PASS — Strong forearm — 1.01
+PASS — Strong thigh — 1.04
+PASS — Strong calf — 1.0
+PASS — Strong armLength — 0.97
+PASS — Shoulder hierarchy Lean < Athletic < Strong
+PASS — Chest hierarchy Lean < Athletic < Strong
+PASS — Upper arm hierarchy Lean < Athletic < Strong
+PASS — Thigh hierarchy Lean < Athletic < Strong
+PASS — Lean straight torso chest-waist delta <= .06 — 0.04
+PASS — Athletic straight torso chest-waist delta <= .06 — 0.05
+PASS — Strong straight torso chest-waist delta <= .06 — 0.06
+PASS — Slimmer torso constants
+PASS — Slimmer shorts constants
+PASS — Straighter left torso curve
+PASS — Straighter right torso curve
+PASS — Appearance sync skin
+PASS — Appearance sync hair style
+PASS — Appearance sync hair colour
+PASS — Appearance sync boots
+PASS — Appearance sync shirt number
+PASS — Demo mode classic-media-home-v71
+PASS — Demo mode classic-media-profile-v71
+PASS — Demo mode classic-media-overview-v71
+PASS — JavaScript syntax
+PASS — Capture v71-lean-home.png — 939478
+PASS — Capture v71-lean-profile2.png — 660273
+PASS — Capture v71-athletic-profile.png — 660419
+PASS — Capture v71-strong-profile.png — 661231
+PASS — Capture v71-body-build-comparison.png — 171555
+PASS — Capture v71-body-build-comparison.gif — 566257

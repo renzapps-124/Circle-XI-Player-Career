@@ -1,0 +1,30 @@
+Circle XI Player Career — Tactical Vision v58
+
+Focus
+- Make Tactical Vision passing deterministic and reliable after scanning.
+- Make AI team-mates visually identifiable by giving them the same correct training kit as the created player.
+- Keep defenders in one consistent contrasting opposition kit.
+
+Passing changes
+- Tactical Vision pass targeting now only considers t.mates (the user's team) rather than every tactical actor.
+- Directional input is weighted strongly so left/right/up/down reliably chooses the teammate in that direction.
+- The most recent pass-aim direction is remembered briefly, avoiding target flips when the user releases the direction key just before J/K/I.
+- A persistent PASS TARGET marker remains visible after the scan while the user owns the ball.
+- J = Ground Pass, K = Through Ball, I = Lofted Pass labels are explicit in Tactical Vision.
+- A genuine free incoming ball already at the player's feet can recover possession before a pass input is rejected.
+- Intended receiver checks now use stable tactical actor tokens, avoiding ID mismatches between tacticalId and ordinary id.
+- Pass rejection diagnostics are exposed at window.__tacticalVisionPassDiagnostic and logged to the console during development.
+
+Kit changes
+- Every AI teammate uses the exact same training-kit palette as the created player: shirt primary/secondary, shorts and socks.
+- Teammates preserve individual face, skin, hair, boots and shirt number so they still look like different squad members.
+- Every defender shares one consistent contrasting orange kit (or green fallback when the club colour would clash).
+- Tactical Vision adds subtle team/opposition ground rings for additional readability without replacing the kits.
+
+Visual clarity
+- The current selected teammate gets a persistent white PASS TARGET · J marker after reception.
+- The scan overlay remains temporary; it still teaches awareness, while the pass target remains visible once the user controls the ball.
+
+Files
+- game.js tactical build marker: v58.0-tactical-vision-passing-team-kit-clarity
+- index.html cache bust: 58.0.0

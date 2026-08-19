@@ -1,0 +1,26 @@
+Circle XI Player Career - Tactical Vision v57
+=============================================
+
+Purpose
+-------
+Fix the reported issue where scanning before receiving could leave Tactical Vision unable to pass afterwards.
+
+Changes
+-------
+1. Scanning is now an awareness event/flag rather than a blocking control state. Pressing M no longer resets the incoming-pass state timer.
+2. Once the user controls the ball, J/K/I are explicitly marked ready immediately.
+3. After a successful scan, J/K/I can be queued just before the first touch and automatically released once control is established.
+4. Possession repair now happens before Tactical Vision input gating, so a stale ownerId cannot make a visibly controlled ball reject the pass input.
+5. A frame-level liveness invariant restores user ownership/pass access if the player has the ball but the tactical owner token is stale.
+6. The control dock now shows Scan then receive -> Queue after touch -> Ready now, and pass buttons receive an extra ready highlight on possession.
+7. Queued passes expire safely instead of leaving a hidden stale action.
+8. No-scan receptions still allow passing; scanning affects awareness and scoring rather than permission to play football.
+
+Root cause discovered
+---------------------
+The pass target selector also contained a real runtime error inherited from the previous build: the per-target score was declared as const and then modified with += for preferred targets. Executing a normal pass could therefore throw a TypeError exactly when the user tried to pass. v57 changes that value to let (and keeps best/bestScore mutable), removing the runtime crash.
+
+Intended flow
+-------------
+Incoming pass -> M scan -> receive -> J/K/I immediately available -> pass -> outcome -> next scenario.
+The user may also press J/K/I immediately before the first touch after scanning to queue a first-touch release.

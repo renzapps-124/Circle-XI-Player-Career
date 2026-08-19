@@ -1,0 +1,67 @@
+CIRCLE XI PLAYER CAREER — V75.10
+TRAINING GROUND: RUN TO THE ZONE YOU CLICK
+
+Starting point
+The training ground already had a walkable complex with the career player model,
+WASD movement, sprint and the shared match-player renderer. But the two ways of
+selecting a zone both skipped it:
+  - clicking a facility called openZone(f) straight away, so the panel appeared
+    while the model stood wherever it was;
+  - the coach recommendation's "walk there" button teleported the model by
+    assigning trainingGroundPosition and repainting a single frame.
+The running animation only ever appeared if you drove the player manually.
+
+1. CLICKING A ZONE NOW RUNS THERE
+   A travel state (trainingGroundTravel) holds the destination, the target
+   facility and whether the trip is long enough to sprint. The animation frame
+   loop steers towards it using the same code path WASD uses: the same speed
+   profile from the player's Pace, Acceleration and Agility, the same
+   acceleration curve, the same turn smoothing, the same stride cadence, and the
+   same drawVisibleFootballer renderer. Nothing about the run is a CSS slide, so
+   the model runs with the real gait.
+
+   - The player stops in front of the zone (9% below it) rather than on top.
+   - Trips over 30% of the complex break into a sprint; shorter ones jog.
+   - The zone panel opens on arrival, not on click.
+   - Clicking the zone you are already standing at opens it immediately instead
+     of jogging on the spot.
+   - The coach "walk there" shortcut now runs there too.
+
+2. THE HEADING IS CORRECTED FOR THE GROUND'S ASPECT
+   The complex is a percentage space where x and y map to different pixel
+   spans, and the existing movement code already scales the x component by
+   clientHeight/clientWidth. Steering naively towards a target in percentage
+   space would curve away from it, so the auto-run undoes that scale before
+   taking the heading. Convergence measured by replaying the steering at 60fps:
+
+     trip                        time    final gap   moving frames
+     Near zone (short jog)       1.18s        1.67             71
+     Across the complex           3.2s        1.52            192
+     Opposite corner             5.83s        1.73            350
+
+3. THE PLAYER KEEPS CONTROL
+   - Any WASD input cancels the run and hands movement straight back.
+   - Escape cancels the run (and still closes an open panel otherwise).
+   - Leaving the training ground clears the travel state, so a queued run cannot
+     survive into another screen.
+   - A run that somehow cannot reach its target gives up after 9 seconds rather
+     than looping forever.
+
+4. YOU CAN SEE WHERE YOU ARE GOING
+   The destination facility is highlighted and pulses a marker at the spot the
+   player will stop, the ground shows a running cursor, and the prompt changes
+   to "Running to <zone> · ESC" for the duration.
+
+Validation
+node TRAINING_GROUND_RUN_V75_10_VALIDATION.js — 25/25 checks passed
+node --check game.js — PASS
+Suites re-run: PLAYER_VITALS_V75_9 41/41, CONTRACT_ACTIONS_V75_8 52/52,
+PROTECT_CONTACT_STAFF_V75_7 63/63, FINISHING_PITCH_V75_6 77/77,
+TRAINING_CENTRE_V75_2 46/46, FATIGUE_MATCH_LOAD_V75_3 40/40,
+MATCH_PENALTIES_V75_5 31/31, TRAINING_PLAYTHROUGH_V75_1 24/24.
+TRAINING_CENTRE_V75_2 had one assertion updated: it pinned the coach shortcut to
+calling openZone(target) directly, which now happens on arrival instead.
+SQUAD_EDITOR_AUDIO_V75_4 remains 39/44 on pre-existing, unrelated audio checks.
+
+Cache token
+index.html game.js / styles.css bumped 75.9.0 -> 75.10.0

@@ -1,0 +1,21 @@
+CIRCLE XI PLAYER CAREER — TACTICAL PITCH BALL + PASS RELIABILITY v53.0
+=================================================================
+
+BALL VISIBILITY
+- Tactical training now uses one authoritative ball render point.
+- The ball is drawn after all player models so it cannot disappear behind the ball carrier.
+- User possession, teammate possession, goalkeeper possession, released balls and the countdown/staged state all remain visible.
+- The owned ball sits at a visible boot contact point instead of the centre of the player model.
+- A subtle possession ring makes the football easier to track without replacing the physical ball.
+
+TEAMMATE PASSING
+- J always resolves to a real same-team passing target when the user owns the ball.
+- The current pass target is highlighted with a J marker and PASS TARGET label.
+- Directional movement input is considered when selecting a receiver.
+- The pass starts at the user's boot and leads a moving receiver instead of firing from the player centre.
+- The intended receiver gets a fair first-touch capture window, while defenders can still intercept genuinely poor/blocked passes.
+- Temporary owner-state desynchronisation is repaired before a pass input across every advanced tactical drill.
+- Successful All Round Circuit passes explicitly confirm TEAMMATE RECEIVED THE PASS before the support-run phase.
+
+PRESERVED
+- Live defenders, interceptions, pressure, 60-second session timer, A+ grading, aerial return finishes and all v52 systems remain active.

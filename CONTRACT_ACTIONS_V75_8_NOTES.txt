@@ -1,0 +1,81 @@
+CIRCLE XI PLAYER CAREER — V75.8
+CONTRACT ACTIONS: THE FOUR BUTTONS NOW DO SOMETHING
+
+Starting point
+Of the four buttons on the Contract Actions card, one was correctly gated, one
+opened a browser alert(), and two were repeatable flavour buttons that quietly
+handed out unlimited stat gains.
+
+1. "TALKS OPEN AT NEXT REVIEW"  (was: correctly disabled, but uninformative)
+   The button told you talks were shut without saying when they open, and the
+   banner underneath only named a vague period. contractNegotiationWindow() now
+   returns nextWeek, and the button reads "Talks open in week 21" (or 39, or 1)
+   with a tooltip naming the review it belongs to.
+
+2. "ASK AGENT FOR ADVICE"  (was: a browser alert with three canned strings)
+   Replaced with a real in-game Agent Report panel on the contract screen, built
+   from live career state rather than a score threshold:
+   - manager approval out of 100, colour-coded
+   - recent form average
+   - current squad role
+   - negotiation window status and the week it reopens
+   - your wage against the offer the club would realistically make right now
+   - the best formal offer on the table (Elite Agent only)
+   plus written advice that names your strongest approval component, the one
+   holding the deal back, what a renewal is worth per week, and when to ask.
+   Hiring the Elite Agent from the Finances tab upgrades the panel and its
+   advice, which gives that hire a second visible use beyond contract maths.
+   Consulting the agent is written into negotiation history.
+
+3. "EXPLORE LOAN OPTIONS"  (was: a canned inbox message and +2 morale, forever)
+   The old handler posted "Your agent will assess clubs that can promise regular
+   minutes", gave +2 morale, and nothing ever came of it. It could be clicked
+   indefinitely for free morale.
+   There is now a working loan market built on the existing transfer
+   infrastructure:
+   - Eligibility is checked first. A Key Player or Regular Starter is told no
+     club will take them on loan; so is a player over 28, a player with under
+     half a season left on their deal, and a player already out on loan.
+   - Scouting draws from the real club database (allTransferClubs), filtered to
+     clubs at or below your own reputation, ranked against your overall, and
+     returns up to three clubs with a promised role, a wage and a length that
+     runs to the end of the season.
+   - Offers render as cards on the contract screen with an Accept Loan button.
+   - Accepting moves you to the loan club through the same club-move code path
+     that permanent transfers use (extracted into applyCareerClubMove so both
+     share it), snapshots your parent club, league, wage and squad role, and
+     applies the loan wage and role.
+   - The loan clock ticks on the same weekly hook that settles wages. When it
+     runs out you are automatically returned to your parent club with your
+     wage, squad role and league table restored, and the spell is written into
+     negotiation history.
+   - The search is limited to once per week.
+
+   Replay from the validation harness (Rotation player, OVR 66, week 8,
+   parent club reputation 64):
+
+     Loan offers found              3
+     Loan length (weeks)           38
+     Wage while on loan          1650
+     Wage after return           2000
+
+4. "STAY FOCUSED"  (was: +1 manager trust per click, unlimited)
+   Manager trust is 20% of the contract evaluation score, so this button could
+   be spam-clicked to 100 trust and used to force contract talks open. It is now
+   a once-per-week commitment worth +1.5 manager trust, +1 morale and +1 training
+   sharpness, logged to negotiation history. Clicking again in the same week
+   tells you the manager has already noted it.
+
+Validation
+node CONTRACT_ACTIONS_V75_8_VALIDATION.js — 52/52 checks passed
+  (includes a VM replay of the full loan lifecycle: scouting, the reputation
+  cap, accepting, the parent-club snapshot, the weekly clock, the automatic
+  return, and the refusals for key players and players already on loan)
+node --check game.js — PASS
+Suites re-run: PROTECT_CONTACT_STAFF_V75_7 63/63, FINISHING_PITCH_V75_6 77/77,
+TRAINING_CENTRE_V75_2 46/46, FATIGUE_MATCH_LOAD_V75_3 40/40,
+MATCH_PENALTIES_V75_5 31/31, TRAINING_PLAYTHROUGH_V75_1 24/24.
+SQUAD_EDITOR_AUDIO_V75_4 remains 39/44 on pre-existing, unrelated audio checks.
+
+Cache token
+index.html game.js / styles.css bumped 75.7.0 -> 75.8.0

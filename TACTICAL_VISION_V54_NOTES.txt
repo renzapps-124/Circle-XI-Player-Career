@@ -1,0 +1,32 @@
+Circle XI Player Career — Tactical Vision Reliability v54
+
+Changes
+- Rebuilt Tactical Vision pass lifecycle so a pass cannot leave the drill stuck in EXECUTION.
+- Added pass-flight tracking with explicit resolution metadata.
+- Added a 2.55 second pass watchdog and low-speed stalled-ball recovery.
+- Out-of-play, missed, intercepted and late-received passes all resolve into an OUTCOME and schedule a fresh tactical picture.
+- Replaced fragile setTimeout-only scenario continuation with deterministic resetQueued scheduling plus an OUTCOME fallback.
+- Made Tactical Vision/Transition pass speed distance-aware so longer valid options actually receive enough ball weight.
+- Added a visible boot anchor for owned/staged tactical balls. The ball now sits below the upright player model at the boots instead of being offset by facing direction.
+- Passes are released from the same boot anchor, so the visual contact point and physics origin match.
+- Tactical training now uses the dedicated tactical ball renderer as the single ball visual for advanced tactical drills; legacy teammate-held duplicate ball rendering is disabled there.
+- Added diagnostic DOM state for pass lifecycle, ball owner and ball-at-feet status.
+- Added a Tactical Vision v54 demo route for regression inspection.
+
+Reliability guarantees
+- PASS_IN_FLIGHT equivalent lifecycle has a hard resolution deadline.
+- Every successful reception, interception, miss and out-of-bounds pass has a continuation route.
+- Player movement/render/update loops continue while the ball travels; the game is never globally paused for a pass.
+- Scenario reset clears stale pass metadata before the next picture.
+
+Validation
+- Tactical Training regression: 62/62.
+- Intelligent Aerial Circuit regression: 49/49.
+- Tactical ball/pass regression: 22/22.
+- Tactical Vision v54 lifecycle/physics validation: 35/35.
+- 50-pass deterministic stress probe: 0 stuck/frozen pass states.
+- Representative pass distances 15, 26, 35, 42 and 50 pitch units all resolved between 0.30 and 1.44 seconds.
+- game.js passes node --check.
+
+Browser capture note
+The installed Chromium process in this workspace hangs during local/localhost rendering even with headless/no-sandbox flags, so a truthful runtime screenshot/GIF could not be captured here. No mock image has been substituted for gameplay footage.

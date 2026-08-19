@@ -1,0 +1,33 @@
+CLASSIC MEDIA PLAYER V68 VALIDATION
+30/30 checks passed
+
+PASS — V68 version marker
+PASS — Lean preset exists
+PASS — Athletic preset exists
+PASS — Strong preset exists
+PASS — Build metrics parsed — Lean=(0.86, 0.87, 0.84, 0.72, 0.78), Athletic=(1.04, 1.05, 0.95, 0.98, 1.02), Strong=(1.22, 1.19, 1.08, 1.3, 1.26)
+PASS — Shoulder hierarchy Lean < Athletic < Strong — 0.86 < 1.04 < 1.22
+PASS — Upper arm hierarchy Lean < Athletic < Strong — 0.72 < 0.98 < 1.3
+PASS — Thigh hierarchy Lean < Athletic < Strong — 0.78 < 1.02 < 1.26
+PASS — Renderer reads saved skin tone
+PASS — Renderer reads saved hair colour
+PASS — Renderer reads saved build
+PASS — Canvas audit stores skin tone
+PASS — Canvas audit stores hair colour
+PASS — Old save migration preserves appearance
+PASS — Home renders Classic Media model
+PASS — Home passes skin/hair/build data
+PASS — Profile model canvas inserted
+PASS — Profile render called
+PASS — Overview model enlarged
+PASS — Overview shows skin/hair swatches
+PASS — Build selector upgraded to visual cards
+PASS — Creator still exposes skin tone
+PASS — Creator still exposes hair colour
+PASS — Creator still exposes all 3 builds
+PASS — Cache version bumped
+PASS — Home demo route exists
+PASS — Profile demo route exists
+PASS — Overview demo route exists
+PASS — JavaScript syntax
+PASS — V68 CSS block balanced — 44 opens / 44 closes

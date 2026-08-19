@@ -1,0 +1,10 @@
+Circle XI Player Career v49.7 - Attribute-Driven Set-Piece Finishing
+
+- Increased regular-match penalty and direct free-kick conversion.
+- Penalties use Penalties, Composure, Technique and Finishing.
+- Free kicks use Free Kicks, Technique, Composure, Curve and Long Shots.
+- Elite ratings produce tighter aim, better power correction and more dangerous placement.
+- Lower ratings remain visibly less reliable and do not receive guaranteed goals.
+- Goalkeepers retain physical saves, but their effective reach now responds to the taker's set-piece threat.
+- AI free-kick technique, corner placement, power and error are now attribute driven.
+- User and AI share the same live-ball threat system.

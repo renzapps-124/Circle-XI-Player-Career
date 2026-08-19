@@ -1,0 +1,55 @@
+CIRCLE XI PLAYER CAREER — TACTICAL VISION V56
+SCAN → RECEIVE → PLAY UNDER PRESSURE
+
+Implemented on top of v55.
+
+CORE LOOP
+- Every repetition now starts with the user OFF the ball.
+- An AI feeder owns the ball and automatically plays an incoming pass.
+- The user must press M to scan before receiving.
+- The ball remains live while scanning; scanning never pauses the simulation.
+- The user receives, controls the ball, chooses a teammate and passes.
+- The outcome resolves into short feedback and automatically starts a new tactical picture.
+
+SCAN SYSTEM
+- New scan timing grades: EARLY, GOOD, PERFECT and LATE.
+- Scan information is a temporary snapshot rather than permanent pass assistance.
+- Vision affects the amount of information revealed: low Vision identifies fewer options; high Vision exposes more relevant options and danger.
+- Missing the scan is scored as NO PRE-RECEIVE SCAN, but the repetition continues rather than freezing.
+- Tactical Vision no longer allows queued passes before possession: the user has to scan/receive first, then pass.
+
+DEFENSIVE AI
+- AI defenders are split into Presser, Interceptor and Cover roles.
+- The presser closes the user while the incoming pass is travelling and accelerates pressure after the first touch.
+- The interceptor can attack the incoming passing lane when the geometry is realistic.
+- After reception, the interceptor repositions to close the strongest outlet while cover defenders track alternative teammates.
+- AI does not read the user's future input; it reacts to lanes, positions, the feeder, the user and available teammates.
+- If the presser reaches the user and contact is sustained, possession can be lost with DISPOSSESSED feedback.
+
+PASS OUTCOMES
+- Successful passes score decision quality, quick release, progressive intent and whether the pass beat the press.
+- Outgoing interceptions show INTERCEPTED · LANE CLOSED.
+- Incoming interceptions show PASS CUT OUT / INCOMING PASS INTERCEPTED.
+- Decision timeout shows PRESSURE WON and restarts automatically.
+- Lost/stalled passes use watchdog recovery and cannot leave the drill permanently stuck.
+
+SCORING / RESULTS
+- Tactical Vision result categories now emphasise:
+  1. Scan timing
+  2. Decision quality
+  3. First touch
+  4. Speed of play
+  5. Pressure resistance
+- New tracked metrics include perfect scans, missed scans, quick releases, passes that beat the press, progressive passes, dispossessions and incoming interceptions.
+
+UI / ASSISTANCE
+- Permanent J target guidance is hidden in Tactical Vision.
+- Passing-lane guidance only appears during the short scan snapshot.
+- Defenders identified as immediate dangers receive temporary danger indicators during a scan.
+- Incoming pass buttons no longer advertise pass queuing during Tactical Vision.
+
+RELIABILITY
+- Dedicated Tactical Vision v56 state chain:
+  SCENARIO_SETUP → WAITING_FOR_PASS → PRE_RECEIVE_SCAN → FIRST_TOUCH → DECISION_WINDOW → USER_PASS → PASS_RESOLUTION → FEEDBACK → RESET → NEXT_SCENARIO
+- Incoming phase, decision phase and pass-resolution phase all have recovery paths.
+- Existing runtime recovery remains in place.

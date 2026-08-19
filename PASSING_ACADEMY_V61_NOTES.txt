@@ -1,0 +1,70 @@
+CIRCLE XI PLAYER CAREER — PASSING ACADEMY V61 IMPLEMENTATION NOTES
+=================================================================
+
+V61 replaces the simple Passing training route with five live match-style passing sessions while preserving the shared Training Centre runtime introduced in v60.
+
+PASSING GATES
+-------------
+- AI teammate serves the ball into the user.
+- M scan occurs before reception.
+- Three live gates are tied to real teammate targets.
+- Gate identities use safe/progressive/line-breaking colours, with a blocked red lane.
+- Defenders press and close passing lanes.
+- The ball must physically travel through the chosen gate and reach the appropriate teammate.
+- Gate difficulty, scan, pass quality and quick/one-touch play affect scoring.
+
+ONE TOUCH COMBINATIONS
+----------------------
+- Compact positional/rondo layout.
+- Incoming pass requires pre-receive awareness.
+- Quick and first-time passing is rewarded.
+- User is asked to move after release before the return phase.
+- Teammate combination/return logic continues the sequence without duplicate scoring.
+- Defenders press and attempt to cut obvious lanes.
+
+THROUGH BALL TIMING
+-------------------
+- Attacking-third setup with intelligent runner, defensive line, goalkeeper and visible offside line.
+- User reads the run and chooses a ground or lifted through ball.
+- Release timing and pass weight determine whether the runner receives in stride, is intercepted or is caught offside.
+- Successful creation can continue into a chance/assist reward.
+
+SWITCH OF PLAY
+--------------
+- Uses almost the full training width.
+- Near side is deliberately overloaded while a far winger is free.
+- Scan reveals the tactical picture.
+- Long ground, driven, lofted and lifted passes can be used.
+- A landing zone grades the quality of the switch rather than only whether it reaches a player.
+- Receiver momentum and pressure are part of the evaluation.
+
+CROSSING ACADEMY
+----------------
+- User receives in a wide area.
+- Live attackers make box runs while defenders mark and the goalkeeper protects goal.
+- Same Passing Academy controls support high/cross, driven and lofted deliveries.
+- Landing zone and receiver movement are evaluated.
+- Play can continue into a shot/goal/assist reward instead of ending as soon as the cross is kicked.
+
+SHARED SYSTEMS
+--------------
+- Common Passing Academy state/ownership controller.
+- Same user/team-mate kit identity with contrasting defenders.
+- Shared ball physics and real physical pass flight rather than target teleporting.
+- Match-language pass toolkit: J, K, I, J+K, J+I, K+I.
+- Hold/release power.
+- Pre-receive scan support.
+- Buffered first-time actions where relevant.
+- Active defenders and interception logic.
+- Dedicated HUD for phase, score, streak, time, scan feedback, pass type and power.
+- Outcome locks and reset states prevent repeated scoring or frozen pass states.
+
+FILES CHANGED
+-------------
+- game.js
+- styles.css
+- index.html (asset version v61.0.0)
+
+CAREER / TRAINING COMPATIBILITY
+-------------------------------
+The five sessions continue to run inside the existing Training Centre and do not replace the v60 runtime safety/recovery layer. Existing representative training categories were regression tested after the new passing sessions were added.

@@ -1,0 +1,32 @@
+CLASSIC MEDIA PLAYER V71 — SLIM / STRAIGHT BODY UPDATE
+
+Changes
+- All three Classic Media body presets are slimmer and less bulky.
+- Lean now uses a narrow straight silhouette with shorter arms and lighter limb mass.
+- Athletic is slimmer than V70 and remains the balanced middle build.
+- Strong remains visibly the biggest build but is now a football-athlete frame rather than a bulky/fat silhouette.
+- Torso geometry uses milder side curves and a straighter chest-to-waist transition.
+- Shorts/hip footprint is reduced to avoid a wide lower-body appearance.
+- Limb thickness is reduced across upper arms, forearms, thighs and calves.
+- Overall model height is unchanged.
+
+Appearance synchronisation retained
+- Skin tone
+- Hair style
+- Hair colour
+- Boot colour
+- Shirt number
+- Club kit colours and patterns
+
+Surfaces
+- Home
+- Profile
+- Overview
+- Player ID
+
+Runtime captures
+- Lean Home
+- Lean Profile
+- Athletic Profile
+- Strong Profile
+- Body build comparison image and GIF

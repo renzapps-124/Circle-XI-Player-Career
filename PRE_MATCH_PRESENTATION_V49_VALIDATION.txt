@@ -1,0 +1,66 @@
+PRE-MATCH PRESENTATION V49 VALIDATION
+Date: 2026-08-17
+
+JavaScript syntax
+PASS - game.js parsed successfully with Node syntax validation.
+
+Static integration suite
+PASS - 65/65 checks.
+- All nine presentation states present.
+- All eleven formation definitions contain exactly eleven slots.
+- Shared UI/kickoff/AI coordinates present.
+- Actual match-player and formation-slot mapping present.
+- Created-player role and YOU highlight present.
+- Official paths, referee ball, handshake pose, and waypoint movement present.
+- All eleven home/away handshake pairs share deterministic contact points and staggered timing.
+- Approach, reach, contact, shake, release, and move-on phases are present with eased movement.
+- Mutual facing, head nod, shoulder lean, forward-leg weight shift, wrist pose, and safe pose cleanup are present.
+- Controls lock, staged skip, full cleanup, and kickoff activation present.
+- Full/Short/Off settings and presentation HUD ownership present.
+
+Browser runtime stage suite
+PASS - 9/9 states rendered in the actual match canvas.
+- STADIUM_ESTABLISH
+- FORMATION_REVEAL
+- USER_SPOTLIGHT
+- TUNNEL_READY
+- TEAM_WALKOUT
+- TEAM_LINEUP
+- HANDSHAKES
+- MOVE_TO_POSITIONS
+- READY_FOR_KICKOFF
+
+Runtime data verified
+- Home formation: 5-3-2.
+- Away formation: 4-3-3.
+- Created-player selected match position: CM.
+- Controls remained locked in every presentation state.
+- No browser console warnings or errors during stage validation.
+- Removed three stale script references whose files were not present in the supplied archive.
+
+Skip behaviour
+PASS - first SPACE advanced STADIUM_ESTABLISH to FORMATION_REVEAL with controls locked.
+PASS - second quick SPACE completed cleanup, removed the presentation, and enabled gameplay.
+
+Complete sequence
+PASS - full unskipped presentation completed naturally and enabled controls at kickoff.
+PASS - scoreboard and match clock continued normally after activation.
+PASS - no browser console warnings or errors during the complete run.
+
+V49.1 handshake runtime
+PASS - real match renderer showed a pair-by-pair greeting wave rather than simultaneous independent arm poses.
+PASS - hands extended toward their paired opponent after accounting for the rotated match camera.
+PASS - the complete handshake stage exited cleanly into MOVE_TO_POSITIONS with controls still locked.
+PASS - a full uninterrupted sequence enabled controls only after kickoff; match clock reached 00:29 with the score at 0-0 and no launch error.
+
+V49.2 formation GUI runtime
+PASS - wide-screen broadcast cards rendered at 1280x720 with actual 5-3-2 versus 4-3-3 data.
+PASS - sequential reveal showed the home XI by unit before the away XI completed its entrance.
+PASS - created-player marker, formation role, shirt number, tactical identity, matchup insights, kit swatches, and labelled progress were readable with no overlap.
+PASS - the role spotlight rendered the real created-player model with preferred foot, natural role, status, manager instruction, and role brief.
+PASS - formation preview completed and transitioned into TUNNEL_READY with controls still locked.
+PASS - full uninterrupted v49.2 presentation completed, enabled controls only at kickoff, and advanced normal gameplay to 02:55 at 0-0 with no launch error.
+
+Visual evidence
+- Five PNG screenshots captured from the real game renderer.
+- One 20-frame GIF captured from the real game renderer across the implemented states.
