@@ -34,8 +34,11 @@ ck('career player is built once and used on both squad paths',
   rowsFn.includes('const userRow={id:\'career-user\'') && rowsFn.includes('const base=[userRow,...teammates];'));
 ck('fallback squad no longer omits the user', !/:fallbackNames\.map\(\(name,i\)=>\(\{id:`fallback-\$\{i\}`[\s\S]*?\}\)\)\);/.test(rowsFn.split('const teammates=')[0] || ''));
 ck('imported squad still drops the replaced player', rowsFn.includes("imported.filter(p=>p.id!==replaced?.id)"));
-ck('shirt-number clash with the user is removed',
-  rowsFn.includes('.filter(p=>Number(p.shirtNumber)!==Number(userRow.shirtNumber))'));
+// v75.14: the clashing squad-mate is renumbered instead of being dropped, so
+// the squad stays a full 18 and shirt numbers are still unique.
+ck('shirt-number clash with the user is resolved',
+  rowsFn.includes('const taken=new Set([Number(userRow.shirtNumber)||0]);') &&
+  rowsFn.includes('if(taken.has(shirt)){shirt=1;while(taken.has(shirt))shirt++;}'));
 ck('stacked squad view uses plain block flow so the panes cannot overlap',
   /\.squad-database-layout\{display:block;min-height:0\}/.test(css));
 ck('squad table is no longer its own scroll container',

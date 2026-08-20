@@ -8352,14 +8352,45 @@
     const intl=ensureInternationalCareer(career);
     return{eyebrow:String(intl?.countryName||career?.player?.nationality||'National Team').toUpperCase(),title:'International Squad'};
   }
+  const CLUB_SQUAD_NAMES=['Kofi Mensah','Leo Hart','Callum Price','Andre Cole','Malik Johnson','Finn Doyle','Rafael Costa','Tariq Evans','Noah King','Isaac Grant','Daniel Moore','Ethan Blake','Jayden Clarke','Samir Patel','Owen Brooks','Mason Reid','Theo Wilson','Alex Morgan'];
+  const CLUB_SQUAD_POSITIONS=['GK','RB','CB','CB','LB','DM','CM','AM','RW','LW','ST','GK','CB','CM','RW','ST','LB','DM'];
+  const CLUB_SQUAD_SURNAMES=['Adeyemi','Bianchi','Novak','Farrell','Okonkwo','Lindqvist','Moreau','Vargas','Sorensen','Kowalski','Haddad','Ferreira','Nakamura','Bakker','Duarte','Ionescu','Fischer','Quinn','Salvatore','Petrov','Oyelaran','Marchetti'];
+  const CLUB_SQUAD_FIRSTNAMES=['Elias','Mateo','Jonas','Andrei','Samuel','Luca','Idris','Nikolai','Emeka','Tomas','Rasmus','Adam','Kenji','Bruno','Hugo','Milan','Felix','Aaron','Dario','Viktor','Femi','Enzo'];
+  const CLUB_SQUAD_SECONDARY={GK:[],RB:['RWB','CB'],LB:['LWB','CB'],CB:['DM'],DM:['CM','CB'],CM:['DM','AM'],AM:['CM','RW'],RW:['AM','ST'],LW:['AM','ST'],ST:['AM']};
+  // Deterministic per club, so the same eleven turn out every match and the
+  // squad screen and the match introduction always agree.
+  function generatedClubSquad(club){
+    const key=String(club?.id||club?.abbr||club?.name||'club'),strength=clamp(Number(club?.reputation||64),40,96);
+    return CLUB_SQUAD_POSITIONS.map((position,i)=>{
+      const seed=`${key}-squad-${i}`,u=seededUnit(seed),v=seededUnit(seed+'v');
+      const name=club?.id||club?.abbr
+        ? `${CLUB_SQUAD_FIRSTNAMES[(i+Math.floor(u*CLUB_SQUAD_FIRSTNAMES.length))%CLUB_SQUAD_FIRSTNAMES.length]} ${CLUB_SQUAD_SURNAMES[(i+Math.floor(v*CLUB_SQUAD_SURNAMES.length))%CLUB_SQUAD_SURNAMES.length]}`
+        : CLUB_SQUAD_NAMES[i];
+      return{id:`${key}-sq-${i}`,name,position,secondaryPositions:CLUB_SQUAD_SECONDARY[position]||[],
+        overall:Math.round(clamp(strength-9+u*18,42,94)),potential:Math.round(clamp(strength-2+v*16,50,97)),
+        shirtNumber:i+1,age:Math.round(18+u*15),attrs:baseAttributes(position,'Playmaker'),generated:true};
+    });
+  }
+  const clubSquadCache=new Map();
+  function clubSquadRoster(club,countryId=career?.world?.countryId){
+    if(!club)return[];
+    const imported=loadCircleXIManagerSquad(countryId,club.id);
+    if(imported?.length)return imported;
+    const key=String(club.id||club.abbr||club.name||'club');
+    if(!clubSquadCache.has(key))clubSquadCache.set(key,generatedClubSquad(club));
+    return clubSquadCache.get(key);
+  }
   function buildSquadRows(){
-    const imported=loadCircleXIManagerSquad(career?.world?.countryId,career?.club?.id),used=new Set(),replaced=importedPlayerForPosition(imported,career.player.position,used);
-    const fallbackNames=['Kofi Mensah','Leo Hart','Callum Price','Andre Cole','Malik Johnson','Finn Doyle','Rafael Costa','Tariq Evans','Noah King','Isaac Grant','Daniel Moore','Ethan Blake','Jayden Clarke','Samir Patel','Owen Brooks','Mason Reid','Theo Wilson','Alex Morgan'],fallbackPositions=['GK','RB','CB','CB','LB','DM','CM','AM','RW','LW','ST','GK','CB','CM','RW','ST','LB','DM'];
+    const imported=clubSquadRoster(career?.club),used=new Set(),replaced=importedPlayerForPosition(imported,career.player.position,used);
     const userRow={id:'career-user',name:career.player.name,position:career.player.position,overall:career.player.overall,potential:career.player.potential,shirtNumber:career.player.shirtNumber,age:career.player.age,attrs:career.player.attrs,isUser:true};
-    const teammates=imported?.length
-      ?imported.filter(p=>p.id!==replaced?.id)
-      :fallbackNames.map((name,i)=>({id:`fallback-${i}`,name,position:fallbackPositions[i],overall:Math.round(61+(i*7%16)),potential:Math.round(66+(i*9%18)),shirtNumber:i+1,age:18+(i*3%15),attrs:baseAttributes(fallbackPositions[i],'Playmaker')}))
-        .filter(p=>Number(p.shirtNumber)!==Number(userRow.shirtNumber));
+    // The replaced player is the one the career player takes the place of. A
+    // squad-mate wearing the career number is renumbered rather than dropped.
+    const taken=new Set([Number(userRow.shirtNumber)||0]);
+    const teammates=imported.filter(p=>p.id!==replaced?.id).map(p=>{
+      let shirt=Number(p.shirtNumber)||0;
+      if(taken.has(shirt)){shirt=1;while(taken.has(shirt))shirt++;}
+      taken.add(shirt);return shirt===Number(p.shirtNumber)?p:{...p,shirtNumber:shirt};
+    });
     // The career player belongs in their own squad list on both paths.
     const base=[userRow,...teammates];
     return base.map((player,index)=>({...player,...makeSquadCareerStats(player,index,!!player.isUser),group:squadGroup(player.position),country:player.isUser?career.player.nationality:(career.world?.countryName||'Circle XI')}));
@@ -8782,7 +8813,7 @@
       Object.assign(this.referee,this.createOfficialIdentity('referee',0),{shirt:this.officialKitColour,role:'REFEREE'});
       this.assistantRefs=this.assistantRefs.map((ar,i)=>Object.assign(ar,this.createOfficialIdentity('assistant',i+1),{shirt:this.officialKitColour,role:`ASSISTANT ${i+1}`,dir:ar.half==='left'?0:Math.PI}));
       this.fourthOfficial=Object.assign({x:this.W/2+105,y:this.H+51,vx:0,vy:0,dir:Math.PI,anim:0,action:'idle',actionTimer:0,actionLength:0,role:'FOURTH OFFICIAL'},this.createOfficialIdentity('fourth',5),{shirt:this.officialKitColour});
-      this.importedSquads={0:loadCircleXIManagerSquad(career?.world?.countryId,this.homeClub.id),1:loadCircleXIManagerSquad(career?.world?.countryId,this.opponent.id)};
+      this.importedSquads={0:clubSquadRoster(this.homeClub),1:clubSquadRoster(this.opponent)};
       this.ball={x:this.W/2,y:this.H/2,z:0,vx:0,vy:0,vz:0,owner:null,lastTouchTeam:0,lastPasser:null,curve:0,curveProfile:null,shotProfile:null,initialSpeed:0,impactSquash:0,spin:0,topspin:0,backspin:0,dip:0,airDrag:BALL_AIR_DRAG,gravityScale:1,groundResistance:1,launchPower:0,restartGrace:0,restartSource:null,bounceCount:0,lastBounceAt:-99,intended:null,flight:null,aerialDuelCooldown:0,lastShotXG:0,lastActionType:''};
       this.camera={x:this.W/2,y:this.H/2,zoom:settings.zoom};
       this.mouse={screenX:0,screenY:0,worldX:this.W,worldY:this.H/2,inside:false,charging:false,charge:0,maxCharge:1.2};
@@ -14793,7 +14824,7 @@
       this.drawStadiumSurround(ctx);this.drawPitch(ctx);
       if(trophyCeremony)this.drawTrophyPodium(ctx);else this.drawDugoutsAndTechnicalAreas(ctx);
       if(this.showSpaceMap||this.debugMode&&this.debugDetail===3)this.drawSpaceControlMap(ctx);
-      if(!trophyCeremony){this.drawGoalBack(ctx,'left');this.drawGoalBack(ctx,'right');this.drawTurfParticles(ctx);this.drawCelebrationFX(ctx);this.drawOffsideLine(ctx);this.drawOfficials(ctx);if(this.matchCeremony?.type==='preMatch')this.drawPreMatchBall(ctx);}
+      if(!trophyCeremony){this.drawGoalBack(ctx,'left');this.drawGoalBack(ctx,'right');this.drawTurfParticles(ctx);this.drawCelebrationFX(ctx);this.drawOffsideLine(ctx);this.drawOfficials(ctx);if(this.matchCeremony?.type==='preMatch'){this.drawPreMatchBall(ctx);this.drawPreMatchNameTags(ctx);}}
       if(this.restart){this.drawRestartMarker(ctx);this.drawRestartTargetGuides(ctx);}if(!this.matchCeremony&&settings.guide&&this.positionTarget&&!this.restart)this.drawGuide(ctx);if(!this.matchCeremony&&this.positionAssistActive)this.drawPositionAssistPath(ctx);if(!this.matchCeremony)this.drawLoftLandingMarker(ctx);if(this.mouse.charging&&!this.matchCeremony)this.drawMouseShotGuide(ctx);if(this.keyAction.key&&this.ball.owner===this.user&&!this.matchCeremony)this.drawKeyboardActionGuide(ctx);this.drawPlayers(ctx);if(this.matchCeremony?.type==='preMatch')this.drawPreMatchWorldHighlight(ctx);if(this.medicalCutscene)this.drawMedicalSequence(ctx);if(trophyCeremony){this.drawTrophyMedalsAndProps(ctx);this.drawTrophyLift(ctx);}if(this.subCutscene)this.drawPlayerModel(ctx,this.subCutscene.incoming,0,false);if(this.dismissalCutscene)this.drawPlayerModel(ctx,this.dismissalCutscene.actor,0,this.dismissalCutscene.player===this.user);if(!this.matchCeremony)this.drawPossessionBallEffects(ctx);
       if((this.matchCeremony&&this.matchCeremony.type!=='trophy')||this.subCutscene||this.medicalCutscene||this.dismissalCutscene)this.drawRightTunnelForeground(ctx);
       if(!trophyCeremony){this.drawGoalFront(ctx,'left');this.drawGoalFront(ctx,'right');}
@@ -14805,9 +14836,36 @@
       const carrier=c.officials?.[0],atCentre=c.state==='READY_FOR_KICKOFF',x=atCentre?this.W/2:(carrier?.x??this.W/2)+8,y=atCentre?this.H/2:(carrier?.y??this.H/2)+3;ctx.save();ctx.translate(x,y);ctx.fillStyle='#f8fafc';ctx.strokeStyle='#0f172a';ctx.lineWidth=.8;ctx.beginPath();ctx.arc(0,0,5.2,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#1f2937';for(let i=0;i<5;i++){const a=i*Math.PI*2/5;ctx.beginPath();ctx.arc(Math.cos(a)*2.8,Math.sin(a)*2.8,1,0,Math.PI*2);ctx.fill();}ctx.restore();
     }
 
+    drawPreMatchNameTags(ctx){
+      const c=this.matchCeremony;
+      if(!c||c.type!=='preMatch'||!['TEAM_WALKOUT','TEAM_LINEUP','HANDSHAKES','MOVE_TO_POSITIONS','READY_FOR_KICKOFF'].includes(c.state))return;
+      const age=Number(c.stateAge)||0;
+      const alpha=clamp(age/.5,0,1)*(c.state==='READY_FOR_KICKOFF'?clamp(1-(age-.5)/.7,0,1):1);
+      if(alpha<=.02)return;
+      ctx.save();ctx.globalAlpha=alpha;ctx.textAlign='center';ctx.textBaseline='alphabetic';
+      this.players.forEach(p=>{
+        if(!p||p.sentOff||p.ceremonyHidden||p.onPitch===false)return;
+        const surname=this.preMatchSurname(p),position=String(p.formationRole||p.position||'').toUpperCase();
+        const meta=`${p.shirtNumber||p.index+1} ${position}`,isUser=p===this.user;
+        ctx.save();ctx.translate(p.x,p.y);
+        // Undo the world rotation so the tag reads horizontally on screen.
+        const m=ctx.getTransform();ctx.rotate(-Math.atan2(m.b,m.a));
+        ctx.font='800 6px system-ui';const nameW=ctx.measureText(surname).width;
+        ctx.font='900 5px system-ui';const metaW=ctx.measureText(meta).width;
+        const w=Math.max(nameW,metaW)+10,h=15,top=-30;
+        ctx.fillStyle=isUser?'rgba(250,204,21,.95)':'rgba(2,6,23,.88)';
+        ctx.beginPath();if(ctx.roundRect)ctx.roundRect(-w/2,top,w,h,3.5);else ctx.rect(-w/2,top,w,h);ctx.fill();
+        ctx.lineWidth=.6;ctx.strokeStyle=isUser?'rgba(253,224,71,.95)':(p.team===0?'rgba(148,197,255,.55)':'rgba(252,165,165,.55)');ctx.stroke();
+        ctx.fillStyle=isUser?'#1f2937':'#f8fafc';ctx.font='800 6px system-ui';ctx.fillText(surname,0,top+7);
+        ctx.fillStyle=isUser?'rgba(31,41,55,.9)':'rgba(191,219,254,.9)';ctx.font='900 5px system-ui';ctx.fillText(meta,0,top+13.4);
+        ctx.restore();
+      });
+      ctx.restore();
+    }
+
     drawPreMatchWorldHighlight(ctx){
       const c=this.matchCeremony,u=this.user;if(!c||c.type!=='preMatch'||!u||u.ceremonyHidden||!['TEAM_WALKOUT','TEAM_LINEUP','HANDSHAKES','MOVE_TO_POSITIONS','READY_FOR_KICKOFF'].includes(c.state))return;
-      const pulse=.5+.5*Math.sin((c.age||0)*5.2),r=18+pulse*4;ctx.save();ctx.strokeStyle=`rgba(250,204,21,${.58+pulse*.34})`;ctx.lineWidth=2.4;ctx.shadowColor='#facc15';ctx.shadowBlur=8;ctx.beginPath();ctx.arc(u.x,u.y,r,0,Math.PI*2);ctx.stroke();ctx.shadowBlur=0;ctx.fillStyle='rgba(2,6,23,.9)';ctx.beginPath();ctx.roundRect(u.x-17,u.y-31,34,11,4);ctx.fill();ctx.fillStyle='#fde047';ctx.font='900 6.5px system-ui';ctx.textAlign='center';ctx.fillText('YOU',u.x,u.y-23);ctx.restore();
+      const pulse=.5+.5*Math.sin((c.age||0)*5.2),r=18+pulse*4;ctx.save();ctx.strokeStyle=`rgba(250,204,21,${.58+pulse*.34})`;ctx.lineWidth=2.4;ctx.shadowColor='#facc15';ctx.shadowBlur=8;ctx.beginPath();ctx.arc(u.x,u.y,r,0,Math.PI*2);ctx.stroke();ctx.shadowBlur=0;ctx.translate(u.x,u.y);const hm=ctx.getTransform();ctx.rotate(-Math.atan2(hm.b,hm.a));ctx.fillStyle='rgba(2,6,23,.9)';ctx.beginPath();ctx.roundRect(-17,-46,34,11,4);ctx.fill();ctx.fillStyle='#fde047';ctx.font='900 6.5px system-ui';ctx.textAlign='center';ctx.fillText('YOU',0,-38);ctx.restore();
     }
 
     preMatchSurname(player){const parts=String(player?.name||'Player').trim().split(/\s+/);return parts[parts.length-1].toUpperCase();}

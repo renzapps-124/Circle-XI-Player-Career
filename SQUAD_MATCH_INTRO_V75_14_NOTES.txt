@@ -1,0 +1,88 @@
+CIRCLE XI PLAYER CAREER — V75.14
+SQUAD NAMES AND POSITIONS IN THE MATCH INTRODUCTION
+
+The problem
+The View Squad tab and the match engine built their squads independently from
+the same loader, and disagreed the moment that loader came back empty — which is
+the common case, since most clubs have no generated player database.
+
+  View Squad tab   loadCircleXIManagerSquad(...) or an inline list of invented
+                   names (Kofi Mensah, Leo Hart, ...)
+  Match engine     loadCircleXIManagerSquad(...) or "Player 1" ... "Player 11"
+
+So the squad screen showed a named eleven while the match introduction lined up
+eleven players called Player 1 to Player 11 — and the formation card, which
+labels each marker with a surname, printed "1", "2", "3" because it takes the
+last word of the name.
+
+On top of that, only the tiny formation-card markers carried a name at all. The
+walkout, lineup, handshake and jog-into-formation stages drew anonymous players.
+
+1. ONE ROSTER PER CLUB
+   clubSquadRoster(club) is now the single source. It returns the imported squad
+   when the club has one, and otherwise a deterministic generated squad seeded on
+   the club id, so the same eleven turn out every match and every club has its
+   own names. Both the squad screen and MatchGame read it.
+
+   The generated players carry secondaryPositions, which importedPlayerForPosition
+   reads — the old inline fallback did not have that field, so it would have
+   thrown the moment a match tried to use it.
+
+   Verified headlessly for a club with no database: an 18 man roster, stable
+   across calls, different from another club's, and the match picks a clean XI
+   out of it with nobody selected twice.
+
+     slot   shirt  name
+       GK     12   Mateo Farrell
+       RB      2   Adam Duarte
+       CB     13   Jonas Okonkwo
+       CB      3   Kenji Fischer
+       LB     17   Idris Ferreira
+       DM     18   Nikolai Bakker
+       CM     14   Andrei Moreau
+       AM      8   Aaron Novak
+       RW     15   Samuel Sorensen
+       LW     10   Viktor Moreau
+       ST     11   Elias Bianchi
+
+   A squad-mate wearing the career player's number used to be deleted from the
+   list, leaving a short squad. They are renumbered instead, so the squad stays
+   at 18 with unique numbers.
+
+2. NAMES AND POSITIONS ON THE PITCH DURING THE INTRODUCTION
+   Every player now carries a tag through the walkout, lineup, handshakes and
+   jog into formation: surname on top, shirt number and match position beneath.
+   The career player's tag is highlighted in yellow. Tags fade in with the stage
+   and fade out at kick-off.
+
+   One thing this exposed: the pitch is drawn through a rotated world transform,
+   so anything written in world space reads sideways on screen. The existing YOU
+   marker had been rendering rotated for that reason. Both the new tags and that
+   marker now cancel the rotation at their anchor while keeping the world scale,
+   so they read horizontally at any camera angle or zoom.
+
+Verified in the running game
+A live career at a club with no generated database — previously the worst case:
+
+  squad screen        18 players, unique shirt numbers
+  match introduction  11 names read off the walkout, all in the squad list
+
+The surnames read off the walkout (NOVAK, MARCHETTI, NAKAMURA, SORENSEN,
+IONESCU, FISCHER, BAKKER, DUARTE, SALVATORE, ADEYEMI, APPIAH) are all in the
+squad the View Squad tab lists.
+
+Validation
+node SQUAD_MATCH_INTRO_V75_14_VALIDATION.js — 30/30 checks passed
+node --check game.js — PASS
+Suites re-run: REPLAY_GALLERY_V75_13 37/37, CAREER_STATS_SQUAD_V75_12 36/36,
+TRAINING_SIDE_RAIL_V75_11 27/27, TRAINING_GROUND_RUN_V75_10 25/25,
+PLAYER_VITALS_V75_9 41/41, CONTRACT_ACTIONS_V75_8 52/52,
+PROTECT_CONTACT_STAFF_V75_7 63/63, FINISHING_PITCH_V75_6 77/77,
+TRAINING_CENTRE_V75_2 46/46, FATIGUE_MATCH_LOAD_V75_3 40/40,
+MATCH_PENALTIES_V75_5 31/31, TRAINING_PLAYTHROUGH_V75_1 24/24.
+SQUAD_EDITOR_AUDIO_V75_4 had one assertion updated: it pinned the shirt-number
+clash to being removed by a filter, which is now a renumber. It remains 39/44 on
+the same pre-existing, unrelated audio checks.
+
+Cache token
+index.html game.js / styles.css bumped 75.13.0 -> 75.14.0
