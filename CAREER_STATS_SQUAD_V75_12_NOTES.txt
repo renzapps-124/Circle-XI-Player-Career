@@ -1,0 +1,100 @@
+CIRCLE XI PLAYER CAREER — V75.12
+CAREER STATISTICS ACCURACY + INTERNATIONAL SQUAD VIEW
+
+=========================================================================
+PART 1 — CAREER STATISTICS WERE COUNTING THE SAME MATCH TWO WAYS
+=========================================================================
+
+The game keeps two records of the same fixture:
+  A) career.stats, a running counter incremented by accumulateCareerResultStats
+  B) fixtureHistory, a full per-match record the season tables are summed from
+
+The Form tab showed A as the headline totals and B as the season breakdown
+underneath, so the totals were never guaranteed to add up to the rows they were
+supposed to summarise. Feeding one real performance through both paths:
+
+  stat                running counter   season table
+  clean sheets                      0              0
+  minutes                          90              0
+  goals                             1              1
+  apps                              1              1
+
+1. CLEAN SHEETS WERE UNREACHABLE FOR OUTFIELD PLAYERS
+   Both paths defined a clean sheet as (saves > 0 && conceded === 0). Since an
+   outfield player records no saves, a centre-back could play a full season of
+   shut-outs and finish on zero. Even a goalkeeper in a 0-0 with no shots faced
+   got nothing. Meanwhile the AI squad-mate generator hands defenders clean
+   sheets, and the contract system pays a cleanSheetBonus scaled for GK/CB/LB/RB
+   — so the rest of the game already assumed defenders earn them.
+   The rule is now: the player appeared, and the team conceded nothing.
+
+2. THE SAME FIXTURE WAS WORTH 90 MINUTES OR 0
+   The counter defaulted a missing minute count to 90; the match record stored
+   0. Both now use the same fallback (90 started, 25 from the bench), so the
+   totals card and the season table cannot disagree.
+
+3. THE TWO RECORDS COULD DRIFT APART PERMANENTLY
+   Nothing reconciled them. fixtureHistory is the complete per-match record and
+   is never trimmed, so it is now the single source of truth: the stored totals
+   are rebuilt from it, and the Form tab reads the derived values rather than a
+   merge of both. Verified by deliberately corrupting the stored totals:
+
+     total                       stored     after     expected
+     Club appearances                99        12           12
+     Club goals                      42         3            3
+     Club minutes                 12345      1080         1080
+     International caps              77         3            3
+
+   Confirmed in the running game: with those corrupt values seeded, the Form tab
+   reported 12 appearances / 3 goals / 1,080 minutes and 4 clean sheets, the
+   season row agreed exactly, and the Player ID card — which reads career.stats
+   directly — also showed 12 / 3 / 3.
+
+4. INTERNATIONAL CAPS COULD ONLY EVER GO UP
+   ensureInternationalStatFields used Math.max against the stored value, so any
+   figure that was ever too high could never come back down. Caps, goals and
+   assists are now taken from the match record.
+
+5. OLD SAVES ARE REPAIRED
+   normaliseCareerStatHistory recomputes minutes and clean sheets on every load
+   from data already in the row, so existing careers get corrected totals rather
+   than only new matches being counted properly.
+
+=========================================================================
+PART 2 — INTERNATIONAL SQUAD VIEW
+=========================================================================
+
+Career tab -> View Squad now opens with a club / country switch at the top of
+the list, and the international squad uses exactly the same table, filters,
+sorting, search, player detail panel and two-player comparison as the club one.
+
+  Club squad            18 players
+  International squad   23 players
+
+- The national pool is every player registered to a club in the player's own
+  country. loadCircleXIManagerSquad generates and caches the whole country in
+  one pass, so walking every club is a map lookup after the first call.
+- Selection uses a real positional quota (3 GK, 8 DEF, 7 MID, 5 ATT) taking the
+  best available in each group, with one place freed in the player's own group
+  so they are always in their own national squad.
+- Caps, international goals, assists and cards for the player are their real
+  international record, not the club one. Squad-mates get caps seeded from age
+  and ability. Squad role reads Uncapped / Capped / Called up for the player.
+- Countries without a generated database (fallback nationalities) previously
+  produced a one-man squad; they now field a full deterministic call-up.
+- The heading and eyebrow switch between the club name and the country, and
+  switching views resets the selection, comparison, filter and search so state
+  cannot leak between the two squads.
+
+Validation
+node CAREER_STATS_SQUAD_V75_12_VALIDATION.js — 36/36 checks passed
+node --check game.js — PASS
+Suites re-run: TRAINING_SIDE_RAIL_V75_11 27/27, TRAINING_GROUND_RUN_V75_10
+25/25, PLAYER_VITALS_V75_9 41/41, CONTRACT_ACTIONS_V75_8 52/52,
+PROTECT_CONTACT_STAFF_V75_7 63/63, FINISHING_PITCH_V75_6 77/77,
+TRAINING_CENTRE_V75_2 46/46, FATIGUE_MATCH_LOAD_V75_3 40/40,
+MATCH_PENALTIES_V75_5 31/31, TRAINING_PLAYTHROUGH_V75_1 24/24.
+SQUAD_EDITOR_AUDIO_V75_4 remains 39/44 on pre-existing, unrelated audio checks.
+
+Cache token
+index.html game.js / styles.css bumped 75.11.0 -> 75.12.0

@@ -4695,3 +4695,10 @@ body[data-performance="Low"] #matchScreen .mouse-shoot-hint{
   .training-side-rail[data-open="0"] .rail-toggle{flex-direction:row;height:auto;padding:7px 8px}
   .training-side-rail[data-open="0"] .rail-toggle b{writing-mode:horizontal-tb;letter-spacing:.13em}
 }
+
+/* ---- Squad screen: club / international team switch ---- */
+.squad-team-switch{display:flex;gap:6px;margin-bottom:9px;flex-wrap:wrap}
+.squad-team-switch button{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border:1px solid rgba(148,163,184,.22);border-radius:999px;background:rgba(8,15,28,.7);color:#94a3b8;font:900 9px system-ui;letter-spacing:.06em;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.squad-team-switch button i{font-style:normal;font-size:14px;line-height:1}
+.squad-team-switch button:hover{border-color:rgba(56,189,248,.4);color:#cbd5e1}
+.squad-team-switch button.active{background:linear-gradient(135deg,#0f766e,#0369a1);border-color:transparent;color:#f8fafc}
