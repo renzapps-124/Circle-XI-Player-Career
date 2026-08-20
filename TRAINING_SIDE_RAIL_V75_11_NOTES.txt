@@ -1,0 +1,66 @@
+CIRCLE XI PLAYER CAREER — V75.11
+PLAYER STATUS MOVED INTO A COLLAPSIBLE LEFT RAIL
+
+Starting point
+The Match Day Condition and Career Support Staff readouts added in v75.7 and
+v75.9 were full-width strips stacked above the training ground. Measured in the
+running game at 1600x900, they took 321px of vertical space, which pushed the
+training complex below the fold and forced the training centre to scroll before
+you could see the pitch at all.
+
+The change
+Both readouts now live in a collapsible "PLAYER STATUS" rail down the left of
+the training centre, immediately right of the Training Ground / Development nav.
+The rail is 216px open and collapses to a 30px vertical tab.
+
+The rendered view is *moved* into its own column rather than re-rendered, so the
+handlers bindTrainingGround has just attached (facility clicks, keyboard, the
+animation loop) survive the restructure untouched.
+
+Measured in the running game at a 1600x900 viewport with a live career:
+
+  state                              ground w   ground h   needs scrolling
+  Before (strips stacked above)          1307        474   yes, 321px of strips above the ground
+  Rail open                              1092        474   no
+  Rail collapsed                         1278        474   no
+
+So the training centre no longer scrolls in any state, and collapsing the rail
+puts the ground back within 29px of its original full width.
+
+Two layout bugs found and fixed while verifying this in the browser:
+
+  1. transition:width on the rail pinned it open. A width transition on a grid
+     item sitting in an auto-sized track leaves the computed width stuck at the
+     start value, so the collapsed rule never took effect and the rail stayed at
+     216px however many times you clicked. Removing the transition fixed it.
+  2. The rail could not shrink below its content width because a grid item's
+     automatic minimum is its min-content size. min-width:0 was needed.
+
+Neither was visible from reading the CSS - both were caught by measuring
+getBoundingClientRect in the running game.
+
+The two readouts reflow for the narrow column: condition rows drop to one
+column, staff effects to two, staff chips stack, and both headers go vertical.
+Below 1000px the rail returns to a full-width band above the ground.
+
+Verification note
+The game cannot be previewed from a file:// or data: origin - the relative
+game.js script never loads, so nothing runs. A throwaway static server
+(.preview-server.js, git-ignored) was used to serve it over http://localhost so
+the layout could be measured for real rather than inferred.
+
+Validation
+node TRAINING_SIDE_RAIL_V75_11_VALIDATION.js — 27/27 checks passed
+node --check game.js — PASS
+Suites re-run: TRAINING_GROUND_RUN_V75_10 25/25, PLAYER_VITALS_V75_9 41/41,
+CONTRACT_ACTIONS_V75_8 52/52, PROTECT_CONTACT_STAFF_V75_7 63/63,
+FINISHING_PITCH_V75_6 77/77, TRAINING_CENTRE_V75_2 46/46,
+FATIGUE_MATCH_LOAD_V75_3 40/40, MATCH_PENALTIES_V75_5 31/31,
+TRAINING_PLAYTHROUGH_V75_1 24/24.
+PROTECT_CONTACT_STAFF_V75_7 had one assertion updated: it pinned the staff strip
+to being inserted at the top of the main column, which is the thing this pass
+changed.
+SQUAD_EDITOR_AUDIO_V75_4 remains 39/44 on pre-existing, unrelated audio checks.
+
+Cache token
+index.html game.js / styles.css bumped 75.10.0 -> 75.11.0

@@ -178,7 +178,9 @@ ck('recovery bonus reaches the weekly recovery focus', /t\.fatigue=clamp\(t\.fat
 ck('recovery bonus reaches the recovery drill', /t\.fatigue=clamp\(t\.fatigue-careerStaffRecovery\(recoveryAmount\),0,100\)/.test(game));
 ck('agent improves the club offer', /careerStaffAgentEdge\(\)/.test(offer));
 ck('agent softens counteroffer resistance', /agentEdge=careerStaffAgentEdge\(\)/.test(counter));
-ck('staff strip is injected into the training centre', /main\.insertAdjacentHTML\('afterbegin',careerStaffStripMarkup\(\)\)/.test(game));
+// v75.11: the strip moved from a full-width band above the ground into the
+// collapsible player-status rail on the left of the training centre.
+ck('staff strip is injected into the training centre', /careerStaffStripMarkup\(\)/.test(game) && /training-side-rail/.test(game));
 ck('staff strip links back to the hire screen', /data-open-staff/.test(fn('careerStaffStripMarkup')) && /setCareerTab\('finances'\)/.test(game));
 ck('staff strip is styled for the dark training centre', /\.career-staff-strip\{/.test(css) && /\.career-staff-effects\{/.test(css));
 

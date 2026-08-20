@@ -16672,13 +16672,29 @@
     $$('[data-buy-investment]').forEach(btn=>btn.onclick=()=>{const item=CAREER_INVESTMENTS.find(x=>x.id===btn.dataset.buyInvestment),f=ensureCareerFinances(career);if(!item||hasInvestment(item.id)||f.balance<item.cost)return;f.balance-=item.cost;f.staff.push(item.id);f.ledger.unshift({season:career.season||1,week:career.week||1,type:'debit',label:item.name,amount:-item.cost});career.messages.unshift({title:`${item.name} hired`,body:`${item.benefit}. Weekly cost: ${money(item.weekly)}.`,new:true});saveCareer();renderHub();setCareerTab('finances');beep(720,.06)});
     $$('[data-release-investment]').forEach(btn=>btn.onclick=()=>{const item=CAREER_INVESTMENTS.find(x=>x.id===btn.dataset.releaseInvestment),f=ensureCareerFinances(career);if(!item||!hasInvestment(item.id))return;f.staff=f.staff.filter(id=>id!==item.id);f.ledger.unshift({season:career.season||1,week:career.week||1,type:'credit',label:item.name+' released',amount:0});career.messages.unshift({title:item.name+' released',body:item.name+' has left your support team. The weekly '+money(item.weekly)+' cost has been removed.',new:true});saveCareer();renderHub();setCareerTab('finances');beep(320,.06)});
   }
+  // The condition and staff readouts used to sit as full-width strips above the
+  // training ground, pushing the complex itself down the screen. They now live in
+  // a collapsible rail on the left so the ground keeps the width and the height.
+  let trainingSideRailOpen=true;
   const coreRenderTrainingCentreStaff=renderTrainingCentre;
   renderTrainingCentre=function(p){
     coreRenderTrainingCentreStaff(p);
     const main=document.querySelector('#trainingOptions .training-centre-main');if(!main||!career)return;
-    main.insertAdjacentHTML('afterbegin',careerStaffStripMarkup());
-    main.insertAdjacentHTML('afterbegin',careerConditionStripMarkup(p));
+    // Move the rendered view into its own column rather than re-rendering it, so
+    // the handlers bindTrainingGround just attached survive the restructure.
+    const content=document.createElement('div');content.className='training-main-content';
+    while(main.firstChild)content.appendChild(main.firstChild);
+    const rail=document.createElement('aside');rail.className='training-side-rail';rail.dataset.open=trainingSideRailOpen?'1':'0';
+    rail.innerHTML=`<button type="button" class="rail-toggle" data-rail-toggle aria-expanded="${trainingSideRailOpen}" title="${trainingSideRailOpen?'Hide player status':'Show player status'}"><i>${trainingSideRailOpen?'\u2039':'\u203a'}</i><b>PLAYER STATUS</b></button><div class="rail-body">${careerConditionStripMarkup(p)}${careerStaffStripMarkup()}</div>`;
+    const layout=document.createElement('div');layout.className='training-main-layout';
+    layout.append(rail,content);main.appendChild(layout);
     main.querySelector('[data-open-staff]')?.addEventListener('click',()=>setCareerTab('finances'));
+    main.querySelector('[data-rail-toggle]')?.addEventListener('click',()=>{
+      trainingSideRailOpen=!trainingSideRailOpen;
+      rail.dataset.open=trainingSideRailOpen?'1':'0';
+      const btn=rail.querySelector('[data-rail-toggle]');
+      if(btn){btn.setAttribute('aria-expanded',String(trainingSideRailOpen));btn.title=trainingSideRailOpen?'Hide player status':'Show player status';const arrow=btn.querySelector('i');if(arrow)arrow.textContent=trainingSideRailOpen?'\u2039':'\u203a'}
+    });
   };
   function enhanceProfilePanel(){const root=$('#profilePanel');if(!root||!career)return;const hero=root.querySelector('.profile-hero-pro');if(hero)hero.insertAdjacentHTML('afterend',playerRegistrationCardMarkup());else root.insertAdjacentHTML('afterbegin',playerRegistrationCardMarkup());renderPlayerIdPortrait();bindProfileUpgrades()}
   function enhanceFinancesPanel(){const root=$('#financesPanel');if(!root||!career)return;root.innerHTML=financeInvestmentMarkup();bindFinanceUpgrades()}
