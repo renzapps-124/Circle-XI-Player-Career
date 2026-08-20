@@ -1081,7 +1081,15 @@
       localStorage.setItem(CAREER_SLOTS_KEY, JSON.stringify(careerSlots));
     } catch (error) {
       careerSlots.forEach(slot=>{ if (slot.backups?.length > 1) slot.backups = slot.backups.slice(0,1); });
-      try { localStorage.setItem(CAREER_SLOTS_KEY, JSON.stringify(careerSlots)); }
+      try { localStorage.setItem(CAREER_SLOTS_KEY, JSON.stringify(careerSlots)); return; } catch {}
+      // Saved replays are by far the largest thing in a career, so they are what
+      // gets dropped rather than silently losing the whole save.
+      let dropped = 0;
+      careerSlots.forEach(slot=>{ const clips = slot.career?.savedReplays; if (Array.isArray(clips) && clips.length) { dropped += clips.length; slot.career.savedReplays = []; } });
+      try {
+        localStorage.setItem(CAREER_SLOTS_KEY, JSON.stringify(careerSlots));
+        if (dropped && career?.messages) career.messages.unshift({title:'Saved replays cleared', body:`Storage was full, so ${dropped} saved replay${dropped===1?'':'s'} had to be removed to protect your career save.`, category:'General', sender:'Replay Studio', new:true, receivedAt:new Date().toISOString()});
+      }
       catch { console.warn('Career save storage is full. Remove an unused career or export it.', error); }
     }
     if (activeCareerId) localStorage.setItem(ACTIVE_CAREER_KEY, activeCareerId);
@@ -7634,7 +7642,7 @@
     save.phase=save.phase==='international'?'international':'club';ensureInternationalCareer(save);normaliseCareerStatHistory(save);ensureInternationalStatFields(save);
     normaliseCareerMessages(save);
     save.savedReplays=Array.isArray(save.savedReplays)?save.savedReplays:[];
-    save.savedReplays.forEach((clip,index)=>{clip.id=clip.id||`replay-${index}-${hashText(clip.title||'clip')}`;clip.version=Number(clip.version)||1;clip.frameInterval=Number(clip.frameInterval)||REPLAY_FRAME_INTERVAL*3;clip.tags=Array.isArray(clip.tags)?clip.tags:[String(clip.event||'Highlight')];clip.corrupt=!Array.isArray(clip.frames)||clip.frames.length<2});
+    save.savedReplays.forEach((clip,index)=>{clip.id=clip.id||`replay-${index}-${hashText(clip.title||'clip')}`;clip.version=Number(clip.version)||1;clip.frameInterval=Number(clip.frameInterval)||REPLAY_FRAME_INTERVAL*3;clip.tags=Array.isArray(clip.tags)?clip.tags:[String(clip.event||'Highlight')];clip.corrupt=replayClipFrameCount(clip)<2});
     save.transferMarket=save.transferMarket&&typeof save.transferMarket==='object'?save.transferMarket:{windowKey:null,offers:[],interest:[],history:[]};
     save.profileView=save.profileView||'attributes';
     ensureCupCompetitions(save).filter(c=>c.winner).forEach(c=>{
@@ -7828,6 +7836,77 @@
     try{const db=loadCircleXIManagerCountry(save.world.countryId),league=db?.leagues?.find(l=>l.id===offer.leagueId);if(league?.clubs?.length){save.league=league.clubs.map((c,i)=>({...c,p:0,pts:0,gd:0,seed:(c.reputation||60)+Math.random()*8-i*.02}));save.clubIndex=Math.max(0,save.league.findIndex(c=>c.id===offer.club.id));}}catch{}
   }
   function acceptTransferOffer(id){const tm=ensureTransferMarket(),offer=tm.offers.find(o=>o.id===id);if(!offer)return;if(!confirm(`Join ${offer.club.name}?`))return;const old=career.club?.name||'your club';applyCareerClubMove(offer);career.player.wage=offer.wage;career.player.status=offer.role;ensureContractSystem().current={...ensureContractSystem().current,wage:offer.wage,weeks:offer.years*52,role:offer.role};tm.offers=[];tm.history.unshift({week:career.week,window:'Transfer completed',count:1,club:offer.club.name});career.messages.unshift({title:`Transfer completed: ${offer.club.name}`,body:`You leave ${old} and sign as a ${offer.role} on \u00a3${offer.wage.toLocaleString()} per week.`,new:true});saveCareer('manual-backup');renderContract();renderHub()}
+  const REPLAY_CLIP_VERSION=4;
+  // 8 seconds of the build-up is enough for a goal, and is a quarter of what
+  // the old code kept.
+  const REPLAY_SAVE_SOURCE_FRAMES=160,REPLAY_SAVE_STEP=2;
+  // Total budget for every saved clip in one career, well inside the quota.
+  const REPLAY_STORAGE_BUDGET=1200000;
+  const REPLAY_Q={pos:10,vel:10,ang:1000,anim:100,time:100};
+  const REPLAY_PLAYER_STRIDE=16;
+  function replayDictIndex(list,value,fallback){const v=String(value??fallback);let i=list.indexOf(v);if(i<0){i=list.length;list.push(v)}return i}
+  function encodeReplayClipFrames(frames){
+    const ids=[],actions=[],variants=[],feet=[],heights=[],meta=[],rows=[];
+    (frames[0]?.players||[]).forEach(p=>ids.push(String(p.id)));
+    const q=(n,scale)=>Math.round((Number(n)||0)*scale);
+    frames.forEach(frame=>{
+      const ball=frame.ball||{},cam=frame.camera||{},score=frame.score||[0,0];
+      meta.push(q(frame.t,REPLAY_Q.time),Number(score[0])||0,Number(score[1])||0,q(cam.x,REPLAY_Q.pos),q(cam.y,REPLAY_Q.pos),q(cam.zoom,REPLAY_Q.anim),q(ball.x,REPLAY_Q.pos),q(ball.y,REPLAY_Q.pos),q(ball.z,REPLAY_Q.pos),q(ball.spin,REPLAY_Q.anim));
+      const row=[],byId=new Map((frame.players||[]).map(p=>[String(p.id),p]));
+      ids.forEach(id=>{
+        const p=byId.get(id)||{},dir=Number(p.dir)||0;
+        row.push(q(p.x,REPLAY_Q.pos),q(p.y,REPLAY_Q.pos),q(p.vx,REPLAY_Q.vel),q(p.vy,REPLAY_Q.vel),q(dir,REPLAY_Q.ang),
+          q((Number(p.upperDir??dir)||0)-dir,REPLAY_Q.ang),q((Number(p.moveDir??dir)||0)-dir,REPLAY_Q.ang),q(p.anim,REPLAY_Q.anim),
+          replayDictIndex(actions,p.action,'idle'),q(p.actionTimer,REPLAY_Q.time),q(p.actionLength,REPLAY_Q.time),
+          replayDictIndex(variants,p.actionVariant,'mid'),replayDictIndex(feet,p.actionFoot,'Right'),
+          Number(p.gkDiveSide)||0,replayDictIndex(heights,p.gkDiveHeight,'mid'),p.injuryActive?1:0);
+      });
+      rows.push(row);
+    });
+    return{ids,actions,variants,feet,heights,meta,rows};
+  }
+  function decodeReplayClipFrames(clip){
+    const ids=clip.ids||[],rows=clip.rows||[],meta=clip.meta||[];
+    const actions=clip.actions||['idle'],variants=clip.variants||['mid'],feet=clip.feet||['Right'],heights=clip.heights||['mid'];
+    return rows.map((row,f)=>{
+      const m=f*10;
+      const players=ids.map((id,i)=>{
+        const o=i*REPLAY_PLAYER_STRIDE,dir=(row[o+4]||0)/REPLAY_Q.ang;
+        return{id,x:(row[o]||0)/REPLAY_Q.pos,y:(row[o+1]||0)/REPLAY_Q.pos,vx:(row[o+2]||0)/REPLAY_Q.vel,vy:(row[o+3]||0)/REPLAY_Q.vel,
+          dir,upperDir:dir+(row[o+5]||0)/REPLAY_Q.ang,moveDir:dir+(row[o+6]||0)/REPLAY_Q.ang,anim:(row[o+7]||0)/REPLAY_Q.anim,
+          action:actions[row[o+8]]||'idle',actionTimer:(row[o+9]||0)/REPLAY_Q.time,actionLength:(row[o+10]||0)/REPLAY_Q.time,
+          actionVariant:variants[row[o+11]]||'mid',actionFoot:feet[row[o+12]]||'Right',
+          gkDiveSide:row[o+13]||0,gkDiveHeight:heights[row[o+14]]||'mid',injuryActive:!!row[o+15],injurySeverity:0,injuryLeg:null};
+      });
+      return{t:(meta[m]||0)/REPLAY_Q.time,score:[meta[m+1]||0,meta[m+2]||0],
+        camera:{x:(meta[m+3]||0)/REPLAY_Q.pos,y:(meta[m+4]||0)/REPLAY_Q.pos,zoom:(meta[m+5]||0)/REPLAY_Q.anim||1},
+        ball:{x:(meta[m+6]||0)/REPLAY_Q.pos,y:(meta[m+7]||0)/REPLAY_Q.pos,z:(meta[m+8]||0)/REPLAY_Q.pos,vx:0,vy:0,vz:0,spin:(meta[m+9]||0)/REPLAY_Q.anim},
+        players,nets:null};
+    });
+  }
+  // Clips are stored compact and decoded once, on demand, when something
+  // actually needs to draw them.
+  function replayClipFrames(clip){
+    if(!clip)return[];
+    if(Array.isArray(clip.frames)&&clip.frames.length)return clip.frames;
+    if(!Array.isArray(clip.rows))return[];
+    if(!clip.__frames||clip.__framesFor!==clip.rows){clip.__frames=decodeReplayClipFrames(clip);clip.__framesFor=clip.rows}
+    return clip.__frames;
+  }
+  function replayClipFrameCount(clip){
+    if(!clip)return 0;
+    if(Array.isArray(clip.rows))return clip.rows.length;
+    return Array.isArray(clip.frames)?clip.frames.length:0;
+  }
+  function replayClipBytes(clip){try{return JSON.stringify(clip).length}catch{return 0}}
+  function trimSavedReplayStorage(save=career){
+    if(!Array.isArray(save?.savedReplays))return 0;
+    let removed=0,total=save.savedReplays.reduce((sum,clip)=>sum+replayClipBytes(clip),0);
+    while(save.savedReplays.length>1&&total>REPLAY_STORAGE_BUDGET){
+      const dropped=save.savedReplays.pop();total-=replayClipBytes(dropped);removed++;
+    }
+    return removed;
+  }
   function replayDuration(frames,interval=REPLAY_FRAME_INTERVAL){return Math.max(0,(frames?.length||1)-1)*interval}
   function replayTimeLabel(seconds){const s=Math.max(0,seconds||0),m=Math.floor(s/60),r=Math.floor(s%60);return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`}
   function replayEventTag(value){const text=String(value||'Highlight').toLowerCase();if(/goal|finish|free kick|penalty/.test(text))return'Goals';if(/skill|dribbl|finesse/.test(text))return'Skills';if(/save|keeper/.test(text))return'Saves';if(/trophy|champion|award/.test(text))return'Trophies';if(/tackle|intercept|block/.test(text))return'Defending';return'Highlights'}
@@ -7836,9 +7915,10 @@
   function serialiseReplayFrame(frame){return {t:Number(frame.t)||0,score:Array.isArray(frame.score)?[...frame.score]:[0,0],camera:frame.camera?{...frame.camera}:null,ball:frame.ball?{x:Number(frame.ball.x)||0,y:Number(frame.ball.y)||0,z:Number(frame.ball.z)||0,vx:Number(frame.ball.vx)||0,vy:Number(frame.ball.vy)||0,vz:Number(frame.ball.vz)||0,spin:Number(frame.ball.spin)||0}:null,players:(frame.players||[]).map(p=>({id:p.id,x:Number(p.x)||0,y:Number(p.y)||0,vx:Number(p.vx)||0,vy:Number(p.vy)||0,dir:Number(p.dir)||0,upperDir:Number(p.upperDir??p.dir)||0,moveDir:Number(p.moveDir??p.dir)||0,anim:Number(p.anim)||0,action:p.action||'idle',actionTimer:Number(p.actionTimer)||0,actionLength:Number(p.actionLength)||0,actionVariant:p.actionVariant||'mid',actionFoot:p.actionFoot||'Right',gkDiveSide:Number(p.gkDiveSide)||0,gkDiveHeight:p.gkDiveHeight||'mid',injuryActive:!!p.injuryActive,injurySeverity:Number(p.injurySeverity)||0,injuryLeg:p.injuryLeg||null})),nets:frame.nets?cloneData(frame.nets):null}}
   function saveActiveReplay(){
     if(!career||!game)return alert('Saved replays are available inside a career.');const source=game.replayPlayback?.frames||game.replayBuffer;if(!source?.length)return alert('No replay is available to save.');ensureCareerRecords(career);
-    const sampleStep=2,frames=source.slice(-600).filter((_,i)=>i%sampleStep===0).map(serialiseReplayFrame),opponent=game.opponent?.name||career.league?.[career.nextOpponent]?.name||'Opponent',event=game.replayLabel||'Match Highlight',interval=REPLAY_FRAME_INTERVAL*sampleStep;
-    const clip={id:`replay-${Date.now()}`,version:3,title:`${event} \u00b7 ${career.player.name}`,event,category:replayEventTag(event),tags:[replayEventTag(event),event],competition:game.competition?.name||career.world?.leagueName||'Career Match',opponent,score:[...(game.score||[0,0])],week:career.week,season:career.season,createdAt:new Date().toISOString(),frameInterval:interval,frames,duration:replayDuration(frames,interval),visual:{world:{width:game.W||1280,height:game.H||720},pitchCondition:game.pitchCondition||'Normal',home:{name:game.homeClub?.name||career.club?.name||'Home',abbr:game.homeClub?.abbr||career.club?.abbr||'HOME',primary:game.homeClub?.primary||career.club?.primary||'#6d28d9',secondary:game.homeClub?.secondary||career.club?.secondary||'#f8fafc'},away:{name:game.opponent?.name||opponent,abbr:game.opponent?.abbr||'AWAY',primary:game.opponent?.primary||'#f97316',secondary:game.opponent?.secondary||'#f8fafc'},players:replayPlayerMetadata()},corrupt:false};
-    career.savedReplays.unshift(clip);career.savedReplays=career.savedReplays.slice(0,24);career.messages.unshift({title:'\ud83c\udfac Replay saved',body:`${clip.title} was added to the Career Gallery.`,category:'General',sender:'Replay Studio',new:true,receivedAt:new Date().toISOString()});saveCareer();renderReplayGallery();syncReplayControls();const btn=$('#saveReplayBtn');if(btn){btn.classList.add('saved');btn.innerHTML='\u2705<span>Saved</span>';setTimeout(()=>{btn.classList.remove('saved');btn.innerHTML='\ud83d\udcbe<span>Save</span>'},1200)}}
+    const sampleStep=REPLAY_SAVE_STEP,rawFrames=source.slice(-REPLAY_SAVE_SOURCE_FRAMES).filter((_,i)=>i%sampleStep===0).map(serialiseReplayFrame),opponent=game.opponent?.name||career.league?.[career.nextOpponent]?.name||'Opponent',event=game.replayLabel||'Match Highlight',interval=REPLAY_FRAME_INTERVAL*sampleStep;
+    const encoded=encodeReplayClipFrames(rawFrames);
+    const clip={id:`replay-${Date.now()}`,version:REPLAY_CLIP_VERSION,frameCount:rawFrames.length,...encoded,title:`${event} \u00b7 ${career.player.name}`,event,category:replayEventTag(event),tags:[replayEventTag(event),event],competition:game.competition?.name||career.world?.leagueName||'Career Match',opponent,score:[...(game.score||[0,0])],week:career.week,season:career.season,createdAt:new Date().toISOString(),frameInterval:interval,duration:replayDuration(rawFrames,interval),visual:{world:{width:game.W||1280,height:game.H||720},pitchCondition:game.pitchCondition||'Normal',home:{name:game.homeClub?.name||career.club?.name||'Home',abbr:game.homeClub?.abbr||career.club?.abbr||'HOME',primary:game.homeClub?.primary||career.club?.primary||'#6d28d9',secondary:game.homeClub?.secondary||career.club?.secondary||'#f8fafc'},away:{name:game.opponent?.name||opponent,abbr:game.opponent?.abbr||'AWAY',primary:game.opponent?.primary||'#f97316',secondary:game.opponent?.secondary||'#f8fafc'},players:replayPlayerMetadata()},corrupt:false};
+    career.savedReplays.unshift(clip);career.savedReplays=career.savedReplays.slice(0,24);const evicted=trimSavedReplayStorage(career);if(evicted)career.messages.unshift({title:'Replay gallery full',body:`${evicted} older clip${evicted===1?' was':'s were'} removed to make room for this one.`,category:'General',sender:'Replay Studio',new:true,receivedAt:new Date().toISOString()});career.messages.unshift({title:'\ud83c\udfac Replay saved',body:`${clip.title} was added to the Career Gallery.`,category:'General',sender:'Replay Studio',new:true,receivedAt:new Date().toISOString()});saveCareer();renderReplayGallery();syncReplayControls();const btn=$('#saveReplayBtn');if(btn){btn.classList.add('saved');btn.innerHTML='\u2705<span>Saved</span>';setTimeout(()=>{btn.classList.remove('saved');btn.innerHTML='\ud83d\udcbe<span>Save</span>'},1200)}}
   let savedReplayState=null,savedReplayRAF=0,activeReplayFilter='All';
   function replayMetaMap(clip){return new Map((clip.visual?.players||[]).map(p=>[String(p.id),p]))}
   function fallbackReplayMeta(clip,player,index){const team=index<11?0:1,club=team===0?(clip.visual?.home||career?.club||{}):(clip.visual?.away||{});return{id:player.id,team,isUser:team===0&&index===0,position:index%11===0?'GK':'CM',shirtNumber:index+1,primary:club.primary||'#6d28d9',secondary:club.secondary||'#f8fafc',shorts:club.secondary||'#f8fafc',socks:club.secondary||'#f8fafc',skin:'#c98d5b',hair:'Short',hairColour:'#21130d',boots:'#111827',preferredFoot:'Right'}}
@@ -7862,7 +7942,7 @@
   ctx.fillStyle='rgba(255,255,255,.78)';ctx.beginPath();ctx.ellipse(-2.2,-2.4,1.45,.95,-.3,0,Math.PI*2);ctx.fill();
   ctx.restore()}
   function renderSavedReplayFrame(canvas,clip,playhead=0,options={}){
-    const ctx=canvas?.getContext('2d');if(!ctx)return false;const frames=clip?.frames||[],notice=$('#savedReplayNotice');ctx.clearRect(0,0,canvas.width,canvas.height);
+    const ctx=canvas?.getContext('2d');if(!ctx)return false;const frames=replayClipFrames(clip),notice=$('#savedReplayNotice');ctx.clearRect(0,0,canvas.width,canvas.height);
     if(frames.length<2){ctx.fillStyle='#08111f';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#fda4af';ctx.textAlign='center';ctx.font='800 22px system-ui';ctx.fillText('Replay file is incomplete',canvas.width/2,canvas.height/2-8);ctx.font='500 13px system-ui';ctx.fillStyle='#94a3b8';ctx.fillText('This clip cannot be played safely.',canvas.width/2,canvas.height/2+20);if(notice)notice.textContent='Replay warning: this saved clip does not contain enough frames.';return false}
     const total=frames.length-1,index=clamp(Math.floor(playhead),0,total),a=frames[index],b=frames[Math.min(total,index+1)]||a,blend=clamp(playhead-index,0,1),world=clip.visual?.world||{width:1280,height:720},scale=Math.min(canvas.width/world.width,canvas.height/world.height),ox=(canvas.width-world.width*scale)/2,oy=(canvas.height-world.height*scale)/2,meta=replayMetaMap(clip);
     ctx.save();ctx.translate(ox,oy);ctx.scale(scale,scale);drawReplayPitch(ctx,world.width,world.height);
@@ -7871,14 +7951,14 @@
     const ballA=a.ball||b.ball,ballB=b.ball||a.ball;if(ballA&&ballB)drawReplayBall(ctx,{x:lerp(ballA.x,ballB.x,blend),y:lerp(ballA.y,ballB.y,blend),z:lerp(ballA.z||0,ballB.z||0,blend),spin:lerp(ballA.spin||0,ballB.spin||0,blend)});ctx.restore();
     if(options.hud!==false){const score=a.score||clip.score||[0,0],home=clip.visual?.home||{},away=clip.visual?.away||{};ctx.fillStyle='rgba(3,8,18,.9)';ctx.fillRect(0,0,canvas.width,42);ctx.fillStyle='#fff';ctx.font=`800 ${Math.max(11,canvas.width/65)}px system-ui`;ctx.textAlign='left';ctx.fillText(home.abbr||'HOME',14,26);ctx.textAlign='center';ctx.fillText(`${score[0]??0}  \u2013  ${score[1]??0}`,canvas.width/2,26);ctx.textAlign='right';ctx.fillText(away.abbr||'AWAY',canvas.width-14,26)}if(notice)notice.textContent='Full visual replay: player models, kits, animations, ball height and pitch graphics restored.';return true
   }
-  function drawSavedReplay(){if(!savedReplayState)return;const s=savedReplayState,canvas=$('#savedReplayCanvas'),frames=s.clip.frames||[],interval=s.clip.frameInterval||REPLAY_FRAME_INTERVAL*3;renderSavedReplayFrame(canvas,s.clip,s.playhead);const duration=replayDuration(frames,interval),current=s.playhead*interval;$('#savedReplayTime').textContent=`${replayTimeLabel(current)} / ${replayTimeLabel(duration)}`;$('#savedReplayTimeline').value=frames.length>1?Math.round(s.playhead/(frames.length-1)*1000):0}
-  function savedReplayLoop(t){if(!savedReplayState)return;const s=savedReplayState,dt=Math.min(.05,(t-(s.last||t))/1000),interval=s.clip.frameInterval||REPLAY_FRAME_INTERVAL*3;s.last=t;if(!s.paused){s.playhead+=dt*(s.speed||1)/interval;if(s.playhead>=s.clip.frames.length-1){s.playhead=s.clip.frames.length-1;s.paused=true;$('#savedReplayPlay').textContent='\u25b6 Play'}}drawSavedReplay();savedReplayRAF=requestAnimationFrame(savedReplayLoop)}
+  function drawSavedReplay(){if(!savedReplayState)return;const s=savedReplayState,canvas=$('#savedReplayCanvas'),frames=replayClipFrames(s.clip),interval=s.clip.frameInterval||REPLAY_FRAME_INTERVAL*3;renderSavedReplayFrame(canvas,s.clip,s.playhead);const duration=replayDuration(frames,interval),current=s.playhead*interval;$('#savedReplayTime').textContent=`${replayTimeLabel(current)} / ${replayTimeLabel(duration)}`;$('#savedReplayTimeline').value=frames.length>1?Math.round(s.playhead/(frames.length-1)*1000):0}
+  function savedReplayLoop(t){if(!savedReplayState)return;const s=savedReplayState,dt=Math.min(.05,(t-(s.last||t))/1000),interval=s.clip.frameInterval||REPLAY_FRAME_INTERVAL*3;s.last=t;const loopFrames=replayClipFrames(s.clip);if(!s.paused){s.playhead+=dt*(s.speed||1)/interval;if(s.playhead>=loopFrames.length-1){s.playhead=loopFrames.length-1;s.paused=true;$('#savedReplayPlay').textContent='\u25b6 Play'}}drawSavedReplay();savedReplayRAF=requestAnimationFrame(savedReplayLoop)}
   function openSavedReplay(id){const clip=career?.savedReplays?.find(r=>r.id===id);if(!clip)return;savedReplayState={clip,playhead:0,paused:false,speed:1,last:0};$('#savedReplayTitle').textContent=clip.title;$('#savedReplayModal').classList.remove('hidden');$('#savedReplayPlay').textContent='\u23f8 Pause';cancelAnimationFrame(savedReplayRAF);savedReplayRAF=requestAnimationFrame(savedReplayLoop)}
   function closeSavedReplay(){cancelAnimationFrame(savedReplayRAF);savedReplayState=null;$('#savedReplayModal')?.classList.add('hidden')}
   function renderReplayGallery(){
     const root=$('#replayGalleryPanel');if(!root||!career)return;ensureCareerRecords(career);const all=career.savedReplays,filters=['All','Goals','Skills','Saves','Defending','Trophies'],clips=activeReplayFilter==='All'?all:all.filter(c=>(c.category||replayEventTag(c.event))===activeReplayFilter);
-    root.innerHTML=`<div class="replay-gallery-head"><div><small>\ud83c\udfac CAREER GALLERY</small><h3>Saved Replays</h3><p>Saved clips now use the same detailed footballer renderer as live matches rather than coloured dots.</p></div><div><b>${all.length}</b><small>CLIPS</small></div></div><div class="replay-gallery-filters">${filters.map(f=>`<button class="${activeReplayFilter===f?'active':''}" data-replay-filter="${f}">${f}</button>`).join('')}</div><div class="replay-card-grid">${clips.map(clip=>`<article class="saved-replay-card ${clip.corrupt?'corrupt':''}"><div class="saved-replay-thumb"><canvas width="320" height="180" data-replay-thumb="${clip.id}"></canvas><i>${replayTimeLabel(clip.duration||replayDuration(clip.frames,clip.frameInterval))}</i><span>${clip.corrupt?'\u26a0\ufe0f':clip.category==='Goals'?'\u26bd':clip.category==='Saves'?'\ud83e\udde4':clip.category==='Trophies'?'\ud83c\udfc6':'\ud83c\udfac'}</span></div><div><small>${escapeMarkup(clip.competition)} \u00b7 S${clip.season} W${clip.week}</small><h4>${escapeMarkup(clip.title)}</h4><p>v ${escapeMarkup(clip.opponent)} \u00b7 ${new Date(clip.createdAt).toLocaleDateString('en-GB')} \u00b7 ${escapeMarkup(clip.category||replayEventTag(clip.event))}</p></div><footer><button class="primary-btn" data-play-saved-replay="${clip.id}" ${clip.corrupt?'disabled':''}>\u25b6 Play</button><button class="ghost-btn" data-rename-saved-replay="${clip.id}">\u270f\ufe0f</button><button class="ghost-btn" data-delete-saved-replay="${clip.id}">\ud83d\uddd1</button></footer></article>`).join('')||'<div class="empty-replay-gallery"><span>\ud83c\udfa5</span><b>No saved replays in this filter</b><p>Watch a match replay and press the Save icon to add it here.</p></div>'}</div>`;
-    root.querySelectorAll('[data-replay-filter]').forEach(btn=>btn.onclick=()=>{activeReplayFilter=btn.dataset.replayFilter;renderReplayGallery()});root.querySelectorAll('[data-play-saved-replay]').forEach(b=>b.onclick=()=>openSavedReplay(b.dataset.playSavedReplay));root.querySelectorAll('[data-rename-saved-replay]').forEach(b=>b.onclick=()=>{const clip=career.savedReplays.find(r=>r.id===b.dataset.renameSavedReplay);if(!clip)return;const title=prompt('Replay name:',clip.title);if(!title?.trim())return;clip.title=title.trim().slice(0,70);saveCareer();renderReplayGallery()});root.querySelectorAll('[data-delete-saved-replay]').forEach(b=>b.onclick=()=>{const clip=career.savedReplays.find(r=>r.id===b.dataset.deleteSavedReplay);if(!clip||!confirm(`Delete \u201c${clip.title}\u201d?`))return;career.savedReplays=career.savedReplays.filter(r=>r.id!==clip.id);saveCareer();renderReplayGallery()});root.querySelectorAll('[data-replay-thumb]').forEach(canvas=>{const clip=career.savedReplays.find(r=>r.id===canvas.dataset.replayThumb);if(clip)renderSavedReplayFrame(canvas,clip,Math.max(0,(clip.frames?.length||1)*.62),{hud:true})});const badge=$('#replayTabBadge');if(badge)badge.textContent=all.length
+    root.innerHTML=`<div class="replay-gallery-head"><div><small>\ud83c\udfac CAREER GALLERY</small><h3>Saved Replays</h3><p>Saved clips now use the same detailed footballer renderer as live matches rather than coloured dots.</p></div><div><b>${all.length}</b><small>CLIPS</small></div></div><div class="replay-gallery-filters">${filters.map(f=>`<button class="${activeReplayFilter===f?'active':''}" data-replay-filter="${f}">${f}</button>`).join('')}</div><div class="replay-card-grid">${clips.map(clip=>`<article class="saved-replay-card ${clip.corrupt?'corrupt':''}"><div class="saved-replay-thumb"><canvas width="320" height="180" data-replay-thumb="${clip.id}"></canvas><i>${replayTimeLabel(clip.duration||replayDuration(replayClipFrames(clip),clip.frameInterval))}</i><span>${clip.corrupt?'\u26a0\ufe0f':clip.category==='Goals'?'\u26bd':clip.category==='Saves'?'\ud83e\udde4':clip.category==='Trophies'?'\ud83c\udfc6':'\ud83c\udfac'}</span></div><div><small>${escapeMarkup(clip.competition)} \u00b7 S${clip.season} W${clip.week}</small><h4>${escapeMarkup(clip.title)}</h4><p>v ${escapeMarkup(clip.opponent)} \u00b7 ${new Date(clip.createdAt).toLocaleDateString('en-GB')} \u00b7 ${escapeMarkup(clip.category||replayEventTag(clip.event))}</p></div><footer><button class="primary-btn" data-play-saved-replay="${clip.id}" ${clip.corrupt?'disabled':''}>\u25b6 Play</button><button class="ghost-btn" data-rename-saved-replay="${clip.id}">\u270f\ufe0f</button><button class="ghost-btn" data-delete-saved-replay="${clip.id}">\ud83d\uddd1</button></footer></article>`).join('')||'<div class="empty-replay-gallery"><span>\ud83c\udfa5</span><b>No saved replays in this filter</b><p>Watch a match replay and press the Save icon to add it here.</p></div>'}</div>`;
+    root.querySelectorAll('[data-replay-filter]').forEach(btn=>btn.onclick=()=>{activeReplayFilter=btn.dataset.replayFilter;renderReplayGallery()});root.querySelectorAll('[data-play-saved-replay]').forEach(b=>b.onclick=()=>openSavedReplay(b.dataset.playSavedReplay));root.querySelectorAll('[data-rename-saved-replay]').forEach(b=>b.onclick=()=>{const clip=career.savedReplays.find(r=>r.id===b.dataset.renameSavedReplay);if(!clip)return;const title=prompt('Replay name:',clip.title);if(!title?.trim())return;clip.title=title.trim().slice(0,70);saveCareer();renderReplayGallery()});root.querySelectorAll('[data-delete-saved-replay]').forEach(b=>b.onclick=()=>{const clip=career.savedReplays.find(r=>r.id===b.dataset.deleteSavedReplay);if(!clip||!confirm(`Delete \u201c${clip.title}\u201d?`))return;career.savedReplays=career.savedReplays.filter(r=>r.id!==clip.id);saveCareer();renderReplayGallery()});root.querySelectorAll('[data-replay-thumb]').forEach(canvas=>{const clip=career.savedReplays.find(r=>r.id===canvas.dataset.replayThumb);if(clip)renderSavedReplayFrame(canvas,clip,Math.max(0,(replayClipFrameCount(clip)||1)*.62),{hud:true})});const badge=$('#replayTabBadge');if(badge)badge.textContent=all.length
   }
 
   function selectedCalendarEvent(home){return careerCalendarEvents(home).get(selectedCalendarWeek)||careerCalendarEvents(home).get(career.week)}
@@ -8557,7 +8637,7 @@
   function replaySeek(seconds){const rp=game?.replayPlayback;if(!rp)return;rp.playhead=clamp(rp.playhead+seconds,0,replayDuration(rp.frames)-REPLAY_FRAME_INTERVAL);syncReplayControls()}
   function replayJump(direction){const rp=game?.replayPlayback;if(!rp)return;const total=replayDuration(rp.frames),points=(rp.keyMoments||[0,.33,.66,1]).map(v=>v*total),current=rp.playhead;const next=direction<0?[...points].reverse().find(v=>v<current-.25):points.find(v=>v>current+.25);rp.playhead=clamp(next??(direction<0?0:total-REPLAY_FRAME_INTERVAL),0,total-REPLAY_FRAME_INTERVAL);syncReplayControls()}
   $('#replayBack10')&&($('#replayBack10').onclick=()=>replaySeek(-10));$('#replayForward10')&&($('#replayForward10').onclick=()=>replaySeek(10));$('#replayPrevMoment')&&($('#replayPrevMoment').onclick=()=>replayJump(-1));$('#replayNextMoment')&&($('#replayNextMoment').onclick=()=>replayJump(1));$('#replayPlayPause')&&($('#replayPlayPause').onclick=()=>{if(!game?.replayPlayback)return;game.replayPlayback.paused=!game.replayPlayback.paused;syncReplayControls()});$('#replaySpeed')&&($('#replaySpeed').onchange=e=>{if(game?.replayPlayback)game.replayPlayback.speed=Number(e.target.value)||1;syncReplayControls()});$('#replayTimeline')&&($('#replayTimeline').oninput=e=>{const rp=game?.replayPlayback;if(!rp)return;rp.playhead=Number(e.target.value)/1000*replayDuration(rp.frames);syncReplayControls()});$('#saveReplayBtn')&&($('#saveReplayBtn').onclick=saveActiveReplay);$('#closeReplayBtn')&&($('#closeReplayBtn').onclick=()=>{if(!game?.replayPlayback)return;game.replayPlayback.playhead=replayDuration(game.replayPlayback.frames);game.updateReplayPlayback(.1);syncReplayControls()});
-  $('#closeSavedReplay')&&($('#closeSavedReplay').onclick=closeSavedReplay);$('#savedReplayPlay')&&($('#savedReplayPlay').onclick=()=>{if(!savedReplayState)return;savedReplayState.paused=!savedReplayState.paused;$('#savedReplayPlay').textContent=savedReplayState.paused?'\u25b6 Play':'\u23f8 Pause'});$('#savedReplayBack')&&($('#savedReplayBack').onclick=()=>{if(savedReplayState)savedReplayState.playhead=Math.max(0,savedReplayState.playhead-5/(savedReplayState.clip.frameInterval||REPLAY_FRAME_INTERVAL*3))});$('#savedReplayForward')&&($('#savedReplayForward').onclick=()=>{if(savedReplayState)savedReplayState.playhead=Math.min(savedReplayState.clip.frames.length-1,savedReplayState.playhead+5/(savedReplayState.clip.frameInterval||REPLAY_FRAME_INTERVAL*3))});$('#savedReplaySpeed')&&($('#savedReplaySpeed').onchange=e=>{if(savedReplayState)savedReplayState.speed=Number(e.target.value)||1});$('#savedReplayTimeline')&&($('#savedReplayTimeline').oninput=e=>{if(savedReplayState)savedReplayState.playhead=Number(e.target.value)/1000*Math.max(0,savedReplayState.clip.frames.length-1)});
+  $('#closeSavedReplay')&&($('#closeSavedReplay').onclick=closeSavedReplay);$('#savedReplayPlay')&&($('#savedReplayPlay').onclick=()=>{if(!savedReplayState)return;savedReplayState.paused=!savedReplayState.paused;$('#savedReplayPlay').textContent=savedReplayState.paused?'\u25b6 Play':'\u23f8 Pause'});$('#savedReplayBack')&&($('#savedReplayBack').onclick=()=>{if(savedReplayState)savedReplayState.playhead=Math.max(0,savedReplayState.playhead-5/(savedReplayState.clip.frameInterval||REPLAY_FRAME_INTERVAL*3))});$('#savedReplayForward')&&($('#savedReplayForward').onclick=()=>{if(savedReplayState)savedReplayState.playhead=Math.min(replayClipFrameCount(savedReplayState.clip)-1,savedReplayState.playhead+5/(savedReplayState.clip.frameInterval||REPLAY_FRAME_INTERVAL*3))});$('#savedReplaySpeed')&&($('#savedReplaySpeed').onchange=e=>{if(savedReplayState)savedReplayState.speed=Number(e.target.value)||1});$('#savedReplayTimeline')&&($('#savedReplayTimeline').oninput=e=>{if(savedReplayState)savedReplayState.playhead=Number(e.target.value)/1000*Math.max(0,replayClipFrameCount(savedReplayState.clip)-1)});
 
   // ---------------- MATCH ENGINE ----------------
   function awardClubSeasonHonours(home){

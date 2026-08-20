@@ -1,0 +1,96 @@
+CIRCLE XI PLAYER CAREER — V75.13
+SAVED GOAL REPLAYS COULD NEVER BE STORED
+
+The diagnosis
+The replay system itself was complete and correct. Goals raise a replay prompt,
+the buffer is captured, the Save button is wired to saveActiveReplay, the gallery
+renders cards with thumbnails, and the player draws real footballers with kits,
+animations, ball height and pitch graphics. None of that was broken.
+
+The clip simply could not be written to disk. serialiseReplayFrame stored every
+field of every player as a named JSON key at full float precision — plus an 80
+node net mesh — for every frame:
+
+  one serialised frame        9,667 bytes
+  frames kept per clip              300
+  one clip                      4.39 MB
+
+A career is written to localStorage twice, once under the live key and again
+inside the career slot, so a single clip needed roughly 9 MB against a 5 MB
+budget. Every save threw QuotaExceededError. persistCareerSlots caught it,
+trimmed backups (which are tiny and did not help), logged a console warning, and
+returned. The clip — and the rest of that save — was silently discarded. Zero
+clips could ever fit, which is why the gallery never showed a goal.
+
+The fix
+1. COMPACT CLIP FORMAT (version 4)
+   - The net mesh is not stored. It is decoration and the player redraws it.
+   - Player ids are stored once per clip instead of on every player of every
+     frame, and the per-frame rows are flat integer arrays with no key names.
+   - Repeated strings (action, variant, foot, dive height) go through a per-clip
+     dictionary and are stored as indices.
+   - Numbers are quantised: positions and velocities to a tenth, angles to a
+     milliradian, timers to a hundredth.
+   - The saved window is 8 seconds around the goal rather than 26.
+
+     clip                          size      fits
+     old clip (300 frames)         4496 KB      NO
+     new clip (80 frames)            98 KB      yes
+     new, 10 clips                  978 KB      yes
+
+   46x smaller. Ten clips now sit comfortably inside the quota.
+
+   The quantisation is not visible. Over 80 frames of 22 players:
+
+     frames                80/80
+     id mismatches         0
+     action mismatches     0
+     max position error    0.0500 px
+     max angle error       0.00050 rad
+
+2. DECODED ON DEMAND
+   Clips are stored compact and decoded once, lazily, when something actually
+   draws them, with the result cached on the clip. Frame counts (used by the
+   corrupt check on every career load, and by the gallery) read the row count
+   directly and never trigger a decode. The playback renderer is unchanged — it
+   still receives exactly the frame objects it always expected.
+
+3. STORAGE CAN NO LONGER FAIL SILENTLY
+   - A 1.2 MB budget across all saved clips, with the oldest evicted first and an
+     inbox message when that happens.
+   - If localStorage still refuses the write, saved replays are now what gets
+     dropped — they are by far the largest thing in a career — and the player is
+     told, rather than the whole save being lost without a word.
+
+Verified in the running game
+A v4 clip written into a live career at http://localhost:4173:
+
+  Gallery card rendered           yes
+  Flagged corrupt                 no
+  Thumbnail actually painted      yes, 34 distinct colours
+  Play button enabled             yes
+  Playback clock advances         00:00 -> 00:01
+  Canvas changes between frames   yes
+
+The save path itself was also replayed outside the browser with a stubbed match
+buffer: saveActiveReplay produces an 80 frame version 4 clip under 200 KB that
+decodes back into 80 playable frames of 22 players.
+
+Note for existing careers
+No saved clip has ever successfully persisted, so there is nothing to migrate.
+The decoder still accepts a clip that carries a raw frames array in case one is
+held in memory.
+
+Validation
+node REPLAY_GALLERY_V75_13_VALIDATION.js — 37/37 checks passed
+node --check game.js — PASS
+Suites re-run: CAREER_STATS_SQUAD_V75_12 36/36, TRAINING_SIDE_RAIL_V75_11 27/27,
+TRAINING_GROUND_RUN_V75_10 25/25, PLAYER_VITALS_V75_9 41/41,
+CONTRACT_ACTIONS_V75_8 52/52, PROTECT_CONTACT_STAFF_V75_7 63/63,
+FINISHING_PITCH_V75_6 77/77, TRAINING_CENTRE_V75_2 46/46,
+FATIGUE_MATCH_LOAD_V75_3 40/40, MATCH_PENALTIES_V75_5 31/31,
+TRAINING_PLAYTHROUGH_V75_1 24/24.
+SQUAD_EDITOR_AUDIO_V75_4 remains 39/44 on pre-existing, unrelated audio checks.
+
+Cache token
+index.html game.js / styles.css bumped 75.12.0 -> 75.13.0
