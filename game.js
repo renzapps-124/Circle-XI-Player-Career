@@ -16,9 +16,136 @@
   const MAX_CAREER_SLOTS = 6;
   const SETTINGS_KEY = 'circleXIPlayerCareerSettingsV1';
   const ADVANCED_SYSTEM_VERSION = 18;
+  // v77.2.1 startup fix: these V76 career constants must exist before legacy
+  // saves are migrated. ensureCareerIdentity() can run during initial script
+  // evaluation and immediately enters ensureAdvancedCareerSystems() ->
+  // ensureV76CareerSystems(). Keeping these constants here avoids the ES6
+  // temporal-dead-zone crash seen when loading an existing career.
+  const CXI_V76_CAREER_VERSION = 76;
+  const V76_REPUTATION_LEVELS = [
+    {min:0,label:'Local Prospect',icon:'🌱'},
+    {min:52,label:'National Prospect',icon:'📈'},
+    {min:62,label:'Established Professional',icon:'⚽'},
+    {min:74,label:'International Star',icon:'🌍'},
+    {min:86,label:'Global Superstar',icon:'👑'}
+  ];
+  const V76_SQUAD_LADDER = ['Academy','Prospect','Fringe Player','Rotation','First Team','Important Player','Star Player','Vice Captain','Captain','Club Legend'];
+
+  // V77.3 Physical Identity: one authoritative body calculation drives creator,
+  // Classic Media, match/training models, collisions, movement and aerial reach.
+  const V773_PHYSICAL_PROFILE_VERSION='77.3';
+  const V773_BODY_PROFILES={
+    Lean:{shoulder:.88,chest:.88,waist:.86,limb:.88,mass:.93,collision:.90,turn:1.035,accel:1.025,topSpeed:1.005,contact:.93,shield:.92,aerial:.97,stride:.99,cadence:1.035,staminaDrain:.985,momentum:.95,cog:1.00},
+    Slim:{shoulder:.93,chest:.93,waist:.91,limb:.94,mass:.97,collision:.95,turn:1.025,accel:1.018,topSpeed:1.004,contact:.97,shield:.96,aerial:.99,stride:1.00,cadence:1.025,staminaDrain:.992,momentum:.97,cog:1.01},
+    Balanced:{shoulder:1,chest:1,waist:1,limb:1,mass:1,collision:1,turn:1,accel:1,topSpeed:1,contact:1,shield:1,aerial:1,stride:1,cadence:1,staminaDrain:1,momentum:1,cog:1},
+    Athletic:{shoulder:1.04,chest:1.02,waist:.96,limb:1.05,mass:1.035,collision:1.03,turn:1.008,accel:1.015,topSpeed:1.004,contact:1.035,shield:1.035,aerial:1.025,stride:1.015,cadence:1.005,staminaDrain:.992,momentum:1.025,cog:1.015},
+    Powerful:{shoulder:1.10,chest:1.09,waist:1.04,limb:1.12,mass:1.09,collision:1.09,turn:.972,accel:.978,topSpeed:.994,contact:1.095,shield:1.105,aerial:1.055,stride:1.018,cadence:.972,staminaDrain:1.025,momentum:1.075,cog:.99},
+    Stocky:{shoulder:1.08,chest:1.10,waist:1.10,limb:1.10,mass:1.10,collision:1.105,turn:1.018,accel:.985,topSpeed:.988,contact:1.105,shield:1.115,aerial:1.015,stride:.965,cadence:1.025,staminaDrain:1.022,momentum:1.065,cog:1.065}
+  };
+  const V773_POSITION_PHYSICAL_AVERAGES={GK:{height:190,weight:84},CB:{height:186,weight:82},RB:{height:178,weight:73},LB:{height:178,weight:73},DM:{height:181,weight:77},CM:{height:179,weight:74},AM:{height:176,weight:71},RW:{height:175,weight:69},LW:{height:175,weight:69},ST:{height:184,weight:79}};
+  function normalisePhysicalBuild(build='Athletic'){const b=String(build||'Athletic');return b==='Strong'?'Powerful':(V773_BODY_PROFILES[b]?b:'Athletic')}
+  function expectedFootballWeight(heightCm=180,build='Athletic'){const h=clamp(Number(heightCm)||180,155,205),mult={Lean:.82,Slim:.88,Balanced:.94,Athletic:.98,Powerful:1.07,Stocky:1.10}[normalisePhysicalBuild(build)]||.98;return clamp((h-100)*mult,50,112)}
+  function calculatePhysicalProfile(player={}){
+    const buildName=normalisePhysicalBuild(player.build||player.bodyBuild),b=V773_BODY_PROFILES[buildName]||V773_BODY_PROFILES.Athletic;
+    const heightCm=clamp(Number(player.heightCm||player.height||180)||180,155,205),expected=expectedFootballWeight(heightCm,buildName),weightKg=clamp(Number(player.weightKg||player.weight||expected)||expected,45,120),weightRatio=clamp(weightKg/expected,.80,1.22);
+    const thickness=clamp(1+(weightRatio-1)*.48,.90,1.12),heightDelta=heightCm-180,heightScale=clamp(1+heightDelta*.00425,.91,1.11),legScale=clamp(1+heightDelta*.0048,.90,1.12),torsoScale=clamp(1+heightDelta*.0032,.94,1.08);
+    const massWeight=clamp(1+(weightKg-76)*.0072,.80,1.27),attrs=player.attrs||{},jumping=Number(attrs.jumping||attrs.aerialReach||60),strength=Number(attrs.strength||60),anticipation=Number(attrs.anticipation||60);
+    const standingReach=20.4+heightDelta*.105+(b.aerial-1)*6.5,jumpReach=standingReach+6.2+jumping*.030+strength*.012+anticipation*.008;
+    const heightAgility=clamp(1-heightDelta*.00105,.965,1.035),weightAccel=clamp(1-(weightKg-76)*.00085,.965,1.035),lowCog=clamp(b.cog-heightDelta*.0015,.94,1.09);
+    return {version:V773_PHYSICAL_PROFILE_VERSION,buildName,heightCm,weightKg,expectedWeight:Math.round(expected),weightRatio,
+      visualHeightScale:heightScale,torsoLengthScale:torsoScale,legLengthScale:legScale,shoulderScale:clamp(b.shoulder*thickness,.82,1.24),chestScale:clamp(b.chest*thickness,.82,1.24),waistScale:clamp(b.waist*(1+(weightRatio-1)*.55),.82,1.25),limbMass:clamp(b.limb*(1+(weightRatio-1)*.52),.80,1.25),headScale:clamp(1-heightDelta*.00055,.965,1.035),
+      collisionRadius:clamp(7.4*b.collision*thickness,6.55,8.75),collisionMass:clamp(b.mass*massWeight,.78,1.32),standingReach,jumpReach:clamp(jumpReach,23,35.5),
+      turnFactor:clamp(b.turn*heightAgility*lowCog,.94,1.06),accelerationResponseFactor:clamp(b.accel*weightAccel,.95,1.05),topSpeedFactor:clamp(b.topSpeed,.975,1.02),decelerationFactor:clamp(2-b.momentum,.91,1.06),momentumFactor:clamp(b.momentum*massWeight,.90,1.16),contactStabilityFactor:clamp(b.contact*lowCog*(1+(weightRatio-1)*.12),.90,1.16),shieldingFactor:clamp(b.shield*(1+(weightRatio-1)*.14),.90,1.16),staminaDrainFactor:clamp(b.staminaDrain*(1+(weightKg-76)*.0012),.96,1.07),strideLengthFactor:clamp(b.stride*(1+heightDelta*.0019),.93,1.08),cadenceFactor:clamp(b.cadence*(1-heightDelta*.0015),.93,1.07),centreOfGravityFactor:lowCog,
+      dribbleTouchFactor:clamp(1-(lowCog-1)*.20+(heightDelta)*.0007,.96,1.045),aerialFactor:b.aerial};
+  }
+  function applyPhysicalProfileToRuntime(player={}){const profile=calculatePhysicalProfile(player);player.build=profile.buildName;player.bodyBuild=profile.buildName;player.heightCm=profile.heightCm;player.weightKg=Math.round(profile.weightKg);player.physicalProfile=profile;player.heightScale=profile.visualHeightScale;player.legScale=profile.legLengthScale;player.shoulderScale=profile.shoulderScale;player.headScale=profile.headScale;player.collisionRadius=profile.collisionRadius;player.bodyRadius=profile.collisionRadius;player.collisionMass=profile.collisionMass;player.jumpReach=profile.jumpReach;return profile}
+  function physicalProfileSummary(profile){const p=profile||calculatePhysicalProfile({});const turn=p.turnFactor>=1.02?'Quick':p.turnFactor<=.98?'Deliberate':'Balanced',presence=p.contactStabilityFactor>=1.07?'Strong':p.contactStabilityFactor<=.95?'Light':'Balanced',stride=p.strideLengthFactor>=1.035?'Long':p.strideLengthFactor<=.97?'Short':'Medium';return {turn,presence,stride,aerial:p.jumpReach>=31?'Excellent':p.jumpReach>=28.5?'Good':'Developing',cog:p.centreOfGravityFactor>=1.035?'Low':p.centreOfGravityFactor<=.975?'High':'Medium'}}
+  window.__CIRCLE_XI_PHYSICAL_IDENTITY_VERSION='v77.3-unified-body-profile';
+  window.__circlePhysicalProfile={calculate:p=>calculatePhysicalProfile(p),summary:p=>physicalProfileSummary(calculatePhysicalProfile(p))};
+  // V77.5 Visual Identity: one authoritative appearance record is shared by
+  // creator, career media, match day, training and generated AI footballers.
+  const V775_VISUAL_IDENTITY_VERSION='77.6';
+  const V775_VISUAL_DEFAULTS={skinTone:'#7b4b2a',hairStyle:'Short',hairColour:'#21140d',headShape:'Oval',jawStyle:'Balanced',noseStyle:'Balanced',eyeStyle:'Balanced',browStyle:'Natural',hairlineStyle:'Rounded',facialHair:'Clean Shaven',complexion:'Clear',bodyBuild:'Athletic',heightCm:180,weightKg:76,bootModel:'Control Pro',bootColour:'#111827',bootSecondaryColour:'#f8fafc',shirtNumber:8,sleeveLength:'Short',shirtStyle:'Untucked',sockHeight:'Standard',wristTape:'None',matchAccessories:'None',runningStyle:'Balanced',shootingStyle:'Compact',goalCelebration:'Arms Out',freeKickStance:'Balanced',penaltyRunUp:'Standard'};
+  const V775_AI_OPTIONS={headShape:['Oval','Round','Square','Long','Diamond'],jawStyle:['Soft','Balanced','Defined','Wide'],noseStyle:['Small','Balanced','Wide','Long'],eyeStyle:['Balanced','Narrow','Wide','Deep set'],browStyle:['Natural','Thick','Fine','Arched'],hairlineStyle:['Straight','Rounded','Sharp','Widow’s Peak','Curved','Receding'],facialHair:['Clean Shaven','Clean Shaven','Stubble','Goatee','Short Beard'],complexion:['Clear','Clear','Freckles','Light Texture','Defined Texture'],bootModel:['Control Pro','Velocity','Power Strike','Classic Leather'],sleeveLength:['Short','Short','Short','Long','Undershirt'],shirtStyle:['Untucked','Untucked','Tucked','Fitted'],sockHeight:['Low','Standard','Standard','High'],wristTape:['None','None','Left','Right','Both'],matchAccessories:['None','None','None','Gloves','Ankle Tape'],runningStyle:['Light','Balanced','Balanced','Powerful','Explosive'],shootingStyle:['Compact','Compact','Power','Placement','Quick Release'],goalCelebration:['Arms Out','Knee Slide','Point to Sky','Calm Walk','Team Huddle'],freeKickStance:['Balanced','Side On','Short Run Up','Power Run Up'],penaltyRunUp:['Standard','Short','Stutter','Power']};
+  function normaliseVisualValue(v,fallback){return v===undefined||v===null||v===''?fallback:v}
+  function resolvedVisualIdentity(player={}){
+    const saved=player.visualIdentity||{},g=(...keys)=>{for(const source of [player,saved])for(const k of keys)if(source?.[k]!==undefined&&source?.[k]!==null&&source?.[k]!=='')return source[k]};
+    const physical=calculatePhysicalProfile({...player,build:g('build','bodyBuild')||V775_VISUAL_DEFAULTS.bodyBuild,heightCm:g('heightCm','height')||V775_VISUAL_DEFAULTS.heightCm,weightKg:g('weightKg','weight')||V775_VISUAL_DEFAULTS.weightKg});
+    return {version:V775_VISUAL_IDENTITY_VERSION,
+      skinTone:normaliseVisualValue(g('skinTone','skin'),V775_VISUAL_DEFAULTS.skinTone),hairStyle:normaliseVisualValue(g('hairStyle','hair'),V775_VISUAL_DEFAULTS.hairStyle),hairColour:normaliseVisualValue(g('hairColour'),V775_VISUAL_DEFAULTS.hairColour),
+      headShape:normaliseVisualValue(g('headShape'),V775_VISUAL_DEFAULTS.headShape),jawStyle:normaliseVisualValue(g('jawStyle'),V775_VISUAL_DEFAULTS.jawStyle),noseStyle:normaliseVisualValue(g('noseStyle'),V775_VISUAL_DEFAULTS.noseStyle),eyeStyle:normaliseVisualValue(g('eyeStyle'),V775_VISUAL_DEFAULTS.eyeStyle),browStyle:normaliseVisualValue(g('browStyle'),V775_VISUAL_DEFAULTS.browStyle),hairlineStyle:normaliseVisualValue(g('hairlineStyle'),V775_VISUAL_DEFAULTS.hairlineStyle),facialHair:normaliseVisualValue(g('facialHair'),V775_VISUAL_DEFAULTS.facialHair),complexion:normaliseVisualValue(g('complexion'),V775_VISUAL_DEFAULTS.complexion),
+      bodyBuild:physical.buildName,heightCm:physical.heightCm,weightKg:Math.round(physical.weightKg),bootModel:normaliseVisualValue(g('bootModel'),V775_VISUAL_DEFAULTS.bootModel),bootColour:normaliseVisualValue(g('bootColour','boots'),V775_VISUAL_DEFAULTS.bootColour),bootSecondaryColour:normaliseVisualValue(g('bootSecondaryColour'),V775_VISUAL_DEFAULTS.bootSecondaryColour),shirtNumber:clamp(Number(g('shirtNumber','preferredShirtNumber')||8)||8,1,99),sleeveLength:normaliseVisualValue(g('sleeveLength'),V775_VISUAL_DEFAULTS.sleeveLength),shirtStyle:normaliseVisualValue(g('shirtStyle'),V775_VISUAL_DEFAULTS.shirtStyle),sockHeight:normaliseVisualValue(g('sockHeight'),V775_VISUAL_DEFAULTS.sockHeight),wristTape:normaliseVisualValue(g('wristTape'),V775_VISUAL_DEFAULTS.wristTape),matchAccessories:normaliseVisualValue(g('matchAccessories'),V775_VISUAL_DEFAULTS.matchAccessories),runningStyle:normaliseVisualValue(g('runningStyle'),V775_VISUAL_DEFAULTS.runningStyle),shootingStyle:normaliseVisualValue(g('shootingStyle'),V775_VISUAL_DEFAULTS.shootingStyle),goalCelebration:normaliseVisualValue(g('goalCelebration'),V775_VISUAL_DEFAULTS.goalCelebration),freeKickStance:normaliseVisualValue(g('freeKickStance'),V775_VISUAL_DEFAULTS.freeKickStance),penaltyRunUp:normaliseVisualValue(g('penaltyRunUp'),V775_VISUAL_DEFAULTS.penaltyRunUp)};
+  }
+  function ensureVisualIdentity(player={}){const v=resolvedVisualIdentity(player);player.visualIdentityVersion=V775_VISUAL_IDENTITY_VERSION;player.visualIdentity={...v};Object.assign(player,{skinTone:v.skinTone,skin:v.skinTone,hairStyle:v.hairStyle,hair:v.hairStyle,hairColour:v.hairColour,headShape:v.headShape,jawStyle:v.jawStyle,noseStyle:v.noseStyle,eyeStyle:v.eyeStyle,browStyle:v.browStyle,hairlineStyle:v.hairlineStyle,facialHair:v.facialHair,complexion:v.complexion,build:v.bodyBuild,bodyBuild:v.bodyBuild,heightCm:v.heightCm,weightKg:v.weightKg,bootModel:v.bootModel,bootColour:v.bootColour,boots:v.bootColour,bootSecondaryColour:v.bootSecondaryColour,shirtNumber:v.shirtNumber,sleeveLength:v.sleeveLength,shirtStyle:v.shirtStyle,sockHeight:v.sockHeight,wristTape:v.wristTape,matchAccessories:v.matchAccessories,runningStyle:v.runningStyle,shootingStyle:v.shootingStyle,goalCelebration:v.goalCelebration,freeKickStance:v.freeKickStance,penaltyRunUp:v.penaltyRunUp});applyPhysicalProfileToRuntime(player);return v}
+  function visualIdentityForContext(player={},options={}){const v=resolvedVisualIdentity(player),weather=String(options.weather||'').toLowerCase();if(v.matchAccessories==='Cold Weather'&&!(weather.includes('snow')||weather.includes('cold')))return {...v,matchAccessories:'None'};return v}
+  function visualIdentityFingerprint(player={}){const v=resolvedVisualIdentity(player);return ['skinTone','hairStyle','hairColour','headShape','jawStyle','noseStyle','eyeStyle','browStyle','hairlineStyle','facialHair','complexion','bodyBuild','heightCm','weightKg','bootModel','bootColour','bootSecondaryColour','shirtNumber','sleeveLength','shirtStyle','sockHeight','wristTape','matchAccessories','runningStyle','shootingStyle','goalCelebration','freeKickStance','penaltyRunUp'].map(k=>`${k}:${v[k]}`).join('|')}
+  window.__CIRCLE_XI_VISUAL_IDENTITY_VERSION='v77.8-hairstyle-authenticity';
+  window.__circleVisualIdentity={version:V775_VISUAL_IDENTITY_VERSION,resolve:resolvedVisualIdentity,ensure:ensureVisualIdentity,forContext:visualIdentityForContext,fingerprint:visualIdentityFingerprint};
+
+
+  // V77.6 Face + Hair Identity helpers. Close-up contexts prioritise facial
+  // structure while match/training contexts prioritise readable head/hair silhouettes.
+  const V776_FACE_HAIR_VERSION='77.7.0';
+  const V776_HAIR_META={
+    'Short':{match:2,media:3,motion:0,length:'Short'},'Fade':{match:3,media:4,motion:0,length:'Short'},'Low Fade':{match:3,media:4,motion:0,length:'Short'},'High Fade':{match:4,media:4,motion:0,length:'Short'},'Taper':{match:3,media:4,motion:0,length:'Short'},'Waves':{match:3,media:4,motion:0,length:'Short'},'Buzz Cut':{match:2,media:3,motion:0,length:'Short'},'Shaved':{match:1,media:2,motion:0,length:'Very short'},
+    'Afro':{match:5,media:5,motion:.05,length:'Medium'},'Braids':{match:5,media:5,motion:.72,length:'Long'},'Cornrows':{match:4,media:5,motion:.12,length:'Short'},'Curly Top':{match:4,media:5,motion:.18,length:'Medium'},'Curls':{match:4,media:5,motion:.24,length:'Medium'},'Twists':{match:5,media:5,motion:.55,length:'Medium'},'Mohawk':{match:5,media:5,motion:.10,length:'Medium'},'Locs':{match:5,media:5,motion:.82,length:'Long'},'Pony Tail':{match:5,media:5,motion:.90,length:'Long'},'Long Hair':{match:5,media:5,motion:.88,length:'Long'}
+  };
+  function v776HairMeta(style='Short'){return V776_HAIR_META[style]||V776_HAIR_META.Short}
+  function v776ImpactLabel(n){return ['Low','Low','Medium','High','Very High','Very High'][clamp(Number(n)||1,1,5)]}
+  function traceFaceSilhouetteV776(ctx,cx,cy,rx,ry,headShape='Oval',jawStyle='Balanced'){
+    const hs={Oval:{temple:.96,cheek:.98,top:.92,chin:.58},Round:{temple:1.03,cheek:1.04,top:.98,chin:.69},Square:{temple:1.05,cheek:1.04,top:.98,chin:.88},Long:{temple:.91,cheek:.93,top:.90,chin:.60},Diamond:{temple:.91,cheek:1.07,top:.90,chin:.55}}[headShape]||{temple:.96,cheek:.98,top:.92,chin:.58};
+    const jaw={Soft:{width:.72,drop:.00,round:.78},Balanced:{width:.78,drop:.01,round:.58},Defined:{width:.83,drop:.025,round:.38},Wide:{width:.94,drop:.015,round:.42}}[jawStyle]||{width:.78,drop:.01,round:.58};
+    const topY=cy-ry,templeY=cy-ry*.43,cheekY=cy+ry*.18,jawY=cy+ry*.66,chinY=cy+ry*(.98+jaw.drop),jawX=rx*jaw.width,chinHalf=rx*hs.chin;
+    ctx.beginPath();ctx.moveTo(cx,topY);
+    ctx.bezierCurveTo(cx+rx*hs.top,topY+ry*.02,cx+rx*hs.temple,templeY-ry*.10,cx+rx*hs.temple,templeY);
+    ctx.bezierCurveTo(cx+rx*hs.cheek,cy-ry*.03,cx+rx*hs.cheek,cheekY,cx+jawX,jawY);
+    ctx.quadraticCurveTo(cx+chinHalf,jawY+ry*.25,cx,chinY);
+    ctx.quadraticCurveTo(cx-chinHalf,jawY+ry*.25,cx-jawX,jawY);
+    ctx.bezierCurveTo(cx-rx*hs.cheek,cheekY,cx-rx*hs.cheek,cy-ry*.03,cx-rx*hs.temple,templeY);
+    ctx.bezierCurveTo(cx-rx*hs.temple,templeY-ry*.10,cx-rx*hs.top,topY+ry*.02,cx,topY);ctx.closePath();
+  }
+  function drawHairlineV776(ctx,cx,cy,rx,style='Rounded',colour='#21140d',scale=1){
+    const y=cy,span=rx*.82;ctx.save();ctx.strokeStyle=mixColour(colour,'#ffffff',.06);ctx.lineWidth=Math.max(.22,.62*scale);ctx.lineCap='round';ctx.beginPath();
+    if(style==='Straight'){ctx.moveTo(cx-span, y);ctx.lineTo(cx+span,y)}
+    else if(style==='Sharp'){ctx.moveTo(cx-span,y+.5*scale);ctx.lineTo(cx,y-1.8*scale);ctx.lineTo(cx+span,y+.5*scale)}
+    else if(style==='Widow’s Peak'){ctx.moveTo(cx-span,y+.6*scale);ctx.quadraticCurveTo(cx-span*.42,y-.4*scale,cx,y+2.0*scale);ctx.quadraticCurveTo(cx+span*.42,y-.4*scale,cx+span,y+.6*scale)}
+    else if(style==='Curved'){ctx.moveTo(cx-span,y+.6*scale);ctx.quadraticCurveTo(cx,y-2.1*scale,cx+span,y+.6*scale)}
+    else if(style==='Receding'){ctx.moveTo(cx-span,y+1.5*scale);ctx.quadraticCurveTo(cx-span*.48,y-1.0*scale,cx-span*.20,y+.6*scale);ctx.moveTo(cx+span*.20,y+.6*scale);ctx.quadraticCurveTo(cx+span*.48,y-1.0*scale,cx+span,y+1.5*scale)}
+    else {ctx.moveTo(cx-span,y+.8*scale);ctx.quadraticCurveTo(cx,y-1.2*scale,cx+span,y+.8*scale)}
+    ctx.stroke();ctx.restore();
+  }
+  function drawFacialHairV776(ctx,appearance,cx,cy,rx,ry,scale=1,compact=false){
+    const type=appearance?.facialHair||'Clean Shaven';if(type==='Clean Shaven')return;const col=shadeColour(appearance?.hairColour||'#21140d',-.06),alpha=type==='Stubble'?.28:type==='Goatee'?.78:.88;
+    ctx.save();ctx.fillStyle=col;ctx.strokeStyle=col;ctx.globalAlpha=alpha;ctx.lineCap='round';ctx.lineJoin='round';
+    if(type==='Stubble'){
+      traceFaceSilhouetteV776(ctx,cx,cy+ry*.28,rx*.77,ry*.67,'Oval',appearance?.jawStyle||'Balanced');ctx.clip();for(let i=0;i<(compact?14:36);i++){const a=(i*2.399),r=(.18+.72*((i*37)%17)/17),x=cx+Math.cos(a)*rx*.66*r,y=cy+ry*.27+Math.sin(a)*ry*.53*r;if(y>cy+ry*.16){ctx.beginPath();ctx.arc(x,y,Math.max(.08,.22*scale),0,Math.PI*2);ctx.fill()}}
+    }else if(type==='Goatee'){
+      ctx.lineWidth=Math.max(.45,1.7*scale);ctx.beginPath();ctx.moveTo(cx-rx*.20,cy+ry*.43);ctx.quadraticCurveTo(cx,cy+ry*.54,cx+rx*.20,cy+ry*.43);ctx.stroke();ctx.beginPath();ctx.moveTo(cx-rx*.18,cy+ry*.55);ctx.quadraticCurveTo(cx,cy+ry*.94,cx+rx*.18,cy+ry*.55);ctx.stroke();
+    }else{
+      const full=type==='Full Beard',bottom=cy+ry*(full?1.18:.98);ctx.beginPath();ctx.moveTo(cx-rx*.66,cy+ry*.31);ctx.quadraticCurveTo(cx-rx*.70,cy+ry*.72,cx-rx*.38,bottom-ry*.12);ctx.quadraticCurveTo(cx,bottom+ry*(full?.10:0),cx+rx*.38,bottom-ry*.12);ctx.quadraticCurveTo(cx+rx*.70,cy+ry*.72,cx+rx*.66,cy+ry*.31);ctx.quadraticCurveTo(cx,cy+ry*.55,cx-rx*.66,cy+ry*.31);ctx.fill();ctx.globalAlpha=Math.min(1,alpha+.08);ctx.lineWidth=Math.max(.45,1.25*scale);ctx.beginPath();ctx.moveTo(cx-rx*.28,cy+ry*.43);ctx.quadraticCurveTo(cx,cy+ry*.54,cx+rx*.28,cy+ry*.43);ctx.stroke();
+    }
+    ctx.restore();
+  }
+  function drawFaceFeaturesV776(ctx,appearance,cx,cy,rx,ry,scale=1,{side=false,back=false,media=false,expression='neutral'}={}){
+    if(back)return;const skin=appearance.skinTone||'#7b4b2a',hair=appearance.hairColour||'#21140d';
+    const eyeSpace=appearance.eyeStyle==='Wide'?.39:appearance.eyeStyle==='Narrow'?.28:.33,eyeY=cy+ry*.12,eyeRX=(appearance.eyeStyle==='Deep set'?.07:.085)*rx,eyeRY=.052*ry;
+    ctx.fillStyle='#13201b';if(side){ctx.beginPath();ctx.ellipse(cx+(rx*.48),eyeY,eyeRX,eyeRY,0,0,Math.PI*2);ctx.fill()}else{ctx.beginPath();ctx.ellipse(cx-rx*eyeSpace,eyeY,eyeRX,eyeRY,0,0,Math.PI*2);ctx.ellipse(cx+rx*eyeSpace,eyeY,eyeRX,eyeRY,0,0,Math.PI*2);ctx.fill()}
+    const browW=appearance.browStyle==='Thick'?1.10:appearance.browStyle==='Fine'?.82:1,browLift=appearance.browStyle==='Arched'?.10:.035,browTilt=expression==='confident'?-.035:expression==='concerned'?.05:0;ctx.strokeStyle=shadeColour(hair,-.08);ctx.lineWidth=Math.max(.22,(appearance.browStyle==='Thick'?.055:.036)*rx);ctx.beginPath();
+    if(!side){ctx.moveTo(cx-rx*.48*browW,cy-ry*(.03+browTilt));ctx.quadraticCurveTo(cx-rx*.32,cy-ry*(browLift+.11),cx-rx*.12,cy-ry*.035);ctx.moveTo(cx+rx*.12,cy-ry*.035);ctx.quadraticCurveTo(cx+rx*.32,cy-ry*(browLift+.11),cx+rx*.48*browW,cy-ry*(.03+browTilt));ctx.stroke()}
+    const nw=appearance.noseStyle==='Wide'?.13:appearance.noseStyle==='Small'?.07:.095,nl=appearance.noseStyle==='Long'?.35:.28;ctx.strokeStyle=shadeColour(skin,-.24);ctx.lineWidth=Math.max(.18,.025*rx);ctx.beginPath();
+    if(side){const sign=1;ctx.moveTo(cx+rx*.36,cy+ry*.11);ctx.quadraticCurveTo(cx+rx*(.55+nw),cy+ry*.24,cx+rx*(.42+nw),cy+ry*.37);ctx.lineTo(cx+rx*.31,cy+ry*.36)}else{ctx.moveTo(cx,cy+ry*.10);ctx.lineTo(cx-rx*nw*.45,cy+ry*(.10+nl));ctx.lineTo(cx+rx*nw,cy+ry*(.12+nl))}ctx.stroke();
+    drawFacialHairV776(ctx,appearance,cx,cy,rx,ry,scale,!media);
+    if(appearance.complexion!=='Clear'&&media){ctx.fillStyle=shadeColour(skin,-.18);ctx.globalAlpha=.20;const dots=appearance.complexion==='Freckles'?9:5;for(let i=0;i<dots;i++){ctx.beginPath();ctx.arc(cx-rx*.42+i*(rx*.84/Math.max(1,dots-1)),cy+ry*(.25+(i%2)*.07),Math.max(.2,.018*rx),0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1}
+    const mouthY=cy+ry*.67,smile=expression==='happy'?-.07:expression==='concerned'?.06:0;ctx.strokeStyle='rgba(70,20,18,.62)';ctx.lineWidth=Math.max(.18,.025*rx);ctx.beginPath();ctx.moveTo(cx-rx*.25,mouthY);ctx.quadraticCurveTo(cx,mouthY+ry*smile,cx+rx*.25,mouthY);ctx.stroke();
+  }
+  function v776MediaExpression(player={},context='MEDIA'){const c=String(context||'MEDIA').toLowerCase();if(c.includes('award')||c.includes('goal')||c.includes('transfer')||c.includes('contract'))return 'happy';if(c.includes('injury')||c.includes('loss'))return 'concerned';if(player.careerPersonality==='Confident'||player.careerPersonality==='Leader')return 'confident';return 'neutral'}
   // v42 tempo retune: Physical attributes still separate players, but the shared
   // football baseline is slower and acceleration builds more naturally.
-  const MATCH_PACE_SCALE = 0.64;
+  // Measured against the pitch's own scale (10 units = 1 m) a sprint at 0.64 came out at
+  // 11.5 m/s, faster than the 100 m world-record average. 0.56 puts the ceiling at roughly
+  // 10 m/s: still at the very top of what a human does, which suits an arcade match, but no
+  // longer physically impossible. Applies to AI and user alike, so duels are unchanged.
+  const MATCH_PACE_SCALE = 0.56;
   const MATCH_ACCELERATION_RESPONSE_SCALE = 0.78;
   // v47: restore believable AI pace after the v46 reduction made opponents too passive.
   // The shared match tempo remains slower than the old arcade build, but AI now reaches its
@@ -64,6 +191,82 @@
   // Most catch-up time a single frame may work through (~15 steps). Anything slower than this
   // gives up real time rather than queueing unbounded work.
   const MATCH_CATCHUP_CEILING = 0.25;
+  // A user-taken restart holds play while the match clock keeps running, so the window the
+  // player gets to choose an action has to be bounded. Without a cap an untaken free kick
+  // froze the ball on the spot for the rest of the half. The player is warned first.
+  // 15 s sounded generous until you price it in match time: a quick match compresses 90 minutes
+  // into 240 s, so 15 s of standing over the ball costs 5.6 minutes of the clock. 9 s is still
+  // an unhurried window to pick a set-piece action and costs about 3.4. A penalty gets longer,
+  // because it is a deliberate one-on-one moment the player is meant to sit with.
+  const USER_RESTART_GRACE = 9;
+  const USER_RESTART_WARN_AT = 5;
+  const USER_PENALTY_GRACE_MULTIPLIER = 2;
+  // Ball speed below which a collection is a loose-ball recovery, not an interception,
+  // and the minimum match-seconds between two counted interceptions.
+  // The pitch is built at exactly ten units to the metre (1050x680 units = 105x68 m, and the
+  // penalty area's 165-unit depth is a correct 16.5 m). The goal did not follow that scale:
+  // it was 150 units, i.e. 15 m, against a regulation 7.32 m, which is the main reason shots
+  // converted at roughly three times a realistic rate.
+  const PITCH_UNITS_PER_METRE = 10;
+  // 110 units = 11 m. Regulation is 7.32 m (73 units) and the pitch is built to exact scale,
+  // so this is still generous - but it is a calibration, not a compromise made blindly.
+  // Measured: at the old 150 (15 m) matches finished 4-2 with team xG near 6, because almost
+  // every shot on target went in. At a true 73 the same matches finished 0-0 off 11 shots and
+  // ~5 xG, because the shooting model's accuracy spread and the keeper's dive are tuned in
+  // absolute units rather than as a fraction of the mouth. 110 produces believable scorelines
+  // with the shooting model as it stands. Taking the goal to a real 7.32 m needs the shot
+  // accuracy and xG models re-tuned with it; that is a balance pass, not a constant change.
+  const GOAL_WIDTH_UNITS = 110;
+  // Goalkeeper dive reaches were hand-tuned against the old oversized goal, so they are
+  // expressed relative to it and rescaled with the mouth. Without this the keeper would cover
+  // the whole of a regulation goal and almost nothing would go in.
+  const GOAL_REFERENCE_WIDTH = 150;
+  // Every hand-tuned offset measured in from a goalpost (keeper reaches, near/far post targets,
+  // cutback windows) was a raw unit count chosen against the 150-unit mouth. They all have to
+  // shrink with it, or a clamp like (goalTop+42 .. goalBottom-42) inverts on a real goal.
+  const GOAL_GEOMETRY_SCALE = GOAL_WIDTH_UNITS / GOAL_REFERENCE_WIDTH;
+  // checkInjury rolls once per contact and a match produces roughly this many contacts.
+  // At the old uncalibrated rate (~3.4% a roll) that compounded to a ~68% chance of being
+  // injured in any given match; a real outfield player misses time far more rarely.
+  // The calibration brings a full match to roughly a 10% chance, and MATCH_CONTACTS_PER_GAME
+  // lets the career screen quote that same figure instead of the unrelated training number.
+  // Shot selection. Congestion penalties saturate rather than scaling without limit, and the
+  // box range is the penalty area (165 units = 16.5 m) so "in the box with a sight of goal"
+  // always produces an attempt. Tuned against combined shots per match: real football averages
+  // around 25, the engine was producing 4-11 before these.
+  // A match compresses 90 minutes into a few real minutes, but restart ceremonies were written
+  // in uncompressed real seconds, so they ate a wildly disproportionate share of the clock:
+  // measured at 41% of match time in restarts, against 29% loose ball and only 30% actual
+  // controlled possession. That, not shooting reluctance, is what held shots down - the ball
+  // reached the attacking third in just 22% of open play. Scaling the AI-side restart phases
+  // buys that time back. User-taken restarts are untouched: they keep the full grace period.
+  // How long a pass/shoot press survives while the player cannot yet play it.
+  const USER_ACTION_BUFFER_WINDOW=0.42;
+  const RESTART_TEMPO = 0.45;
+  // Measured: 99 tackle contacts a match producing only 9 fouls - a 9% conversion, against a
+  // real game where catching the man before the ball is a foul far more often than not. The
+  // shortfall was entirely in player-first challenges (ball-first fouls are deliberately rare
+  // and stay so). Raising these trades against shot volume, because every extra foul is another
+  // dead-ball restart eating a compressed clock, so RESTART_TEMPO drops alongside them.
+  // Calibrated so a continuously-active match reports around 11 km rather than 26. The ceiling
+  // is just above the highest distance ever recorded in a professional match.
+  const DISTANCE_INTENSITY_CALIBRATION = 0.42;
+  const DISTANCE_REPORT_CEILING = 14000;
+  const FOUL_BASE_STANDING = 0.14;
+  const FOUL_BASE_SLIDE = 0.30;
+  const SHOT_PRESSURE_CAP = 3;
+  const SHOT_LANE_CAP = 3;
+  const SHOT_SCORE_RANGED = 0.38;
+  const SHOT_SCORE_CLOSE = 0.26;
+  const SHOT_BOX_RANGE = 165;
+  const CARD_YELLOW_THRESHOLD = 0.86;
+  const MATCH_INJURY_CALIBRATION = 0.10;
+  const MATCH_CONTACTS_PER_GAME = 32;
+  const INTERCEPTION_MIN_SPEED = 120;
+  const INTERCEPTION_COOLDOWN = 1.5;
+  // Match rating is a running sum of event rewards. Without a ceiling per category a single
+  // repeatable event dominated the whole rating, so each category can only contribute so much.
+  const RATING_CATEGORY_CAP = {interception:1.1,tackle:1.1,pass:1.6,foul:0.6,block:0.6,pressure:0.5,dribble:1.0,duel:0.7,save:1.8};
   const REPLAY_FRAME_INTERVAL = 1 / 20;
   const REPLAY_BUFFER_FRAMES = 480;
   // Pull the match camera back slightly so more of the pitch remains visible.
@@ -172,8 +375,10 @@
   // Season snapshot: club memberships are frozen when a career is created, then
   // promotion/relegation and UEFA qualification evolve inside that save.
   const CXI_DATABASE_SEASON='2026/27';
-  const CXI_VERIFIED_FOOTBALL_2026={"england":{"season":"2026/27","verified":true,"country":"england","divisions":[{"id":"eng-pl","name":"Premier League","level":1,"expectedSize":20,"clubs":[{"name":"Arsenal","abbr":"ARS","primary":"#ef0107","secondary":"#ffffff","pattern":"sleeves","reputation":90,"stadium":"Emirates Stadium","uefa2026":"ucl-league-phase"},{"name":"Aston Villa","abbr":"AV","primary":"#670e36","secondary":"#95bfe5","pattern":"sleeves","reputation":86,"stadium":"Villa Park","uefa2026":"ucl-league-phase"},{"name":"Bournemouth","abbr":"BOU","primary":"#c8102e","secondary":"#111111","pattern":"stripes","reputation":82,"stadium":"Vitality Stadium","uefa2026":"uel-league-phase"},{"name":"Brentford","abbr":"BRE","primary":"#e30613","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Gtech Community Stadium","uefa2026":null},{"name":"Brighton & Hove Albion","abbr":"BHA","primary":"#0057b8","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Amex Stadium","uefa2026":"uecl-playoff"},{"name":"Chelsea","abbr":"CHE","primary":"#034694","secondary":"#ffffff","pattern":"solid","reputation":86,"stadium":"Stamford Bridge","uefa2026":null},{"name":"Coventry City","abbr":"COV","primary":"#69b3e7","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Coventry Building Society Arena","uefa2026":null},{"name":"Crystal Palace","abbr":"CP","primary":"#1b458f","secondary":"#c4122e","pattern":"stripes","reputation":82,"stadium":"Selhurst Park","uefa2026":"uel-league-phase"},{"name":"Everton","abbr":"EVE","primary":"#003399","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Hill Dickinson Stadium","uefa2026":null},{"name":"Fulham","abbr":"FUL","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":82,"stadium":"Craven Cottage","uefa2026":null},{"name":"Hull City","abbr":"HUL","primary":"#f5a12d","secondary":"#111111","pattern":"stripes","reputation":82,"stadium":"MKM Stadium","uefa2026":null},{"name":"Ipswich Town","abbr":"IPS","primary":"#0044aa","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Portman Road","uefa2026":null},{"name":"Leeds United","abbr":"LU","primary":"#ffffff","secondary":"#1d428a","pattern":"solid","reputation":82,"stadium":"Elland Road","uefa2026":null},{"name":"Liverpool","abbr":"LIV","primary":"#c8102e","secondary":"#ffffff","pattern":"solid","reputation":91,"stadium":"Anfield","uefa2026":"ucl-league-phase"},{"name":"Manchester City","abbr":"MCI","primary":"#6cabdd","secondary":"#ffffff","pattern":"solid","reputation":92,"stadium":"Etihad Stadium","uefa2026":"ucl-league-phase"},{"name":"Manchester United","abbr":"MUN","primary":"#da291c","secondary":"#ffffff","pattern":"solid","reputation":86,"stadium":"Old Trafford","uefa2026":"ucl-league-phase"},{"name":"Newcastle United","abbr":"NEW","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":84,"stadium":"St James’ Park","uefa2026":null},{"name":"Nottingham Forest","abbr":"NFO","primary":"#dd0000","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"City Ground","uefa2026":null},{"name":"Sunderland","abbr":"SUN","primary":"#e1001a","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Stadium of Light","uefa2026":"uel-league-phase"},{"name":"Tottenham Hotspur","abbr":"TOT","primary":"#ffffff","secondary":"#132257","pattern":"solid","reputation":84,"stadium":"Tottenham Hotspur Stadium","uefa2026":null}]},{"id":"eng-champ","name":"Championship","level":2,"expectedSize":24,"clubs":[{"name":"Birmingham City","abbr":"BC","primary":"#0032a0","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Birmingham City Stadium","uefa2026":null},{"name":"Blackburn Rovers","abbr":"BR","primary":"#0055a5","secondary":"#ffffff","pattern":"halves","reputation":70,"stadium":"Blackburn Rovers Stadium","uefa2026":null},{"name":"Bolton Wanderers","abbr":"BW","primary":"#ffffff","secondary":"#001b69","pattern":"solid","reputation":70,"stadium":"Bolton Wanderers Stadium","uefa2026":null},{"name":"Bristol City","abbr":"BC","primary":"#e21a22","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Bristol City Stadium","uefa2026":null},{"name":"Burnley","abbr":"BUR","primary":"#6c1d45","secondary":"#99d6ea","pattern":"sleeves","reputation":70,"stadium":"Burnley Stadium","uefa2026":null},{"name":"Cardiff City","abbr":"CC","primary":"#0070b5","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Cardiff City Stadium","uefa2026":null},{"name":"Charlton Athletic","abbr":"CA","primary":"#d71920","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Charlton Athletic Stadium","uefa2026":null},{"name":"Derby County","abbr":"DC","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"Derby County Stadium","uefa2026":null},{"name":"Lincoln City","abbr":"LC","primary":"#e30613","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"Lincoln City Stadium","uefa2026":null},{"name":"Middlesbrough","abbr":"MID","primary":"#e2001a","secondary":"#ffffff","pattern":"chestBand","reputation":70,"stadium":"Middlesbrough Stadium","uefa2026":null},{"name":"Millwall","abbr":"MIL","primary":"#001e4a","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Millwall Stadium","uefa2026":null},{"name":"Norwich City","abbr":"NC","primary":"#fff200","secondary":"#00a650","pattern":"solid","reputation":70,"stadium":"Norwich City Stadium","uefa2026":null},{"name":"Portsmouth","abbr":"POR","primary":"#001489","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Portsmouth Stadium","uefa2026":null},{"name":"Preston North End","abbr":"PNE","primary":"#ffffff","secondary":"#001e62","pattern":"solid","reputation":70,"stadium":"Preston North End Stadium","uefa2026":null},{"name":"Queens Park Rangers","abbr":"QPR","primary":"#0050a4","secondary":"#ffffff","pattern":"hoops","reputation":70,"stadium":"Queens Park Rangers Stadium","uefa2026":null},{"name":"Sheffield United","abbr":"SHU","primary":"#ee2737","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"Sheffield United Stadium","uefa2026":null},{"name":"Southampton","abbr":"SOU","primary":"#d71920","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"Southampton Stadium","uefa2026":null},{"name":"Stoke City","abbr":"SC","primary":"#e03a3e","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"Stoke City Stadium","uefa2026":null},{"name":"Swansea City","abbr":"SC","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"Swansea City Stadium","uefa2026":null},{"name":"Watford","abbr":"WAT","primary":"#fbee23","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"Watford Stadium","uefa2026":null},{"name":"West Bromwich Albion","abbr":"WBA","primary":"#002f68","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"West Bromwich Albion Stadium","uefa2026":null},{"name":"West Ham United","abbr":"WHU","primary":"#7a263a","secondary":"#1bb1e7","pattern":"sleeves","reputation":70,"stadium":"West Ham United Stadium","uefa2026":null},{"name":"Wolverhampton Wanderers","abbr":"WOL","primary":"#fdb913","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"Wolverhampton Wanderers Stadium","uefa2026":null},{"name":"Wrexham","abbr":"WRE","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Wrexham Stadium","uefa2026":null}]},{"id":"eng-l1","name":"League One","level":3,"expectedSize":24,"clubs":[{"name":"AFC Wimbledon","abbr":"WIM","primary":"#003b73","secondary":"#ffd100","pattern":"solid","reputation":61,"stadium":"AFC Wimbledon Stadium","uefa2026":null},{"name":"Barnsley","abbr":"BAR","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Barnsley Stadium","uefa2026":null},{"name":"Blackpool","abbr":"BLA","primary":"#f58025","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Blackpool Stadium","uefa2026":null},{"name":"Bradford City","abbr":"BC","primary":"#f7a600","secondary":"#7a263a","pattern":"stripes","reputation":61,"stadium":"Bradford City Stadium","uefa2026":null},{"name":"Bromley","abbr":"BRO","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":61,"stadium":"Bromley Stadium","uefa2026":null},{"name":"Burton Albion","abbr":"BA","primary":"#f7a600","secondary":"#111111","pattern":"solid","reputation":61,"stadium":"Burton Albion Stadium","uefa2026":null},{"name":"Cambridge United","abbr":"CU","primary":"#f7a600","secondary":"#111111","pattern":"stripes","reputation":61,"stadium":"Cambridge United Stadium","uefa2026":null},{"name":"Doncaster Rovers","abbr":"DR","primary":"#e30613","secondary":"#ffffff","pattern":"hoops","reputation":61,"stadium":"Doncaster Rovers Stadium","uefa2026":null},{"name":"Huddersfield Town","abbr":"HT","primary":"#0072ce","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"Huddersfield Town Stadium","uefa2026":null},{"name":"Leicester City","abbr":"LC","primary":"#003090","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Leicester City Stadium","uefa2026":null},{"name":"Leyton Orient","abbr":"LO","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Leyton Orient Stadium","uefa2026":null},{"name":"Luton Town","abbr":"LT","primary":"#f78f1e","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Luton Town Stadium","uefa2026":null},{"name":"Mansfield Town","abbr":"MT","primary":"#f7c600","secondary":"#003087","pattern":"solid","reputation":61,"stadium":"Mansfield Town Stadium","uefa2026":null},{"name":"Milton Keynes Dons","abbr":"MKD","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":61,"stadium":"Milton Keynes Dons Stadium","uefa2026":null},{"name":"Notts County","abbr":"NC","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"Notts County Stadium","uefa2026":null},{"name":"Oxford United","abbr":"OU","primary":"#fbb700","secondary":"#001a5b","pattern":"solid","reputation":61,"stadium":"Oxford United Stadium","uefa2026":null},{"name":"Peterborough United","abbr":"PU","primary":"#0050b5","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Peterborough United Stadium","uefa2026":null},{"name":"Plymouth Argyle","abbr":"PA","primary":"#004a25","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Plymouth Argyle Stadium","uefa2026":null},{"name":"Reading","abbr":"REA","primary":"#0054a6","secondary":"#ffffff","pattern":"hoops","reputation":61,"stadium":"Reading Stadium","uefa2026":null},{"name":"Sheffield Wednesday","abbr":"SHW","primary":"#0057b8","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"Sheffield Wednesday Stadium","uefa2026":null},{"name":"Stevenage","abbr":"STE","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Stevenage Stadium","uefa2026":null},{"name":"Stockport County","abbr":"SC","primary":"#0057b8","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Stockport County Stadium","uefa2026":null},{"name":"Wigan Athletic","abbr":"WA","primary":"#0057b8","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"Wigan Athletic Stadium","uefa2026":null},{"name":"Wycombe Wanderers","abbr":"WW","primary":"#2b6eb5","secondary":"#78b7e5","pattern":"quarters","reputation":61,"stadium":"Wycombe Wanderers Stadium","uefa2026":null}]}],"meta":{"name":"England","domesticCups":[["fa-cup","FA Cup","🏆"],["efl-cup","EFL Cup","🛡️"]],"topSize":20,"ucl":4}},"spain":{"season":"2026/27","verified":true,"country":"spain","divisions":[{"id":"esp-laliga","name":"LaLiga EA Sports","level":1,"expectedSize":20,"clubs":[{"name":"Athletic Club","abbr":"ATH","primary":"#ee2523","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"San Mamés","uefa2026":null},{"name":"Atlético de Madrid","abbr":"ATM","primary":"#cb3524","secondary":"#ffffff","pattern":"stripes","reputation":88,"stadium":"Riyadh Air Metropolitano","uefa2026":"ucl-league-phase"},{"name":"CA Osasuna","abbr":"CO","primary":"#d61120","secondary":"#0a2340","pattern":"solid","reputation":82,"stadium":"CA Osasuna Stadium","uefa2026":null},{"name":"Celta Vigo","abbr":"CV","primary":"#a9d0f5","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Celta Vigo Stadium","uefa2026":"uel-league-phase"},{"name":"Deportivo Alavés","abbr":"DA","primary":"#005baa","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Deportivo Alavés Stadium","uefa2026":null},{"name":"Elche CF","abbr":"EC","primary":"#ffffff","secondary":"#15803d","pattern":"chestBand","reputation":82,"stadium":"Elche CF Stadium","uefa2026":null},{"name":"FC Barcelona","abbr":"BAR","primary":"#004d98","secondary":"#a50044","pattern":"stripes","reputation":91,"stadium":"Spotify Camp Nou","uefa2026":"ucl-league-phase"},{"name":"Getafe CF","abbr":"GC","primary":"#004f9f","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Getafe CF Stadium","uefa2026":"uecl-playoff"},{"name":"Levante UD","abbr":"LU","primary":"#0050a4","secondary":"#a50044","pattern":"stripes","reputation":82,"stadium":"Levante UD Stadium","uefa2026":null},{"name":"Málaga CF","abbr":"MC","primary":"#5eb6e4","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Málaga CF Stadium","uefa2026":null},{"name":"Racing Santander","abbr":"RS","primary":"#ffffff","secondary":"#15803d","pattern":"solid","reputation":82,"stadium":"Racing Santander Stadium","uefa2026":null},{"name":"Rayo Vallecano","abbr":"RV","primary":"#ffffff","secondary":"#e01e26","pattern":"sash","reputation":82,"stadium":"Rayo Vallecano Stadium","uefa2026":null},{"name":"RC Deportivo","abbr":"RD","primary":"#0055a5","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"RC Deportivo Stadium","uefa2026":null},{"name":"RCD Espanyol","abbr":"ESP","primary":"#0067b1","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"RCD Espanyol Stadium","uefa2026":null},{"name":"Real Betis","abbr":"BET","primary":"#0bb363","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Estadio de La Cartuja","uefa2026":"ucl-league-phase"},{"name":"Real Madrid","abbr":"RMA","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":94,"stadium":"Santiago Bernabéu","uefa2026":"ucl-league-phase"},{"name":"Real Sociedad","abbr":"RSO","primary":"#0067b1","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Real Sociedad Stadium","uefa2026":"uel-league-phase"},{"name":"Sevilla FC","abbr":"SF","primary":"#ffffff","secondary":"#d11010","pattern":"solid","reputation":82,"stadium":"Ramón Sánchez-Pizjuán","uefa2026":null},{"name":"Valencia CF","abbr":"VC","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":82,"stadium":"Mestalla","uefa2026":null},{"name":"Villarreal CF","abbr":"VIL","primary":"#fce216","secondary":"#111111","pattern":"solid","reputation":83,"stadium":"Estadio de la Cerámica","uefa2026":"ucl-league-phase"}]},{"id":"esp-segunda","name":"LaLiga Hypermotion","level":2,"expectedSize":22,"clubs":[{"name":"UD Almería","abbr":"UA","primary":"#ee1c25","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"UD Almería Stadium","uefa2026":null},{"name":"CD Castellón","abbr":"CC","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"CD Castellón Stadium","uefa2026":null},{"name":"UD Las Palmas","abbr":"ULP","primary":"#ffd700","secondary":"#0050a4","pattern":"solid","reputation":70,"stadium":"UD Las Palmas Stadium","uefa2026":null},{"name":"Burgos CF","abbr":"BC","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"Burgos CF Stadium","uefa2026":null},{"name":"SD Eibar","abbr":"SE","primary":"#0050a4","secondary":"#e30613","pattern":"stripes","reputation":70,"stadium":"SD Eibar Stadium","uefa2026":null},{"name":"Córdoba CF","abbr":"CC","primary":"#ffffff","secondary":"#15803d","pattern":"stripes","reputation":70,"stadium":"Córdoba CF Stadium","uefa2026":null},{"name":"Sporting de Gijón","abbr":"SDG","primary":"#e30613","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"Sporting de Gijón Stadium","uefa2026":null},{"name":"AD Ceuta","abbr":"AC","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"AD Ceuta Stadium","uefa2026":null},{"name":"Albacete Balompié","abbr":"AB","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"Albacete Balompié Stadium","uefa2026":null},{"name":"FC Andorra","abbr":"FA","primary":"#e30613","secondary":"#0050a4","pattern":"stripes","reputation":70,"stadium":"FC Andorra Stadium","uefa2026":null},{"name":"Granada CF","abbr":"GC","primary":"#c8102e","secondary":"#ffffff","pattern":"hoops","reputation":70,"stadium":"Granada CF Stadium","uefa2026":null},{"name":"Real Sociedad B","abbr":"RSB","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":70,"stadium":"Real Sociedad B Stadium","uefa2026":null},{"name":"CD Leganés","abbr":"CL","primary":"#0050a4","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"CD Leganés Stadium","uefa2026":null},{"name":"Real Valladolid","abbr":"RV","primary":"#6f2c91","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"Real Valladolid Stadium","uefa2026":null},{"name":"Cádiz CF","abbr":"CC","primary":"#ffeb00","secondary":"#0050a4","pattern":"solid","reputation":70,"stadium":"Cádiz CF Stadium","uefa2026":null},{"name":"Girona FC","abbr":"GF","primary":"#ce181e","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"Girona FC Stadium","uefa2026":null},{"name":"RCD Mallorca","abbr":"RM","primary":"#e01e26","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"RCD Mallorca Stadium","uefa2026":null},{"name":"Real Oviedo","abbr":"RO","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Real Oviedo Stadium","uefa2026":null},{"name":"CD Tenerife","abbr":"CT","primary":"#ffffff","secondary":"#0050a4","pattern":"solid","reputation":70,"stadium":"CD Tenerife Stadium","uefa2026":null},{"name":"CD Eldense","abbr":"CE","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":70,"stadium":"CD Eldense Stadium","uefa2026":null},{"name":"Celta Fortuna","abbr":"CF","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":70,"stadium":"Celta Fortuna Stadium","uefa2026":null},{"name":"CE Sabadell","abbr":"CS","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":70,"stadium":"CE Sabadell Stadium","uefa2026":null}]},{"id":"esp-pf1","name":"Primera Federación · Group 1","level":3,"expectedSize":20,"clubs":[{"name":"Unionistas de Salamanca","abbr":"UDS","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Unionistas de Salamanca Stadium","uefa2026":null},{"name":"SD Ponferradina","abbr":"SP","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"SD Ponferradina Stadium","uefa2026":null},{"name":"Zamora CF","abbr":"ZC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Zamora CF Stadium","uefa2026":null},{"name":"Cultural Leonesa","abbr":"CL","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Cultural Leonesa Stadium","uefa2026":null},{"name":"CD Mirandés","abbr":"CM","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"CD Mirandés Stadium","uefa2026":null},{"name":"CP Cacereño","abbr":"CC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"CP Cacereño Stadium","uefa2026":null},{"name":"AD Mérida","abbr":"AM","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"AD Mérida Stadium","uefa2026":null},{"name":"CD Coria","abbr":"CC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"CD Coria Stadium","uefa2026":null},{"name":"CD Extremadura","abbr":"CE","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"CD Extremadura Stadium","uefa2026":null},{"name":"CD Lugo","abbr":"CL","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"CD Lugo Stadium","uefa2026":null},{"name":"Pontevedra CF","abbr":"PC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Pontevedra CF Stadium","uefa2026":null},{"name":"Racing de Ferrol","abbr":"RDF","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Racing de Ferrol Stadium","uefa2026":null},{"name":"Deportivo Fabril","abbr":"DF","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Deportivo Fabril Stadium","uefa2026":null},{"name":"UD Ourense","abbr":"UO","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"UD Ourense Stadium","uefa2026":null},{"name":"Arenas Club","abbr":"AC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Arenas Club Stadium","uefa2026":null},{"name":"Athletic Club B","abbr":"ACB","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Athletic Club B Stadium","uefa2026":null},{"name":"Barakaldo CF","abbr":"BC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Barakaldo CF Stadium","uefa2026":null},{"name":"Real Unión","abbr":"RU","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Real Unión Stadium","uefa2026":null},{"name":"UD Logroñés","abbr":"UL","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"UD Logroñés Stadium","uefa2026":null},{"name":"Real Avilés","abbr":"RA","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Real Avilés Stadium","uefa2026":null}]},{"id":"esp-pf2","name":"Primera Federación · Group 2","level":3,"expectedSize":20,"clubs":[{"name":"Real Jaén","abbr":"RJ","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Real Jaén Stadium","uefa2026":null},{"name":"Juventud Torremolinos","abbr":"JT","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Juventud Torremolinos Stadium","uefa2026":null},{"name":"Antequera CF","abbr":"AC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Antequera CF Stadium","uefa2026":null},{"name":"Algeciras CF","abbr":"AC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Algeciras CF Stadium","uefa2026":null},{"name":"Águilas FC","abbr":"ÁF","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Águilas FC Stadium","uefa2026":null},{"name":"Real Murcia","abbr":"RM","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Real Murcia Stadium","uefa2026":null},{"name":"FC Cartagena","abbr":"FC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"FC Cartagena Stadium","uefa2026":null},{"name":"Hércules CF","abbr":"HC","primary":"#0050a4","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"Hércules CF Stadium","uefa2026":null},{"name":"Villarreal B","abbr":"VB","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Villarreal B Stadium","uefa2026":null},{"name":"UD Ibiza","abbr":"UI","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"UD Ibiza Stadium","uefa2026":null},{"name":"Gimnàstic Tarragona","abbr":"GT","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Gimnàstic Tarragona Stadium","uefa2026":null},{"name":"UE Sant Andreu","abbr":"USA","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"UE Sant Andreu Stadium","uefa2026":null},{"name":"CE Europa","abbr":"CE","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"CE Europa Stadium","uefa2026":null},{"name":"SD Huesca","abbr":"SH","primary":"#0050a4","secondary":"#e30613","pattern":"stripes","reputation":61,"stadium":"SD Huesca Stadium","uefa2026":null},{"name":"Real Zaragoza","abbr":"RZ","primary":"#ffffff","secondary":"#0050a4","pattern":"solid","reputation":61,"stadium":"Real Zaragoza Stadium","uefa2026":null},{"name":"CD Teruel","abbr":"CT","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"CD Teruel Stadium","uefa2026":null},{"name":"Rayo Majadahonda","abbr":"RM","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Rayo Majadahonda Stadium","uefa2026":null},{"name":"AD Alcorcón","abbr":"AA","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"AD Alcorcón Stadium","uefa2026":null},{"name":"Real Madrid Castilla","abbr":"RMC","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":61,"stadium":"Real Madrid Castilla Stadium","uefa2026":null},{"name":"Atlético Madrileño","abbr":"AM","primary":"#cb3524","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"Atlético Madrileño Stadium","uefa2026":null}]}],"meta":{"name":"Spain","domesticCups":[["copa-del-rey","Copa del Rey","🏆"],["supercopa","Supercopa","🛡️"]],"topSize":20,"ucl":4}},"germany":{"season":"2026/27","verified":true,"country":"germany","divisions":[{"id":"ger-bl","name":"Bundesliga","level":1,"expectedSize":18,"clubs":[{"name":"Bayern Munich","abbr":"BAY","primary":"#dc052d","secondary":"#ffffff","pattern":"solid","reputation":92,"stadium":"Allianz Arena","uefa2026":"ucl-league-phase"},{"name":"Borussia Dortmund","abbr":"BVB","primary":"#fde100","secondary":"#111111","pattern":"solid","reputation":86,"stadium":"Signal Iduna Park","uefa2026":"ucl-league-phase"},{"name":"RB Leipzig","abbr":"RL","primary":"#ffffff","secondary":"#dd013f","pattern":"solid","reputation":85,"stadium":"Red Bull Arena","uefa2026":"ucl-league-phase"},{"name":"VfB Stuttgart","abbr":"VS","primary":"#ffffff","secondary":"#e32219","pattern":"chestBand","reputation":82,"stadium":"MHPArena","uefa2026":"ucl-league-phase"},{"name":"TSG Hoffenheim","abbr":"TH","primary":"#0055a5","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"TSG Hoffenheim Stadium","uefa2026":"uel-league-phase"},{"name":"Bayer Leverkusen","abbr":"B04","primary":"#e32221","secondary":"#111111","pattern":"halves","reputation":86,"stadium":"BayArena","uefa2026":"uel-league-phase"},{"name":"SC Freiburg","abbr":"SF","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"SC Freiburg Stadium","uefa2026":"uecl-playoff"},{"name":"Eintracht Frankfurt","abbr":"SGE","primary":"#111111","secondary":"#e1000f","pattern":"stripes","reputation":82,"stadium":"Deutsche Bank Park","uefa2026":null},{"name":"FC Augsburg","abbr":"FA","primary":"#ffffff","secondary":"#e30613","pattern":"solid","reputation":82,"stadium":"FC Augsburg Stadium","uefa2026":null},{"name":"Mainz 05","abbr":"M0","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Mainz 05 Stadium","uefa2026":null},{"name":"Union Berlin","abbr":"UB","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Union Berlin Stadium","uefa2026":null},{"name":"Borussia Mönchengladbach","abbr":"BMG","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":82,"stadium":"Borussia Mönchengladbach Stadium","uefa2026":null},{"name":"Hamburger SV","abbr":"HSV","primary":"#ffffff","secondary":"#0050a4","pattern":"solid","reputation":82,"stadium":"Volksparkstadion","uefa2026":null},{"name":"1. FC Köln","abbr":"1FK","primary":"#ffffff","secondary":"#e30613","pattern":"solid","reputation":82,"stadium":"RheinEnergieSTADION","uefa2026":null},{"name":"Werder Bremen","abbr":"WB","primary":"#00854a","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Weserstadion","uefa2026":null},{"name":"Schalke 04","abbr":"S04","primary":"#004d9d","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Veltins-Arena","uefa2026":null},{"name":"SV Elversberg","abbr":"SE","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":82,"stadium":"SV Elversberg Stadium","uefa2026":null},{"name":"SC Paderborn","abbr":"SP","primary":"#0050a4","secondary":"#111111","pattern":"stripes","reputation":82,"stadium":"SC Paderborn Stadium","uefa2026":null}]},{"id":"ger-2bl","name":"2. Bundesliga","level":2,"expectedSize":18,"clubs":[{"name":"Arminia Bielefeld","abbr":"AB","primary":"#0050a4","secondary":"#111111","pattern":"stripes","reputation":70,"stadium":"Arminia Bielefeld Stadium","uefa2026":null},{"name":"VfL Bochum","abbr":"VB","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"VfL Bochum Stadium","uefa2026":null},{"name":"Eintracht Braunschweig","abbr":"EB","primary":"#f7d417","secondary":"#0050a4","pattern":"solid","reputation":70,"stadium":"Eintracht Braunschweig Stadium","uefa2026":null},{"name":"Energie Cottbus","abbr":"EC","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Energie Cottbus Stadium","uefa2026":null},{"name":"Darmstadt 98","abbr":"D9","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Darmstadt 98 Stadium","uefa2026":null},{"name":"Dynamo Dresden","abbr":"DD","primary":"#f7d417","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"Dynamo Dresden Stadium","uefa2026":null},{"name":"Greuther Fürth","abbr":"GF","primary":"#15803d","secondary":"#ffffff","pattern":"hoops","reputation":70,"stadium":"Greuther Fürth Stadium","uefa2026":null},{"name":"Hannover 96","abbr":"H9","primary":"#111111","secondary":"#15803d","pattern":"solid","reputation":70,"stadium":"Hannover 96 Stadium","uefa2026":null},{"name":"Heidenheim","abbr":"HEI","primary":"#e30613","secondary":"#0050a4","pattern":"solid","reputation":70,"stadium":"Heidenheim Stadium","uefa2026":null},{"name":"Hertha BSC","abbr":"HB","primary":"#0050a4","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"Hertha BSC Stadium","uefa2026":null},{"name":"Kaiserslautern","abbr":"KAI","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Kaiserslautern Stadium","uefa2026":null},{"name":"Karlsruher SC","abbr":"KS","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Karlsruher SC Stadium","uefa2026":null},{"name":"Holstein Kiel","abbr":"HK","primary":"#0050a4","secondary":"#e30613","pattern":"solid","reputation":70,"stadium":"Holstein Kiel Stadium","uefa2026":null},{"name":"Magdeburg","abbr":"MAG","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Magdeburg Stadium","uefa2026":null},{"name":"1. FC Nürnberg","abbr":"1FN","primary":"#7a263a","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"1. FC Nürnberg Stadium","uefa2026":null},{"name":"VfL Osnabrück","abbr":"VO","primary":"#6d28d9","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"VfL Osnabrück Stadium","uefa2026":null},{"name":"St. Pauli","abbr":"SP","primary":"#5b2c20","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"St. Pauli Stadium","uefa2026":null},{"name":"VfL Wolfsburg","abbr":"VW","primary":"#65b32e","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"VfL Wolfsburg Stadium","uefa2026":null}]},{"id":"ger-3l","name":"3. Liga","level":3,"expectedSize":20,"clubs":[{"name":"Alemannia Aachen","abbr":"AA","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Alemannia Aachen Stadium","uefa2026":null},{"name":"MSV Duisburg","abbr":"MD","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"MSV Duisburg Stadium","uefa2026":null},{"name":"Fortuna Düsseldorf","abbr":"FD","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Fortuna Düsseldorf Stadium","uefa2026":null},{"name":"Rot-Weiss Essen","abbr":"RWE","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Rot-Weiss Essen Stadium","uefa2026":null},{"name":"Sonnenhof Großaspach","abbr":"SG","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Sonnenhof Großaspach Stadium","uefa2026":null},{"name":"TSV Havelse","abbr":"TH","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"TSV Havelse Stadium","uefa2026":null},{"name":"TSG Hoffenheim II","abbr":"THI","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"TSG Hoffenheim II Stadium","uefa2026":null},{"name":"FC Ingolstadt","abbr":"FI","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"FC Ingolstadt Stadium","uefa2026":null},{"name":"Fortuna Köln","abbr":"FK","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Fortuna Köln Stadium","uefa2026":null},{"name":"Viktoria Köln","abbr":"VK","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Viktoria Köln Stadium","uefa2026":null},{"name":"Waldhof Mannheim","abbr":"WM","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Waldhof Mannheim Stadium","uefa2026":null},{"name":"SV Meppen","abbr":"SM","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"SV Meppen Stadium","uefa2026":null},{"name":"Preußen Münster","abbr":"PM","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Preußen Münster Stadium","uefa2026":null},{"name":"Jahn Regensburg","abbr":"JR","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Jahn Regensburg Stadium","uefa2026":null},{"name":"Hansa Rostock","abbr":"HR","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Hansa Rostock Stadium","uefa2026":null},{"name":"1. FC Saarbrücken","abbr":"1FS","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"1. FC Saarbrücken Stadium","uefa2026":null},{"name":"VfB Stuttgart II","abbr":"VSI","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"VfB Stuttgart II Stadium","uefa2026":null},{"name":"SC Verl","abbr":"SV","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"SC Verl Stadium","uefa2026":null},{"name":"Wehen Wiesbaden","abbr":"WW","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Wehen Wiesbaden Stadium","uefa2026":null},{"name":"Würzburger Kickers","abbr":"WK","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Würzburger Kickers Stadium","uefa2026":null}]}],"meta":{"name":"Germany","domesticCups":[["dfb-pokal","DFB-Pokal","🏆"],["dfl-supercup","DFL-Supercup","🛡️"]],"topSize":18,"ucl":4}},"italy":{"season":"2026/27","verified":true,"country":"italy","divisions":[{"id":"ita-a","name":"Serie A","level":1,"expectedSize":20,"clubs":[{"name":"AC Milan","abbr":"MIL","primary":"#e30613","secondary":"#111111","pattern":"stripes","reputation":85,"stadium":"San Siro","uefa2026":"uel-league-phase"},{"name":"Atalanta","abbr":"ATA","primary":"#0050a4","secondary":"#111111","pattern":"stripes","reputation":84,"stadium":"New Balance Arena","uefa2026":"uecl-playoff"},{"name":"Bologna","abbr":"BOL","primary":"#a50044","secondary":"#0050a4","pattern":"stripes","reputation":82,"stadium":"Bologna Stadium","uefa2026":null},{"name":"Cagliari","abbr":"CAG","primary":"#a50044","secondary":"#0050a4","pattern":"halves","reputation":82,"stadium":"Cagliari Stadium","uefa2026":null},{"name":"Como","abbr":"COM","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Como Stadium","uefa2026":"ucl-league-phase"},{"name":"Fiorentina","abbr":"FIO","primary":"#6f2c91","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Stadio Artemio Franchi","uefa2026":null},{"name":"Frosinone","abbr":"FRO","primary":"#f7d417","secondary":"#0050a4","pattern":"solid","reputation":82,"stadium":"Frosinone Stadium","uefa2026":null},{"name":"Genoa","abbr":"GEN","primary":"#a50044","secondary":"#0050a4","pattern":"halves","reputation":82,"stadium":"Genoa Stadium","uefa2026":null},{"name":"Inter","abbr":"INT","primary":"#0050a4","secondary":"#111111","pattern":"stripes","reputation":89,"stadium":"San Siro","uefa2026":"ucl-league-phase"},{"name":"Juventus","abbr":"JUV","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":86,"stadium":"Allianz Stadium","uefa2026":"uel-league-phase"},{"name":"Lazio","abbr":"LAZ","primary":"#87ceeb","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Stadio Olimpico","uefa2026":null},{"name":"Lecce","abbr":"LEC","primary":"#e30613","secondary":"#f7d417","pattern":"stripes","reputation":82,"stadium":"Lecce Stadium","uefa2026":null},{"name":"Monza","abbr":"MON","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Monza Stadium","uefa2026":null},{"name":"Napoli","abbr":"NAP","primary":"#5eb6e4","secondary":"#ffffff","pattern":"solid","reputation":86,"stadium":"Stadio Diego Armando Maradona","uefa2026":"ucl-league-phase"},{"name":"Parma","abbr":"PAR","primary":"#ffffff","secondary":"#111111","pattern":"cross","reputation":82,"stadium":"Parma Stadium","uefa2026":null},{"name":"Roma","abbr":"ROM","primary":"#8e1f2d","secondary":"#f0bc42","pattern":"solid","reputation":84,"stadium":"Stadio Olimpico","uefa2026":"ucl-league-phase"},{"name":"Sassuolo","abbr":"SAS","primary":"#15803d","secondary":"#111111","pattern":"stripes","reputation":82,"stadium":"Sassuolo Stadium","uefa2026":null},{"name":"Torino","abbr":"TOR","primary":"#7a263a","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Torino Stadium","uefa2026":null},{"name":"Udinese","abbr":"UDI","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Udinese Stadium","uefa2026":null},{"name":"Venezia","abbr":"VEN","primary":"#111111","secondary":"#f97316","pattern":"chestBand","reputation":82,"stadium":"Venezia Stadium","uefa2026":null}]},{"id":"ita-b","name":"Serie B","level":2,"expectedSize":20,"clubs":[{"name":"Arezzo","abbr":"ARE","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Arezzo Stadium","uefa2026":null},{"name":"Ascoli","abbr":"ASC","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Ascoli Stadium","uefa2026":null},{"name":"Avellino","abbr":"AVE","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Avellino Stadium","uefa2026":null},{"name":"Benevento","abbr":"BEN","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Benevento Stadium","uefa2026":null},{"name":"Carrarese","abbr":"CAR","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Carrarese Stadium","uefa2026":null},{"name":"Catanzaro","abbr":"CAT","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Catanzaro Stadium","uefa2026":null},{"name":"Cesena","abbr":"CES","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Cesena Stadium","uefa2026":null},{"name":"Cremonese","abbr":"CRE","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Cremonese Stadium","uefa2026":null},{"name":"Empoli","abbr":"EMP","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Empoli Stadium","uefa2026":null},{"name":"Juve Stabia","abbr":"JS","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Juve Stabia Stadium","uefa2026":null},{"name":"Mantova","abbr":"MAN","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Mantova Stadium","uefa2026":null},{"name":"Modena","abbr":"MOD","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Modena Stadium","uefa2026":null},{"name":"Padova","abbr":"PAD","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Padova Stadium","uefa2026":null},{"name":"Palermo","abbr":"PAL","primary":"#f7a8b8","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"Palermo Stadium","uefa2026":null},{"name":"Pisa","abbr":"PIS","primary":"#0050a4","secondary":"#111111","pattern":"stripes","reputation":70,"stadium":"Pisa Stadium","uefa2026":null},{"name":"Sampdoria","abbr":"SAM","primary":"#0050a4","secondary":"#ffffff","pattern":"chestBand","reputation":70,"stadium":"Sampdoria Stadium","uefa2026":null},{"name":"Südtirol","abbr":"SDT","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Südtirol Stadium","uefa2026":null},{"name":"Hellas Verona","abbr":"HV","primary":"#0050a4","secondary":"#f7d417","pattern":"solid","reputation":70,"stadium":"Hellas Verona Stadium","uefa2026":null},{"name":"L.R. Vicenza","abbr":"LRV","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"L.R. Vicenza Stadium","uefa2026":null},{"name":"Virtus Entella","abbr":"VE","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Virtus Entella Stadium","uefa2026":null}]},{"id":"ita-c-a","name":"Serie C · Group A","level":3,"expectedSize":20,"clubs":[{"name":"Carpi","abbr":"CAR","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Carpi Stadium","uefa2026":null},{"name":"Ospitaletto","abbr":"OSP","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Ospitaletto Stadium","uefa2026":null},{"name":"Union Brescia","abbr":"UB","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Union Brescia Stadium","uefa2026":null},{"name":"Alcione Milano","abbr":"AM","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Alcione Milano Stadium","uefa2026":null},{"name":"Trento","abbr":"TRE","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Trento Stadium","uefa2026":null},{"name":"AlbinoLeffe","abbr":"ALB","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"AlbinoLeffe Stadium","uefa2026":null},{"name":"Renate","abbr":"REN","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Renate Stadium","uefa2026":null},{"name":"Lumezzane","abbr":"LUM","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Lumezzane Stadium","uefa2026":null},{"name":"Pergolettese","abbr":"PER","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Pergolettese Stadium","uefa2026":null},{"name":"Lecco","abbr":"LEC","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Lecco Stadium","uefa2026":null},{"name":"Giana Erminio","abbr":"GE","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Giana Erminio Stadium","uefa2026":null},{"name":"Dolomiti Bellunesi","abbr":"DB","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Dolomiti Bellunesi Stadium","uefa2026":null},{"name":"Arzignano Valchiampo","abbr":"AV","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Arzignano Valchiampo Stadium","uefa2026":null},{"name":"Juventus Next Gen","abbr":"JNG","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Juventus Next Gen Stadium","uefa2026":null},{"name":"Cittadella","abbr":"CIT","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Cittadella Stadium","uefa2026":null},{"name":"Novara","abbr":"NOV","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Novara Stadium","uefa2026":null},{"name":"Pro Vercelli","abbr":"PV","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Pro Vercelli Stadium","uefa2026":null},{"name":"Treviso","abbr":"TRE","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Treviso Stadium","uefa2026":null},{"name":"Folgore Caratese","abbr":"FC","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Folgore Caratese Stadium","uefa2026":null},{"name":"Desenzano","abbr":"DES","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Desenzano Stadium","uefa2026":null}]},{"id":"ita-c-b","name":"Serie C · Group B","level":3,"expectedSize":20,"clubs":[{"name":"Reggiana","abbr":"REG","primary":"#7a263a","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Reggiana Stadium","uefa2026":null},{"name":"Spezia","abbr":"SPE","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":61,"stadium":"Spezia Stadium","uefa2026":null},{"name":"Pescara","abbr":"PES","primary":"#5eb6e4","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"Pescara Stadium","uefa2026":null},{"name":"Ravenna","abbr":"RAV","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Ravenna Stadium","uefa2026":null},{"name":"Sambenedettese","abbr":"SAM","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Sambenedettese Stadium","uefa2026":null},{"name":"Pianese","abbr":"PIA","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Pianese Stadium","uefa2026":null},{"name":"Forlì","abbr":"FOR","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Forlì Stadium","uefa2026":null},{"name":"Gubbio","abbr":"GUB","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Gubbio Stadium","uefa2026":null},{"name":"Guidonia Montecelio","abbr":"GM","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Guidonia Montecelio Stadium","uefa2026":null},{"name":"Campobasso","abbr":"CAM","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Campobasso Stadium","uefa2026":null},{"name":"Latina","abbr":"LAT","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Latina Stadium","uefa2026":null},{"name":"Vis Pesaro","abbr":"VP","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Vis Pesaro Stadium","uefa2026":null},{"name":"Pineto","abbr":"PIN","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Pineto Stadium","uefa2026":null},{"name":"Perugia","abbr":"PER","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Perugia Stadium","uefa2026":null},{"name":"Atalanta U23","abbr":"AU","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Atalanta U23 Stadium","uefa2026":null},{"name":"Livorno","abbr":"LIV","primary":"#7a263a","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Livorno Stadium","uefa2026":null},{"name":"Torres","abbr":"TOR","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Torres Stadium","uefa2026":null},{"name":"Vado","abbr":"VAD","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Vado Stadium","uefa2026":null},{"name":"Ostia Mare","abbr":"OM","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Ostia Mare Stadium","uefa2026":null},{"name":"Grosseto","abbr":"GRO","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Grosseto Stadium","uefa2026":null}]},{"id":"ita-c-c","name":"Serie C · Group C","level":3,"expectedSize":20,"clubs":[{"name":"Bari","abbr":"BAR","primary":"#ffffff","secondary":"#e30613","pattern":"solid","reputation":61,"stadium":"Bari Stadium","uefa2026":null},{"name":"Salernitana","abbr":"SAL","primary":"#7a263a","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Salernitana Stadium","uefa2026":null},{"name":"Catania","abbr":"CAT","primary":"#0050a4","secondary":"#e30613","pattern":"stripes","reputation":61,"stadium":"Catania Stadium","uefa2026":null},{"name":"Casarano","abbr":"CAS","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Casarano Stadium","uefa2026":null},{"name":"Crotone","abbr":"CRO","primary":"#0050a4","secondary":"#e30613","pattern":"stripes","reputation":61,"stadium":"Crotone Stadium","uefa2026":null},{"name":"Cosenza","abbr":"COS","primary":"#0050a4","secondary":"#e30613","pattern":"stripes","reputation":61,"stadium":"Cosenza Stadium","uefa2026":null},{"name":"Inter U23","abbr":"IU","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Inter U23 Stadium","uefa2026":null},{"name":"Casertana","abbr":"CAS","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Casertana Stadium","uefa2026":null},{"name":"Potenza","abbr":"POT","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Potenza Stadium","uefa2026":null},{"name":"Monopoli","abbr":"MON","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Monopoli Stadium","uefa2026":null},{"name":"Sorrento","abbr":"SOR","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Sorrento Stadium","uefa2026":null},{"name":"Team Altamura","abbr":"TA","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Team Altamura Stadium","uefa2026":null},{"name":"Audace Cerignola","abbr":"AC","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Audace Cerignola Stadium","uefa2026":null},{"name":"Picerno","abbr":"PIC","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Picerno Stadium","uefa2026":null},{"name":"Giugliano","abbr":"GIU","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Giugliano Stadium","uefa2026":null},{"name":"Cavese","abbr":"CAV","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Cavese Stadium","uefa2026":null},{"name":"Foggia","abbr":"FOG","primary":"#e30613","secondary":"#111111","pattern":"stripes","reputation":61,"stadium":"Foggia Stadium","uefa2026":null},{"name":"Scafatese","abbr":"SCA","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Scafatese Stadium","uefa2026":null},{"name":"Savoia","abbr":"SAV","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Savoia Stadium","uefa2026":null},{"name":"Barletta","abbr":"BAR","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Barletta Stadium","uefa2026":null}]}],"meta":{"name":"Italy","domesticCups":[["coppa-italia","Coppa Italia","🏆"],["supercoppa","Supercoppa","🛡️"]],"topSize":20,"ucl":4}},"france":{"season":"2026/27","verified":true,"country":"france","divisions":[{"id":"fra-l1","name":"Ligue 1","level":1,"expectedSize":18,"clubs":[{"name":"Angers SCO","abbr":"AS","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Angers SCO Stadium","uefa2026":null},{"name":"LOSC Lille","abbr":"LIL","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Decathlon Arena – Stade Pierre-Mauroy","uefa2026":"ucl-league-phase"},{"name":"Le Havre AC","abbr":"LHA","primary":"#0050a4","secondary":"#87ceeb","pattern":"halves","reputation":82,"stadium":"Le Havre AC Stadium","uefa2026":null},{"name":"AS Monaco","abbr":"MON","primary":"#ffffff","secondary":"#e30613","pattern":"sash","reputation":82,"stadium":"Stade Louis-II","uefa2026":"uecl-playoff"},{"name":"Le Mans FC","abbr":"LMF","primary":"#e30613","secondary":"#f7d417","pattern":"solid","reputation":82,"stadium":"Le Mans FC Stadium","uefa2026":null},{"name":"Stade Brestois 29","abbr":"SB2","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Stade Brestois 29 Stadium","uefa2026":null},{"name":"RC Lens","abbr":"RCL","primary":"#e30613","secondary":"#f7d417","pattern":"stripes","reputation":82,"stadium":"Stade Bollaert-Delelis","uefa2026":"ucl-league-phase"},{"name":"AJ Auxerre","abbr":"AA","primary":"#ffffff","secondary":"#0050a4","pattern":"solid","reputation":82,"stadium":"AJ Auxerre Stadium","uefa2026":null},{"name":"Olympique Marseille","abbr":"OM","primary":"#ffffff","secondary":"#00aae4","pattern":"solid","reputation":83,"stadium":"Orange Vélodrome","uefa2026":"uel-league-phase"},{"name":"RC Strasbourg Alsace","abbr":"RSA","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"RC Strasbourg Alsace Stadium","uefa2026":null},{"name":"OGC Nice","abbr":"ON","primary":"#e30613","secondary":"#111111","pattern":"stripes","reputation":82,"stadium":"OGC Nice Stadium","uefa2026":null},{"name":"FC Lorient","abbr":"FL","primary":"#f97316","secondary":"#111111","pattern":"solid","reputation":82,"stadium":"FC Lorient Stadium","uefa2026":null},{"name":"Paris Saint-Germain","abbr":"PSG","primary":"#004170","secondary":"#da291c","pattern":"centreStripe","reputation":91,"stadium":"Parc des Princes","uefa2026":"ucl-league-phase"},{"name":"Stade Rennais","abbr":"REN","primary":"#e30613","secondary":"#111111","pattern":"halves","reputation":82,"stadium":"Stade Rennais Stadium","uefa2026":"uel-league-phase"},{"name":"Toulouse FC","abbr":"TF","primary":"#6f2c91","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Toulouse FC Stadium","uefa2026":null},{"name":"Olympique Lyonnais","abbr":"OL","primary":"#ffffff","secondary":"#0050a4","pattern":"centreStripe","reputation":82,"stadium":"Groupama Stadium","uefa2026":"ucl-playoff"},{"name":"ESTAC Troyes","abbr":"ET","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"ESTAC Troyes Stadium","uefa2026":null},{"name":"Paris FC","abbr":"PF","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Paris FC Stadium","uefa2026":null}]},{"id":"fra-l2","name":"Ligue 2","level":2,"expectedSize":18,"clubs":[{"name":"FC Annecy","abbr":"FA","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"FC Annecy Stadium","uefa2026":null},{"name":"US Boulogne","abbr":"UB","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"US Boulogne Stadium","uefa2026":null},{"name":"Clermont Foot","abbr":"CF","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"Clermont Foot Stadium","uefa2026":null},{"name":"Dijon FCO","abbr":"DF","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Dijon FCO Stadium","uefa2026":null},{"name":"USL Dunkerque","abbr":"UD","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"USL Dunkerque Stadium","uefa2026":null},{"name":"Grenoble Foot 38","abbr":"GF3","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"Grenoble Foot 38 Stadium","uefa2026":null},{"name":"EA Guingamp","abbr":"EG","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"EA Guingamp Stadium","uefa2026":null},{"name":"Stade Lavallois","abbr":"SL","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"Stade Lavallois Stadium","uefa2026":null},{"name":"FC Metz","abbr":"FM","primary":"#7a263a","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"FC Metz Stadium","uefa2026":null},{"name":"Montpellier HSC","abbr":"MH","primary":"#003366","secondary":"#f97316","pattern":"solid","reputation":70,"stadium":"Montpellier HSC Stadium","uefa2026":null},{"name":"AS Nancy Lorraine","abbr":"ANL","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"AS Nancy Lorraine Stadium","uefa2026":null},{"name":"FC Nantes","abbr":"FN","primary":"#fcd116","secondary":"#15803d","pattern":"solid","reputation":70,"stadium":"FC Nantes Stadium","uefa2026":null},{"name":"Pau FC","abbr":"PF","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"Pau FC Stadium","uefa2026":null},{"name":"Red Star FC","abbr":"RSF","primary":"#15803d","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Red Star FC Stadium","uefa2026":null},{"name":"Stade de Reims","abbr":"SDR","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Stade de Reims Stadium","uefa2026":null},{"name":"Rodez AF","abbr":"RA","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"Rodez AF Stadium","uefa2026":null},{"name":"AS Saint-Étienne","abbr":"ASÉ","primary":"#15803d","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"AS Saint-Étienne Stadium","uefa2026":null},{"name":"FC Sochaux","abbr":"FS","primary":"#f7d417","secondary":"#0050a4","pattern":"solid","reputation":70,"stadium":"FC Sochaux Stadium","uefa2026":null}]},{"id":"fra-l3","name":"Ligue 3 Betclic","level":3,"expectedSize":18,"clubs":[{"name":"Amiens SC","abbr":"AMI","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"Amiens SC Stadium","uefa2026":null},{"name":"SC Aubagne Air Bel","abbr":"AUB","primary":"#1e3a8a","secondary":"#f8fafc","pattern":"solid","reputation":61,"stadium":"SC Aubagne Air Bel Stadium","uefa2026":null},{"name":"SC Bastia","abbr":"BAS","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"SC Bastia Stadium","uefa2026":null},{"name":"Football Bourg-en-Bresse Péronnas 01","abbr":"BBP","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Football Bourg-en-Bresse Péronnas 01 Stadium","uefa2026":null},{"name":"SM Caen","abbr":"CAE","primary":"#0050a4","secondary":"#e30613","pattern":"stripes","reputation":61,"stadium":"SM Caen Stadium","uefa2026":null},{"name":"AS Cannes","abbr":"CAN","primary":"#e30613","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"AS Cannes Stadium","uefa2026":null},{"name":"US Concarneau","abbr":"CON","primary":"#0050a4","secondary":"#e30613","pattern":"stripes","reputation":61,"stadium":"US Concarneau Stadium","uefa2026":null},{"name":"FC Fleury 91","abbr":"FLE","primary":"#e30613","secondary":"#111111","pattern":"solid","reputation":61,"stadium":"FC Fleury 91 Stadium","uefa2026":null},{"name":"VFC La Roche-sur-Yon","abbr":"LRY","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"VFC La Roche-sur-Yon Stadium","uefa2026":null},{"name":"US Orléans","abbr":"ORL","primary":"#eab308","secondary":"#e30613","pattern":"solid","reputation":61,"stadium":"US Orléans Stadium","uefa2026":null},{"name":"Paris 13 Atlético","abbr":"P13","primary":"#15803d","secondary":"#111111","pattern":"solid","reputation":61,"stadium":"Paris 13 Atlético Stadium","uefa2026":null},{"name":"Le Puy-en-Velay FC","abbr":"LPV","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Le Puy-en-Velay FC Stadium","uefa2026":null},{"name":"Quevilly-Rouen Métropole","abbr":"QRM","primary":"#e30613","secondary":"#facc15","pattern":"solid","reputation":61,"stadium":"Quevilly-Rouen Métropole Stadium","uefa2026":null},{"name":"FC Rouen 1899","abbr":"ROU","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"FC Rouen 1899 Stadium","uefa2026":null},{"name":"US Thionville Lusitanos","abbr":"THI","primary":"#facc15","secondary":"#0050a4","pattern":"solid","reputation":61,"stadium":"US Thionville Lusitanos Stadium","uefa2026":null},{"name":"Valenciennes FC","abbr":"VAL","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Valenciennes FC Stadium","uefa2026":null},{"name":"FC Versailles 78","abbr":"VER","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"FC Versailles 78 Stadium","uefa2026":null},{"name":"FC Villefranche-Beaujolais","abbr":"VIL","primary":"#0050a4","secondary":"#e30613","pattern":"solid","reputation":61,"stadium":"FC Villefranche-Beaujolais Stadium","uefa2026":null}]}],"meta":{"name":"France","domesticCups":[["coupe-de-france","Coupe de France","🏆"],["trophee-des-champions","Trophée des Champions","🛡️"]],"topSize":18,"ucl":3}}};
-  const CXI_NATIONAL_KITS_2026={"england":[["#ffffff","#1d2856","solid"],["#e31b23","#ffffff","solid"]],"france":[["#002654","#ffffff","solid"],["#ffffff","#002654","solid"]],"spain":[["#aa151b","#f1bf00","solid"],["#f1bf00","#aa151b","solid"]],"germany":[["#ffffff","#111111","solid"],["#d00000","#ffffff","solid"]],"italy":[["#0066b3","#ffffff","solid"],["#ffffff","#0066b3","solid"]],"portugal":[["#d00000","#0b7a3b","solid"],["#ffffff","#0b7a3b","solid"]],"ghana":[["#ffffff","#111111","solid"],["#e31b23","#fcd116","solid"]],"brazil":[["#fedf00","#009b3a","solid"],["#0038a8","#ffffff","solid"]],"argentina":[["#75aadb","#ffffff","stripes"],["#4b2a63","#ffffff","solid"]],"netherlands":[["#f36c21","#111111","solid"],["#0050a4","#ffffff","solid"]],"belgium":[["#e30613","#111111","solid"],["#ffffff","#e30613","solid"]],"croatia":[["#ffffff","#e30613","checkered"],["#111827","#5eb6e4","solid"]],"scotland":[["#0b1f5b","#ffffff","solid"],["#ffffff","#0b1f5b","solid"]],"wales":[["#d30731","#ffffff","solid"],["#ffffff","#d30731","solid"]],"nigeria":[["#008751","#ffffff","solid"],["#ffffff","#008751","solid"]],"senegal":[["#ffffff","#00853f","solid"],["#00853f","#fcd116","solid"]],"usa":[["#ffffff","#002868","solid"],["#002868","#ffffff","solid"]]};
+  const CXI_VERIFIED_FOOTBALL_2026={"england":{"season":"2026/27","verified":true,"country":"england","divisions":[{"id":"eng-pl","name":"Premier League","level":1,"expectedSize":20,"clubs":[{"name":"Arsenal","abbr":"ARS","primary":"#ef0107","secondary":"#ffffff","pattern":"sleeves","reputation":90,"stadium":"Emirates Stadium","uefa2026":"ucl-league-phase"},{"name":"Aston Villa","abbr":"AV","primary":"#670e36","secondary":"#95bfe5","pattern":"sleeves","reputation":86,"stadium":"Villa Park","uefa2026":"ucl-league-phase"},{"name":"Bournemouth","abbr":"BOU","primary":"#c8102e","secondary":"#111111","pattern":"stripes","reputation":82,"stadium":"Vitality Stadium","uefa2026":"uel-league-phase"},{"name":"Brentford","abbr":"BRE","primary":"#e30613","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Gtech Community Stadium","uefa2026":null},{"name":"Brighton & Hove Albion","abbr":"BHA","primary":"#0057b8","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Amex Stadium","uefa2026":"uecl-playoff"},{"name":"Chelsea","abbr":"CHE","primary":"#034694","secondary":"#ffffff","pattern":"solid","reputation":86,"stadium":"Stamford Bridge","uefa2026":null},{"name":"Coventry City","abbr":"COV","primary":"#69b3e7","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Coventry Building Society Arena","uefa2026":null},{"name":"Crystal Palace","abbr":"CP","primary":"#1b458f","secondary":"#c4122e","pattern":"stripes","reputation":82,"stadium":"Selhurst Park","uefa2026":"uel-league-phase"},{"name":"Everton","abbr":"EVE","primary":"#003399","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Hill Dickinson Stadium","uefa2026":null},{"name":"Fulham","abbr":"FUL","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":82,"stadium":"Craven Cottage","uefa2026":null},{"name":"Hull City","abbr":"HUL","primary":"#f5a12d","secondary":"#111111","pattern":"stripes","reputation":82,"stadium":"MKM Stadium","uefa2026":null},{"name":"Ipswich Town","abbr":"IPS","primary":"#0044aa","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Portman Road","uefa2026":null},{"name":"Leeds United","abbr":"LU","primary":"#ffffff","secondary":"#1d428a","pattern":"solid","reputation":82,"stadium":"Elland Road","uefa2026":null},{"name":"Liverpool","abbr":"LIV","primary":"#c8102e","secondary":"#ffffff","pattern":"solid","reputation":91,"stadium":"Anfield","uefa2026":"ucl-league-phase"},{"name":"Manchester City","abbr":"MCI","primary":"#6cabdd","secondary":"#ffffff","pattern":"solid","reputation":92,"stadium":"Etihad Stadium","uefa2026":"ucl-league-phase"},{"name":"Manchester United","abbr":"MUN","primary":"#da291c","secondary":"#ffffff","pattern":"solid","reputation":86,"stadium":"Old Trafford","uefa2026":"ucl-league-phase"},{"name":"Newcastle United","abbr":"NEW","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":84,"stadium":"St James’ Park","uefa2026":null},{"name":"Nottingham Forest","abbr":"NFO","primary":"#dd0000","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"City Ground","uefa2026":null},{"name":"Sunderland","abbr":"SUN","primary":"#e1001a","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Stadium of Light","uefa2026":"uel-league-phase"},{"name":"Tottenham Hotspur","abbr":"TOT","primary":"#ffffff","secondary":"#132257","pattern":"solid","reputation":84,"stadium":"Tottenham Hotspur Stadium","uefa2026":null}]},{"id":"eng-champ","name":"Championship","level":2,"expectedSize":24,"clubs":[{"name":"Birmingham City","abbr":"BC","primary":"#0032a0","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Birmingham City Stadium","uefa2026":null},{"name":"Blackburn Rovers","abbr":"BR","primary":"#0055a5","secondary":"#ffffff","pattern":"halves","reputation":70,"stadium":"Blackburn Rovers Stadium","uefa2026":null},{"name":"Bolton Wanderers","abbr":"BW","primary":"#ffffff","secondary":"#001b69","pattern":"solid","reputation":70,"stadium":"Bolton Wanderers Stadium","uefa2026":null},{"name":"Bristol City","abbr":"BC","primary":"#e21a22","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Bristol City Stadium","uefa2026":null},{"name":"Burnley","abbr":"BUR","primary":"#6c1d45","secondary":"#99d6ea","pattern":"sleeves","reputation":70,"stadium":"Burnley Stadium","uefa2026":null},{"name":"Cardiff City","abbr":"CC","primary":"#0070b5","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Cardiff City Stadium","uefa2026":null},{"name":"Charlton Athletic","abbr":"CA","primary":"#d71920","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Charlton Athletic Stadium","uefa2026":null},{"name":"Derby County","abbr":"DC","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"Derby County Stadium","uefa2026":null},{"name":"Lincoln City","abbr":"LC","primary":"#e30613","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"Lincoln City Stadium","uefa2026":null},{"name":"Middlesbrough","abbr":"MID","primary":"#e2001a","secondary":"#ffffff","pattern":"chestBand","reputation":70,"stadium":"Middlesbrough Stadium","uefa2026":null},{"name":"Millwall","abbr":"MIL","primary":"#001e4a","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Millwall Stadium","uefa2026":null},{"name":"Norwich City","abbr":"NC","primary":"#fff200","secondary":"#00a650","pattern":"solid","reputation":70,"stadium":"Norwich City Stadium","uefa2026":null},{"name":"Portsmouth","abbr":"POR","primary":"#001489","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Portsmouth Stadium","uefa2026":null},{"name":"Preston North End","abbr":"PNE","primary":"#ffffff","secondary":"#001e62","pattern":"solid","reputation":70,"stadium":"Preston North End Stadium","uefa2026":null},{"name":"Queens Park Rangers","abbr":"QPR","primary":"#0050a4","secondary":"#ffffff","pattern":"hoops","reputation":70,"stadium":"Queens Park Rangers Stadium","uefa2026":null},{"name":"Sheffield United","abbr":"SHU","primary":"#ee2737","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"Sheffield United Stadium","uefa2026":null},{"name":"Southampton","abbr":"SOU","primary":"#d71920","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"Southampton Stadium","uefa2026":null},{"name":"Stoke City","abbr":"SC","primary":"#e03a3e","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"Stoke City Stadium","uefa2026":null},{"name":"Swansea City","abbr":"SC","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"Swansea City Stadium","uefa2026":null},{"name":"Watford","abbr":"WAT","primary":"#fbee23","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"Watford Stadium","uefa2026":null},{"name":"West Bromwich Albion","abbr":"WBA","primary":"#002f68","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"West Bromwich Albion Stadium","uefa2026":null},{"name":"West Ham United","abbr":"WHU","primary":"#7a263a","secondary":"#1bb1e7","pattern":"sleeves","reputation":70,"stadium":"West Ham United Stadium","uefa2026":null},{"name":"Wolverhampton Wanderers","abbr":"WOL","primary":"#fdb913","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"Wolverhampton Wanderers Stadium","uefa2026":null},{"name":"Wrexham","abbr":"WRE","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Wrexham Stadium","uefa2026":null}]},{"id":"eng-l1","name":"League One","level":3,"expectedSize":24,"clubs":[{"name":"AFC Wimbledon","abbr":"WIM","primary":"#003b73","secondary":"#ffd100","pattern":"solid","reputation":61,"stadium":"AFC Wimbledon Stadium","uefa2026":null},{"name":"Barnsley","abbr":"BAR","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Barnsley Stadium","uefa2026":null},{"name":"Blackpool","abbr":"BLA","primary":"#f58025","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Blackpool Stadium","uefa2026":null},{"name":"Bradford City","abbr":"BC","primary":"#f7a600","secondary":"#7a263a","pattern":"stripes","reputation":61,"stadium":"Bradford City Stadium","uefa2026":null},{"name":"Bromley","abbr":"BRO","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":61,"stadium":"Bromley Stadium","uefa2026":null},{"name":"Burton Albion","abbr":"BA","primary":"#f7a600","secondary":"#111111","pattern":"solid","reputation":61,"stadium":"Burton Albion Stadium","uefa2026":null},{"name":"Cambridge United","abbr":"CU","primary":"#f7a600","secondary":"#111111","pattern":"stripes","reputation":61,"stadium":"Cambridge United Stadium","uefa2026":null},{"name":"Doncaster Rovers","abbr":"DR","primary":"#e30613","secondary":"#ffffff","pattern":"hoops","reputation":61,"stadium":"Doncaster Rovers Stadium","uefa2026":null},{"name":"Huddersfield Town","abbr":"HT","primary":"#0072ce","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"Huddersfield Town Stadium","uefa2026":null},{"name":"Leicester City","abbr":"LC","primary":"#003090","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Leicester City Stadium","uefa2026":null},{"name":"Leyton Orient","abbr":"LO","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Leyton Orient Stadium","uefa2026":null},{"name":"Luton Town","abbr":"LT","primary":"#f78f1e","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Luton Town Stadium","uefa2026":null},{"name":"Mansfield Town","abbr":"MT","primary":"#f7c600","secondary":"#003087","pattern":"solid","reputation":61,"stadium":"Mansfield Town Stadium","uefa2026":null},{"name":"Milton Keynes Dons","abbr":"MKD","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":61,"stadium":"Milton Keynes Dons Stadium","uefa2026":null},{"name":"Notts County","abbr":"NC","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"Notts County Stadium","uefa2026":null},{"name":"Oxford United","abbr":"OU","primary":"#fbb700","secondary":"#001a5b","pattern":"solid","reputation":61,"stadium":"Oxford United Stadium","uefa2026":null},{"name":"Peterborough United","abbr":"PU","primary":"#0050b5","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Peterborough United Stadium","uefa2026":null},{"name":"Plymouth Argyle","abbr":"PA","primary":"#004a25","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Plymouth Argyle Stadium","uefa2026":null},{"name":"Reading","abbr":"REA","primary":"#0054a6","secondary":"#ffffff","pattern":"hoops","reputation":61,"stadium":"Reading Stadium","uefa2026":null},{"name":"Sheffield Wednesday","abbr":"SHW","primary":"#0057b8","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"Sheffield Wednesday Stadium","uefa2026":null},{"name":"Stevenage","abbr":"STE","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Stevenage Stadium","uefa2026":null},{"name":"Stockport County","abbr":"SC","primary":"#0057b8","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Stockport County Stadium","uefa2026":null},{"name":"Wigan Athletic","abbr":"WA","primary":"#0057b8","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"Wigan Athletic Stadium","uefa2026":null},{"name":"Wycombe Wanderers","abbr":"WW","primary":"#2b6eb5","secondary":"#78b7e5","pattern":"quarters","reputation":61,"stadium":"Wycombe Wanderers Stadium","uefa2026":null}]}],"meta":{"name":"England","domesticCups":[["fa-cup","FA Cup","🏆"],["efl-cup","EFL Cup","🛡️"]],"topSize":20,"ucl":4}},"spain":{"season":"2026/27","verified":true,"country":"spain","divisions":[{"id":"esp-laliga","name":"LaLiga EA Sports","level":1,"expectedSize":20,"clubs":[{"name":"Athletic Club","abbr":"ATH","primary":"#ee2523","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"San Mamés","uefa2026":null},{"name":"Atlético de Madrid","abbr":"ATM","primary":"#cb3524","secondary":"#ffffff","pattern":"stripes","reputation":88,"stadium":"Riyadh Air Metropolitano","uefa2026":"ucl-league-phase"},{"name":"CA Osasuna","abbr":"CO","primary":"#d61120","secondary":"#0a2340","pattern":"solid","reputation":82,"stadium":"CA Osasuna Stadium","uefa2026":null},{"name":"Celta Vigo","abbr":"CV","primary":"#a9d0f5","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Celta Vigo Stadium","uefa2026":"uel-league-phase"},{"name":"Deportivo Alavés","abbr":"DA","primary":"#005baa","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Deportivo Alavés Stadium","uefa2026":null},{"name":"Elche CF","abbr":"EC","primary":"#ffffff","secondary":"#15803d","pattern":"chestBand","reputation":82,"stadium":"Elche CF Stadium","uefa2026":null},{"name":"FC Barcelona","abbr":"BAR","primary":"#004d98","secondary":"#a50044","pattern":"stripes","reputation":91,"stadium":"Spotify Camp Nou","uefa2026":"ucl-league-phase"},{"name":"Getafe CF","abbr":"GC","primary":"#004f9f","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Getafe CF Stadium","uefa2026":"uecl-playoff"},{"name":"Levante UD","abbr":"LU","primary":"#0050a4","secondary":"#a50044","pattern":"stripes","reputation":82,"stadium":"Levante UD Stadium","uefa2026":null},{"name":"Málaga CF","abbr":"MC","primary":"#5eb6e4","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Málaga CF Stadium","uefa2026":null},{"name":"Racing Santander","abbr":"RS","primary":"#ffffff","secondary":"#15803d","pattern":"solid","reputation":82,"stadium":"Racing Santander Stadium","uefa2026":null},{"name":"Rayo Vallecano","abbr":"RV","primary":"#ffffff","secondary":"#e01e26","pattern":"sash","reputation":82,"stadium":"Rayo Vallecano Stadium","uefa2026":null},{"name":"RC Deportivo","abbr":"RD","primary":"#0055a5","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"RC Deportivo Stadium","uefa2026":null},{"name":"RCD Espanyol","abbr":"ESP","primary":"#0067b1","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"RCD Espanyol Stadium","uefa2026":null},{"name":"Real Betis","abbr":"BET","primary":"#0bb363","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Estadio de La Cartuja","uefa2026":"ucl-league-phase"},{"name":"Real Madrid","abbr":"RMA","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":94,"stadium":"Santiago Bernabéu","uefa2026":"ucl-league-phase"},{"name":"Real Sociedad","abbr":"RSO","primary":"#0067b1","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Real Sociedad Stadium","uefa2026":"uel-league-phase"},{"name":"Sevilla FC","abbr":"SF","primary":"#ffffff","secondary":"#d11010","pattern":"solid","reputation":82,"stadium":"Ramón Sánchez-Pizjuán","uefa2026":null},{"name":"Valencia CF","abbr":"VC","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":82,"stadium":"Mestalla","uefa2026":null},{"name":"Villarreal CF","abbr":"VIL","primary":"#fce216","secondary":"#111111","pattern":"solid","reputation":83,"stadium":"Estadio de la Cerámica","uefa2026":"ucl-league-phase"}]},{"id":"esp-segunda","name":"LaLiga Hypermotion","level":2,"expectedSize":22,"clubs":[{"name":"UD Almería","abbr":"UA","primary":"#ee1c25","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"UD Almería Stadium","uefa2026":null},{"name":"CD Castellón","abbr":"CC","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"CD Castellón Stadium","uefa2026":null},{"name":"UD Las Palmas","abbr":"ULP","primary":"#ffd700","secondary":"#0050a4","pattern":"solid","reputation":70,"stadium":"UD Las Palmas Stadium","uefa2026":null},{"name":"Burgos CF","abbr":"BC","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"Burgos CF Stadium","uefa2026":null},{"name":"SD Eibar","abbr":"SE","primary":"#0050a4","secondary":"#e30613","pattern":"stripes","reputation":70,"stadium":"SD Eibar Stadium","uefa2026":null},{"name":"Córdoba CF","abbr":"CC","primary":"#ffffff","secondary":"#15803d","pattern":"stripes","reputation":70,"stadium":"Córdoba CF Stadium","uefa2026":null},{"name":"Sporting de Gijón","abbr":"SDG","primary":"#e30613","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"Sporting de Gijón Stadium","uefa2026":null},{"name":"AD Ceuta","abbr":"AC","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"AD Ceuta Stadium","uefa2026":null},{"name":"Albacete Balompié","abbr":"AB","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"Albacete Balompié Stadium","uefa2026":null},{"name":"FC Andorra","abbr":"FA","primary":"#e30613","secondary":"#0050a4","pattern":"stripes","reputation":70,"stadium":"FC Andorra Stadium","uefa2026":null},{"name":"Granada CF","abbr":"GC","primary":"#c8102e","secondary":"#ffffff","pattern":"hoops","reputation":70,"stadium":"Granada CF Stadium","uefa2026":null},{"name":"Real Sociedad B","abbr":"RSB","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":70,"stadium":"Real Sociedad B Stadium","uefa2026":null},{"name":"CD Leganés","abbr":"CL","primary":"#0050a4","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"CD Leganés Stadium","uefa2026":null},{"name":"Real Valladolid","abbr":"RV","primary":"#6f2c91","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"Real Valladolid Stadium","uefa2026":null},{"name":"Cádiz CF","abbr":"CC","primary":"#ffeb00","secondary":"#0050a4","pattern":"solid","reputation":70,"stadium":"Cádiz CF Stadium","uefa2026":null},{"name":"Girona FC","abbr":"GF","primary":"#ce181e","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"Girona FC Stadium","uefa2026":null},{"name":"RCD Mallorca","abbr":"RM","primary":"#e01e26","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"RCD Mallorca Stadium","uefa2026":null},{"name":"Real Oviedo","abbr":"RO","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Real Oviedo Stadium","uefa2026":null},{"name":"CD Tenerife","abbr":"CT","primary":"#ffffff","secondary":"#0050a4","pattern":"solid","reputation":70,"stadium":"CD Tenerife Stadium","uefa2026":null},{"name":"CD Eldense","abbr":"CE","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":70,"stadium":"CD Eldense Stadium","uefa2026":null},{"name":"Celta Fortuna","abbr":"CF","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":70,"stadium":"Celta Fortuna Stadium","uefa2026":null},{"name":"CE Sabadell","abbr":"CS","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":70,"stadium":"CE Sabadell Stadium","uefa2026":null}]},{"id":"esp-pf1","name":"Primera Federación · Group 1","level":3,"expectedSize":20,"clubs":[{"name":"Unionistas de Salamanca","abbr":"UDS","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Unionistas de Salamanca Stadium","uefa2026":null},{"name":"SD Ponferradina","abbr":"SP","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"SD Ponferradina Stadium","uefa2026":null},{"name":"Zamora CF","abbr":"ZC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Zamora CF Stadium","uefa2026":null},{"name":"Cultural Leonesa","abbr":"CL","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Cultural Leonesa Stadium","uefa2026":null},{"name":"CD Mirandés","abbr":"CM","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"CD Mirandés Stadium","uefa2026":null},{"name":"CP Cacereño","abbr":"CC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"CP Cacereño Stadium","uefa2026":null},{"name":"AD Mérida","abbr":"AM","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"AD Mérida Stadium","uefa2026":null},{"name":"CD Coria","abbr":"CC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"CD Coria Stadium","uefa2026":null},{"name":"CD Extremadura","abbr":"CE","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"CD Extremadura Stadium","uefa2026":null},{"name":"CD Lugo","abbr":"CL","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"CD Lugo Stadium","uefa2026":null},{"name":"Pontevedra CF","abbr":"PC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Pontevedra CF Stadium","uefa2026":null},{"name":"Racing de Ferrol","abbr":"RDF","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Racing de Ferrol Stadium","uefa2026":null},{"name":"Deportivo Fabril","abbr":"DF","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Deportivo Fabril Stadium","uefa2026":null},{"name":"UD Ourense","abbr":"UO","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"UD Ourense Stadium","uefa2026":null},{"name":"Arenas Club","abbr":"AC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Arenas Club Stadium","uefa2026":null},{"name":"Athletic Club B","abbr":"ACB","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Athletic Club B Stadium","uefa2026":null},{"name":"Barakaldo CF","abbr":"BC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Barakaldo CF Stadium","uefa2026":null},{"name":"Real Unión","abbr":"RU","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Real Unión Stadium","uefa2026":null},{"name":"UD Logroñés","abbr":"UL","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"UD Logroñés Stadium","uefa2026":null},{"name":"Real Avilés","abbr":"RA","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Real Avilés Stadium","uefa2026":null}]},{"id":"esp-pf2","name":"Primera Federación · Group 2","level":3,"expectedSize":20,"clubs":[{"name":"Real Jaén","abbr":"RJ","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Real Jaén Stadium","uefa2026":null},{"name":"Juventud Torremolinos","abbr":"JT","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Juventud Torremolinos Stadium","uefa2026":null},{"name":"Antequera CF","abbr":"AC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Antequera CF Stadium","uefa2026":null},{"name":"Algeciras CF","abbr":"AC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Algeciras CF Stadium","uefa2026":null},{"name":"Águilas FC","abbr":"ÁF","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Águilas FC Stadium","uefa2026":null},{"name":"Real Murcia","abbr":"RM","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Real Murcia Stadium","uefa2026":null},{"name":"FC Cartagena","abbr":"FC","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"FC Cartagena Stadium","uefa2026":null},{"name":"Hércules CF","abbr":"HC","primary":"#0050a4","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"Hércules CF Stadium","uefa2026":null},{"name":"Villarreal B","abbr":"VB","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Villarreal B Stadium","uefa2026":null},{"name":"UD Ibiza","abbr":"UI","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"UD Ibiza Stadium","uefa2026":null},{"name":"Gimnàstic Tarragona","abbr":"GT","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Gimnàstic Tarragona Stadium","uefa2026":null},{"name":"UE Sant Andreu","abbr":"USA","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"UE Sant Andreu Stadium","uefa2026":null},{"name":"CE Europa","abbr":"CE","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"CE Europa Stadium","uefa2026":null},{"name":"SD Huesca","abbr":"SH","primary":"#0050a4","secondary":"#e30613","pattern":"stripes","reputation":61,"stadium":"SD Huesca Stadium","uefa2026":null},{"name":"Real Zaragoza","abbr":"RZ","primary":"#ffffff","secondary":"#0050a4","pattern":"solid","reputation":61,"stadium":"Real Zaragoza Stadium","uefa2026":null},{"name":"CD Teruel","abbr":"CT","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"CD Teruel Stadium","uefa2026":null},{"name":"Rayo Majadahonda","abbr":"RM","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"Rayo Majadahonda Stadium","uefa2026":null},{"name":"AD Alcorcón","abbr":"AA","primary":"#aa151b","secondary":"#f1bf00","pattern":"solid","reputation":61,"stadium":"AD Alcorcón Stadium","uefa2026":null},{"name":"Real Madrid Castilla","abbr":"RMC","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":61,"stadium":"Real Madrid Castilla Stadium","uefa2026":null},{"name":"Atlético Madrileño","abbr":"AM","primary":"#cb3524","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"Atlético Madrileño Stadium","uefa2026":null}]}],"meta":{"name":"Spain","domesticCups":[["copa-del-rey","Copa del Rey","🏆"],["supercopa","Supercopa","🛡️"]],"topSize":20,"ucl":4}},"germany":{"season":"2026/27","verified":true,"country":"germany","divisions":[{"id":"ger-bl","name":"Bundesliga","level":1,"expectedSize":18,"clubs":[{"name":"Bayern Munich","abbr":"BAY","primary":"#dc052d","secondary":"#ffffff","pattern":"solid","reputation":92,"stadium":"Allianz Arena","uefa2026":"ucl-league-phase"},{"name":"Borussia Dortmund","abbr":"BVB","primary":"#fde100","secondary":"#111111","pattern":"solid","reputation":86,"stadium":"Signal Iduna Park","uefa2026":"ucl-league-phase"},{"name":"RB Leipzig","abbr":"RL","primary":"#ffffff","secondary":"#dd013f","pattern":"solid","reputation":85,"stadium":"Red Bull Arena","uefa2026":"ucl-league-phase"},{"name":"VfB Stuttgart","abbr":"VS","primary":"#ffffff","secondary":"#e32219","pattern":"chestBand","reputation":82,"stadium":"MHPArena","uefa2026":"ucl-league-phase"},{"name":"TSG Hoffenheim","abbr":"TH","primary":"#0055a5","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"TSG Hoffenheim Stadium","uefa2026":"uel-league-phase"},{"name":"Bayer Leverkusen","abbr":"B04","primary":"#e32221","secondary":"#111111","pattern":"halves","reputation":86,"stadium":"BayArena","uefa2026":"uel-league-phase"},{"name":"SC Freiburg","abbr":"SF","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"SC Freiburg Stadium","uefa2026":"uecl-playoff"},{"name":"Eintracht Frankfurt","abbr":"SGE","primary":"#111111","secondary":"#e1000f","pattern":"stripes","reputation":82,"stadium":"Deutsche Bank Park","uefa2026":null},{"name":"FC Augsburg","abbr":"FA","primary":"#ffffff","secondary":"#e30613","pattern":"solid","reputation":82,"stadium":"FC Augsburg Stadium","uefa2026":null},{"name":"Mainz 05","abbr":"M0","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Mainz 05 Stadium","uefa2026":null},{"name":"Union Berlin","abbr":"UB","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Union Berlin Stadium","uefa2026":null},{"name":"Borussia Mönchengladbach","abbr":"BMG","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":82,"stadium":"Borussia Mönchengladbach Stadium","uefa2026":null},{"name":"Hamburger SV","abbr":"HSV","primary":"#ffffff","secondary":"#0050a4","pattern":"solid","reputation":82,"stadium":"Volksparkstadion","uefa2026":null},{"name":"1. FC Köln","abbr":"1FK","primary":"#ffffff","secondary":"#e30613","pattern":"solid","reputation":82,"stadium":"RheinEnergieSTADION","uefa2026":null},{"name":"Werder Bremen","abbr":"WB","primary":"#00854a","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Weserstadion","uefa2026":null},{"name":"Schalke 04","abbr":"S04","primary":"#004d9d","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Veltins-Arena","uefa2026":null},{"name":"SV Elversberg","abbr":"SE","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":82,"stadium":"SV Elversberg Stadium","uefa2026":null},{"name":"SC Paderborn","abbr":"SP","primary":"#0050a4","secondary":"#111111","pattern":"stripes","reputation":82,"stadium":"SC Paderborn Stadium","uefa2026":null}]},{"id":"ger-2bl","name":"2. Bundesliga","level":2,"expectedSize":18,"clubs":[{"name":"Arminia Bielefeld","abbr":"AB","primary":"#0050a4","secondary":"#111111","pattern":"stripes","reputation":70,"stadium":"Arminia Bielefeld Stadium","uefa2026":null},{"name":"VfL Bochum","abbr":"VB","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"VfL Bochum Stadium","uefa2026":null},{"name":"Eintracht Braunschweig","abbr":"EB","primary":"#f7d417","secondary":"#0050a4","pattern":"solid","reputation":70,"stadium":"Eintracht Braunschweig Stadium","uefa2026":null},{"name":"Energie Cottbus","abbr":"EC","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Energie Cottbus Stadium","uefa2026":null},{"name":"Darmstadt 98","abbr":"D9","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Darmstadt 98 Stadium","uefa2026":null},{"name":"Dynamo Dresden","abbr":"DD","primary":"#f7d417","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"Dynamo Dresden Stadium","uefa2026":null},{"name":"Greuther Fürth","abbr":"GF","primary":"#15803d","secondary":"#ffffff","pattern":"hoops","reputation":70,"stadium":"Greuther Fürth Stadium","uefa2026":null},{"name":"Hannover 96","abbr":"H9","primary":"#111111","secondary":"#15803d","pattern":"solid","reputation":70,"stadium":"Hannover 96 Stadium","uefa2026":null},{"name":"Heidenheim","abbr":"HEI","primary":"#e30613","secondary":"#0050a4","pattern":"solid","reputation":70,"stadium":"Heidenheim Stadium","uefa2026":null},{"name":"Hertha BSC","abbr":"HB","primary":"#0050a4","secondary":"#ffffff","pattern":"stripes","reputation":70,"stadium":"Hertha BSC Stadium","uefa2026":null},{"name":"Kaiserslautern","abbr":"KAI","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Kaiserslautern Stadium","uefa2026":null},{"name":"Karlsruher SC","abbr":"KS","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Karlsruher SC Stadium","uefa2026":null},{"name":"Holstein Kiel","abbr":"HK","primary":"#0050a4","secondary":"#e30613","pattern":"solid","reputation":70,"stadium":"Holstein Kiel Stadium","uefa2026":null},{"name":"Magdeburg","abbr":"MAG","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Magdeburg Stadium","uefa2026":null},{"name":"1. FC Nürnberg","abbr":"1FN","primary":"#7a263a","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"1. FC Nürnberg Stadium","uefa2026":null},{"name":"VfL Osnabrück","abbr":"VO","primary":"#6d28d9","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"VfL Osnabrück Stadium","uefa2026":null},{"name":"St. Pauli","abbr":"SP","primary":"#5b2c20","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"St. Pauli Stadium","uefa2026":null},{"name":"VfL Wolfsburg","abbr":"VW","primary":"#65b32e","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"VfL Wolfsburg Stadium","uefa2026":null}]},{"id":"ger-3l","name":"3. Liga","level":3,"expectedSize":20,"clubs":[{"name":"Alemannia Aachen","abbr":"AA","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Alemannia Aachen Stadium","uefa2026":null},{"name":"MSV Duisburg","abbr":"MD","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"MSV Duisburg Stadium","uefa2026":null},{"name":"Fortuna Düsseldorf","abbr":"FD","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Fortuna Düsseldorf Stadium","uefa2026":null},{"name":"Rot-Weiss Essen","abbr":"RWE","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Rot-Weiss Essen Stadium","uefa2026":null},{"name":"Sonnenhof Großaspach","abbr":"SG","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Sonnenhof Großaspach Stadium","uefa2026":null},{"name":"TSV Havelse","abbr":"TH","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"TSV Havelse Stadium","uefa2026":null},{"name":"TSG Hoffenheim II","abbr":"THI","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"TSG Hoffenheim II Stadium","uefa2026":null},{"name":"FC Ingolstadt","abbr":"FI","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"FC Ingolstadt Stadium","uefa2026":null},{"name":"Fortuna Köln","abbr":"FK","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Fortuna Köln Stadium","uefa2026":null},{"name":"Viktoria Köln","abbr":"VK","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Viktoria Köln Stadium","uefa2026":null},{"name":"Waldhof Mannheim","abbr":"WM","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Waldhof Mannheim Stadium","uefa2026":null},{"name":"SV Meppen","abbr":"SM","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"SV Meppen Stadium","uefa2026":null},{"name":"Preußen Münster","abbr":"PM","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Preußen Münster Stadium","uefa2026":null},{"name":"Jahn Regensburg","abbr":"JR","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Jahn Regensburg Stadium","uefa2026":null},{"name":"Hansa Rostock","abbr":"HR","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Hansa Rostock Stadium","uefa2026":null},{"name":"1. FC Saarbrücken","abbr":"1FS","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"1. FC Saarbrücken Stadium","uefa2026":null},{"name":"VfB Stuttgart II","abbr":"VSI","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"VfB Stuttgart II Stadium","uefa2026":null},{"name":"SC Verl","abbr":"SV","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"SC Verl Stadium","uefa2026":null},{"name":"Wehen Wiesbaden","abbr":"WW","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Wehen Wiesbaden Stadium","uefa2026":null},{"name":"Würzburger Kickers","abbr":"WK","primary":"#111111","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Würzburger Kickers Stadium","uefa2026":null}]}],"meta":{"name":"Germany","domesticCups":[["dfb-pokal","DFB-Pokal","🏆"],["dfl-supercup","DFL-Supercup","🛡️"]],"topSize":18,"ucl":4}},"italy":{"season":"2026/27","verified":true,"country":"italy","divisions":[{"id":"ita-a","name":"Serie A","level":1,"expectedSize":20,"clubs":[{"name":"AC Milan","abbr":"MIL","primary":"#e30613","secondary":"#111111","pattern":"stripes","reputation":85,"stadium":"San Siro","uefa2026":"uel-league-phase"},{"name":"Atalanta","abbr":"ATA","primary":"#0050a4","secondary":"#111111","pattern":"stripes","reputation":84,"stadium":"New Balance Arena","uefa2026":"uecl-playoff"},{"name":"Bologna","abbr":"BOL","primary":"#a50044","secondary":"#0050a4","pattern":"stripes","reputation":82,"stadium":"Bologna Stadium","uefa2026":null},{"name":"Cagliari","abbr":"CAG","primary":"#a50044","secondary":"#0050a4","pattern":"halves","reputation":82,"stadium":"Cagliari Stadium","uefa2026":null},{"name":"Como","abbr":"COM","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Como Stadium","uefa2026":"ucl-league-phase"},{"name":"Fiorentina","abbr":"FIO","primary":"#6f2c91","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Stadio Artemio Franchi","uefa2026":null},{"name":"Frosinone","abbr":"FRO","primary":"#f7d417","secondary":"#0050a4","pattern":"solid","reputation":82,"stadium":"Frosinone Stadium","uefa2026":null},{"name":"Genoa","abbr":"GEN","primary":"#a50044","secondary":"#0050a4","pattern":"halves","reputation":82,"stadium":"Genoa Stadium","uefa2026":null},{"name":"Inter","abbr":"INT","primary":"#0050a4","secondary":"#111111","pattern":"stripes","reputation":89,"stadium":"San Siro","uefa2026":"ucl-league-phase"},{"name":"Juventus","abbr":"JUV","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":86,"stadium":"Allianz Stadium","uefa2026":"uel-league-phase"},{"name":"Lazio","abbr":"LAZ","primary":"#87ceeb","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Stadio Olimpico","uefa2026":null},{"name":"Lecce","abbr":"LEC","primary":"#e30613","secondary":"#f7d417","pattern":"stripes","reputation":82,"stadium":"Lecce Stadium","uefa2026":null},{"name":"Monza","abbr":"MON","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Monza Stadium","uefa2026":null},{"name":"Napoli","abbr":"NAP","primary":"#5eb6e4","secondary":"#ffffff","pattern":"solid","reputation":86,"stadium":"Stadio Diego Armando Maradona","uefa2026":"ucl-league-phase"},{"name":"Parma","abbr":"PAR","primary":"#ffffff","secondary":"#111111","pattern":"cross","reputation":82,"stadium":"Parma Stadium","uefa2026":null},{"name":"Roma","abbr":"ROM","primary":"#8e1f2d","secondary":"#f0bc42","pattern":"solid","reputation":84,"stadium":"Stadio Olimpico","uefa2026":"ucl-league-phase"},{"name":"Sassuolo","abbr":"SAS","primary":"#15803d","secondary":"#111111","pattern":"stripes","reputation":82,"stadium":"Sassuolo Stadium","uefa2026":null},{"name":"Torino","abbr":"TOR","primary":"#7a263a","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Torino Stadium","uefa2026":null},{"name":"Udinese","abbr":"UDI","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Udinese Stadium","uefa2026":null},{"name":"Venezia","abbr":"VEN","primary":"#111111","secondary":"#f97316","pattern":"chestBand","reputation":82,"stadium":"Venezia Stadium","uefa2026":null}]},{"id":"ita-b","name":"Serie B","level":2,"expectedSize":20,"clubs":[{"name":"Arezzo","abbr":"ARE","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Arezzo Stadium","uefa2026":null},{"name":"Ascoli","abbr":"ASC","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Ascoli Stadium","uefa2026":null},{"name":"Avellino","abbr":"AVE","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Avellino Stadium","uefa2026":null},{"name":"Benevento","abbr":"BEN","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Benevento Stadium","uefa2026":null},{"name":"Carrarese","abbr":"CAR","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Carrarese Stadium","uefa2026":null},{"name":"Catanzaro","abbr":"CAT","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Catanzaro Stadium","uefa2026":null},{"name":"Cesena","abbr":"CES","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Cesena Stadium","uefa2026":null},{"name":"Cremonese","abbr":"CRE","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Cremonese Stadium","uefa2026":null},{"name":"Empoli","abbr":"EMP","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Empoli Stadium","uefa2026":null},{"name":"Juve Stabia","abbr":"JS","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Juve Stabia Stadium","uefa2026":null},{"name":"Mantova","abbr":"MAN","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Mantova Stadium","uefa2026":null},{"name":"Modena","abbr":"MOD","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Modena Stadium","uefa2026":null},{"name":"Padova","abbr":"PAD","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Padova Stadium","uefa2026":null},{"name":"Palermo","abbr":"PAL","primary":"#f7a8b8","secondary":"#111111","pattern":"solid","reputation":70,"stadium":"Palermo Stadium","uefa2026":null},{"name":"Pisa","abbr":"PIS","primary":"#0050a4","secondary":"#111111","pattern":"stripes","reputation":70,"stadium":"Pisa Stadium","uefa2026":null},{"name":"Sampdoria","abbr":"SAM","primary":"#0050a4","secondary":"#ffffff","pattern":"chestBand","reputation":70,"stadium":"Sampdoria Stadium","uefa2026":null},{"name":"Südtirol","abbr":"SDT","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Südtirol Stadium","uefa2026":null},{"name":"Hellas Verona","abbr":"HV","primary":"#0050a4","secondary":"#f7d417","pattern":"solid","reputation":70,"stadium":"Hellas Verona Stadium","uefa2026":null},{"name":"L.R. Vicenza","abbr":"LRV","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"L.R. Vicenza Stadium","uefa2026":null},{"name":"Virtus Entella","abbr":"VE","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Virtus Entella Stadium","uefa2026":null}]},{"id":"ita-c-a","name":"Serie C · Group A","level":3,"expectedSize":20,"clubs":[{"name":"Carpi","abbr":"CAR","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Carpi Stadium","uefa2026":null},{"name":"Ospitaletto","abbr":"OSP","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Ospitaletto Stadium","uefa2026":null},{"name":"Union Brescia","abbr":"UB","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Union Brescia Stadium","uefa2026":null},{"name":"Alcione Milano","abbr":"AM","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Alcione Milano Stadium","uefa2026":null},{"name":"Trento","abbr":"TRE","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Trento Stadium","uefa2026":null},{"name":"AlbinoLeffe","abbr":"ALB","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"AlbinoLeffe Stadium","uefa2026":null},{"name":"Renate","abbr":"REN","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Renate Stadium","uefa2026":null},{"name":"Lumezzane","abbr":"LUM","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Lumezzane Stadium","uefa2026":null},{"name":"Pergolettese","abbr":"PER","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Pergolettese Stadium","uefa2026":null},{"name":"Lecco","abbr":"LEC","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Lecco Stadium","uefa2026":null},{"name":"Giana Erminio","abbr":"GE","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Giana Erminio Stadium","uefa2026":null},{"name":"Dolomiti Bellunesi","abbr":"DB","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Dolomiti Bellunesi Stadium","uefa2026":null},{"name":"Arzignano Valchiampo","abbr":"AV","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Arzignano Valchiampo Stadium","uefa2026":null},{"name":"Juventus Next Gen","abbr":"JNG","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Juventus Next Gen Stadium","uefa2026":null},{"name":"Cittadella","abbr":"CIT","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Cittadella Stadium","uefa2026":null},{"name":"Novara","abbr":"NOV","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Novara Stadium","uefa2026":null},{"name":"Pro Vercelli","abbr":"PV","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Pro Vercelli Stadium","uefa2026":null},{"name":"Treviso","abbr":"TRE","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Treviso Stadium","uefa2026":null},{"name":"Folgore Caratese","abbr":"FC","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Folgore Caratese Stadium","uefa2026":null},{"name":"Desenzano","abbr":"DES","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Desenzano Stadium","uefa2026":null}]},{"id":"ita-c-b","name":"Serie C · Group B","level":3,"expectedSize":20,"clubs":[{"name":"Reggiana","abbr":"REG","primary":"#7a263a","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Reggiana Stadium","uefa2026":null},{"name":"Spezia","abbr":"SPE","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":61,"stadium":"Spezia Stadium","uefa2026":null},{"name":"Pescara","abbr":"PES","primary":"#5eb6e4","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"Pescara Stadium","uefa2026":null},{"name":"Ravenna","abbr":"RAV","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Ravenna Stadium","uefa2026":null},{"name":"Sambenedettese","abbr":"SAM","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Sambenedettese Stadium","uefa2026":null},{"name":"Pianese","abbr":"PIA","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Pianese Stadium","uefa2026":null},{"name":"Forlì","abbr":"FOR","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Forlì Stadium","uefa2026":null},{"name":"Gubbio","abbr":"GUB","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Gubbio Stadium","uefa2026":null},{"name":"Guidonia Montecelio","abbr":"GM","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Guidonia Montecelio Stadium","uefa2026":null},{"name":"Campobasso","abbr":"CAM","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Campobasso Stadium","uefa2026":null},{"name":"Latina","abbr":"LAT","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Latina Stadium","uefa2026":null},{"name":"Vis Pesaro","abbr":"VP","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Vis Pesaro Stadium","uefa2026":null},{"name":"Pineto","abbr":"PIN","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Pineto Stadium","uefa2026":null},{"name":"Perugia","abbr":"PER","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Perugia Stadium","uefa2026":null},{"name":"Atalanta U23","abbr":"AU","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Atalanta U23 Stadium","uefa2026":null},{"name":"Livorno","abbr":"LIV","primary":"#7a263a","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Livorno Stadium","uefa2026":null},{"name":"Torres","abbr":"TOR","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Torres Stadium","uefa2026":null},{"name":"Vado","abbr":"VAD","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Vado Stadium","uefa2026":null},{"name":"Ostia Mare","abbr":"OM","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Ostia Mare Stadium","uefa2026":null},{"name":"Grosseto","abbr":"GRO","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Grosseto Stadium","uefa2026":null}]},{"id":"ita-c-c","name":"Serie C · Group C","level":3,"expectedSize":20,"clubs":[{"name":"Bari","abbr":"BAR","primary":"#ffffff","secondary":"#e30613","pattern":"solid","reputation":61,"stadium":"Bari Stadium","uefa2026":null},{"name":"Salernitana","abbr":"SAL","primary":"#7a263a","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Salernitana Stadium","uefa2026":null},{"name":"Catania","abbr":"CAT","primary":"#0050a4","secondary":"#e30613","pattern":"stripes","reputation":61,"stadium":"Catania Stadium","uefa2026":null},{"name":"Casarano","abbr":"CAS","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Casarano Stadium","uefa2026":null},{"name":"Crotone","abbr":"CRO","primary":"#0050a4","secondary":"#e30613","pattern":"stripes","reputation":61,"stadium":"Crotone Stadium","uefa2026":null},{"name":"Cosenza","abbr":"COS","primary":"#0050a4","secondary":"#e30613","pattern":"stripes","reputation":61,"stadium":"Cosenza Stadium","uefa2026":null},{"name":"Inter U23","abbr":"IU","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Inter U23 Stadium","uefa2026":null},{"name":"Casertana","abbr":"CAS","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Casertana Stadium","uefa2026":null},{"name":"Potenza","abbr":"POT","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Potenza Stadium","uefa2026":null},{"name":"Monopoli","abbr":"MON","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Monopoli Stadium","uefa2026":null},{"name":"Sorrento","abbr":"SOR","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Sorrento Stadium","uefa2026":null},{"name":"Team Altamura","abbr":"TA","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Team Altamura Stadium","uefa2026":null},{"name":"Audace Cerignola","abbr":"AC","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Audace Cerignola Stadium","uefa2026":null},{"name":"Picerno","abbr":"PIC","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Picerno Stadium","uefa2026":null},{"name":"Giugliano","abbr":"GIU","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Giugliano Stadium","uefa2026":null},{"name":"Cavese","abbr":"CAV","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Cavese Stadium","uefa2026":null},{"name":"Foggia","abbr":"FOG","primary":"#e30613","secondary":"#111111","pattern":"stripes","reputation":61,"stadium":"Foggia Stadium","uefa2026":null},{"name":"Scafatese","abbr":"SCA","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Scafatese Stadium","uefa2026":null},{"name":"Savoia","abbr":"SAV","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Savoia Stadium","uefa2026":null},{"name":"Barletta","abbr":"BAR","primary":"#0052b4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Barletta Stadium","uefa2026":null}]}],"meta":{"name":"Italy","domesticCups":[["coppa-italia","Coppa Italia","🏆"],["supercoppa","Supercoppa","🛡️"]],"topSize":20,"ucl":4}},"france":{"season":"2026/27","verified":true,"country":"france","divisions":[{"id":"fra-l1","name":"Ligue 1","level":1,"expectedSize":18,"clubs":[{"name":"Angers SCO","abbr":"AS","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Angers SCO Stadium","uefa2026":null},{"name":"LOSC Lille","abbr":"LIL","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Decathlon Arena – Stade Pierre-Mauroy","uefa2026":"ucl-league-phase"},{"name":"Le Havre AC","abbr":"LHA","primary":"#0050a4","secondary":"#87ceeb","pattern":"halves","reputation":82,"stadium":"Le Havre AC Stadium","uefa2026":null},{"name":"AS Monaco","abbr":"MON","primary":"#ffffff","secondary":"#e30613","pattern":"sash","reputation":82,"stadium":"Stade Louis-II","uefa2026":"uecl-playoff"},{"name":"Le Mans FC","abbr":"LMF","primary":"#e30613","secondary":"#f7d417","pattern":"solid","reputation":82,"stadium":"Le Mans FC Stadium","uefa2026":null},{"name":"Stade Brestois 29","abbr":"SB2","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Stade Brestois 29 Stadium","uefa2026":null},{"name":"RC Lens","abbr":"RCL","primary":"#e30613","secondary":"#f7d417","pattern":"stripes","reputation":82,"stadium":"Stade Bollaert-Delelis","uefa2026":"ucl-league-phase"},{"name":"AJ Auxerre","abbr":"AA","primary":"#ffffff","secondary":"#0050a4","pattern":"solid","reputation":82,"stadium":"AJ Auxerre Stadium","uefa2026":null},{"name":"Olympique Marseille","abbr":"OM","primary":"#ffffff","secondary":"#00aae4","pattern":"solid","reputation":83,"stadium":"Orange Vélodrome","uefa2026":"uel-league-phase"},{"name":"RC Strasbourg Alsace","abbr":"RSA","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"RC Strasbourg Alsace Stadium","uefa2026":null},{"name":"OGC Nice","abbr":"ON","primary":"#e30613","secondary":"#111111","pattern":"stripes","reputation":82,"stadium":"OGC Nice Stadium","uefa2026":null},{"name":"FC Lorient","abbr":"FL","primary":"#f97316","secondary":"#111111","pattern":"solid","reputation":82,"stadium":"FC Lorient Stadium","uefa2026":null},{"name":"Paris Saint-Germain","abbr":"PSG","primary":"#004170","secondary":"#da291c","pattern":"centreStripe","reputation":91,"stadium":"Parc des Princes","uefa2026":"ucl-league-phase"},{"name":"Stade Rennais","abbr":"REN","primary":"#e30613","secondary":"#111111","pattern":"halves","reputation":82,"stadium":"Stade Rennais Stadium","uefa2026":"uel-league-phase"},{"name":"Toulouse FC","abbr":"TF","primary":"#6f2c91","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Toulouse FC Stadium","uefa2026":null},{"name":"Olympique Lyonnais","abbr":"OL","primary":"#ffffff","secondary":"#0050a4","pattern":"centreStripe","reputation":82,"stadium":"Groupama Stadium","uefa2026":"ucl-playoff"},{"name":"ESTAC Troyes","abbr":"ET","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"ESTAC Troyes Stadium","uefa2026":null},{"name":"Paris FC","abbr":"PF","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Paris FC Stadium","uefa2026":null}]},{"id":"fra-l2","name":"Ligue 2","level":2,"expectedSize":18,"clubs":[{"name":"FC Annecy","abbr":"FA","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"FC Annecy Stadium","uefa2026":null},{"name":"US Boulogne","abbr":"UB","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"US Boulogne Stadium","uefa2026":null},{"name":"Clermont Foot","abbr":"CF","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"Clermont Foot Stadium","uefa2026":null},{"name":"Dijon FCO","abbr":"DF","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Dijon FCO Stadium","uefa2026":null},{"name":"USL Dunkerque","abbr":"UD","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"USL Dunkerque Stadium","uefa2026":null},{"name":"Grenoble Foot 38","abbr":"GF3","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"Grenoble Foot 38 Stadium","uefa2026":null},{"name":"EA Guingamp","abbr":"EG","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"EA Guingamp Stadium","uefa2026":null},{"name":"Stade Lavallois","abbr":"SL","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"Stade Lavallois Stadium","uefa2026":null},{"name":"FC Metz","abbr":"FM","primary":"#7a263a","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"FC Metz Stadium","uefa2026":null},{"name":"Montpellier HSC","abbr":"MH","primary":"#003366","secondary":"#f97316","pattern":"solid","reputation":70,"stadium":"Montpellier HSC Stadium","uefa2026":null},{"name":"AS Nancy Lorraine","abbr":"ANL","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"AS Nancy Lorraine Stadium","uefa2026":null},{"name":"FC Nantes","abbr":"FN","primary":"#fcd116","secondary":"#15803d","pattern":"solid","reputation":70,"stadium":"FC Nantes Stadium","uefa2026":null},{"name":"Pau FC","abbr":"PF","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"Pau FC Stadium","uefa2026":null},{"name":"Red Star FC","abbr":"RSF","primary":"#15803d","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Red Star FC Stadium","uefa2026":null},{"name":"Stade de Reims","abbr":"SDR","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"Stade de Reims Stadium","uefa2026":null},{"name":"Rodez AF","abbr":"RA","primary":"#002654","secondary":"#ed2939","pattern":"solid","reputation":70,"stadium":"Rodez AF Stadium","uefa2026":null},{"name":"AS Saint-Étienne","abbr":"ASÉ","primary":"#15803d","secondary":"#ffffff","pattern":"solid","reputation":70,"stadium":"AS Saint-Étienne Stadium","uefa2026":null},{"name":"FC Sochaux","abbr":"FS","primary":"#f7d417","secondary":"#0050a4","pattern":"solid","reputation":70,"stadium":"FC Sochaux Stadium","uefa2026":null}]},{"id":"fra-l3","name":"Ligue 3 Betclic","level":3,"expectedSize":18,"clubs":[{"name":"Amiens SC","abbr":"AMI","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"Amiens SC Stadium","uefa2026":null},{"name":"SC Aubagne Air Bel","abbr":"AUB","primary":"#1e3a8a","secondary":"#f8fafc","pattern":"solid","reputation":61,"stadium":"SC Aubagne Air Bel Stadium","uefa2026":null},{"name":"SC Bastia","abbr":"BAS","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"SC Bastia Stadium","uefa2026":null},{"name":"Football Bourg-en-Bresse Péronnas 01","abbr":"BBP","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Football Bourg-en-Bresse Péronnas 01 Stadium","uefa2026":null},{"name":"SM Caen","abbr":"CAE","primary":"#0050a4","secondary":"#e30613","pattern":"stripes","reputation":61,"stadium":"SM Caen Stadium","uefa2026":null},{"name":"AS Cannes","abbr":"CAN","primary":"#e30613","secondary":"#ffffff","pattern":"stripes","reputation":61,"stadium":"AS Cannes Stadium","uefa2026":null},{"name":"US Concarneau","abbr":"CON","primary":"#0050a4","secondary":"#e30613","pattern":"stripes","reputation":61,"stadium":"US Concarneau Stadium","uefa2026":null},{"name":"FC Fleury 91","abbr":"FLE","primary":"#e30613","secondary":"#111111","pattern":"solid","reputation":61,"stadium":"FC Fleury 91 Stadium","uefa2026":null},{"name":"VFC La Roche-sur-Yon","abbr":"LRY","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"VFC La Roche-sur-Yon Stadium","uefa2026":null},{"name":"US Orléans","abbr":"ORL","primary":"#eab308","secondary":"#e30613","pattern":"solid","reputation":61,"stadium":"US Orléans Stadium","uefa2026":null},{"name":"Paris 13 Atlético","abbr":"P13","primary":"#15803d","secondary":"#111111","pattern":"solid","reputation":61,"stadium":"Paris 13 Atlético Stadium","uefa2026":null},{"name":"Le Puy-en-Velay FC","abbr":"LPV","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Le Puy-en-Velay FC Stadium","uefa2026":null},{"name":"Quevilly-Rouen Métropole","abbr":"QRM","primary":"#e30613","secondary":"#facc15","pattern":"solid","reputation":61,"stadium":"Quevilly-Rouen Métropole Stadium","uefa2026":null},{"name":"FC Rouen 1899","abbr":"ROU","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"FC Rouen 1899 Stadium","uefa2026":null},{"name":"US Thionville Lusitanos","abbr":"THI","primary":"#facc15","secondary":"#0050a4","pattern":"solid","reputation":61,"stadium":"US Thionville Lusitanos Stadium","uefa2026":null},{"name":"Valenciennes FC","abbr":"VAL","primary":"#e30613","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"Valenciennes FC Stadium","uefa2026":null},{"name":"FC Versailles 78","abbr":"VER","primary":"#0050a4","secondary":"#ffffff","pattern":"solid","reputation":61,"stadium":"FC Versailles 78 Stadium","uefa2026":null},{"name":"FC Villefranche-Beaujolais","abbr":"VIL","primary":"#0050a4","secondary":"#e30613","pattern":"solid","reputation":61,"stadium":"FC Villefranche-Beaujolais Stadium","uefa2026":null}]}],"meta":{"name":"France","domesticCups":[["coupe-de-france","Coupe de France","🏆"],["trophee-des-champions","Trophée des Champions","🛡️"]],"topSize":18,"ucl":3}},"argentina":{"season":"2026","verified":true,"country":"argentina","divisions":[{"id":"arg-lpf","name":"Liga Profesional 2026","level":1,"expectedSize":30,"clubs":[{"name":"Aldosivi","abbr":"ALD","primary":"#15803d","secondary":"#facc15","pattern":"stripes","reputation":71,"stadium":"José María Minella","uefa2026":null},{"name":"Argentinos Juniors","abbr":"ARG","primary":"#d71920","secondary":"#ffffff","pattern":"solid","reputation":81,"stadium":"Diego Armando Maradona","uefa2026":null},{"name":"Atlético Tucumán","abbr":"ATU","primary":"#75aadb","secondary":"#ffffff","pattern":"stripes","reputation":76,"stadium":"Monumental José Fierro","uefa2026":null},{"name":"Banfield","abbr":"BAN","primary":"#15803d","secondary":"#ffffff","pattern":"stripes","reputation":76,"stadium":"Florencio Sola","uefa2026":null},{"name":"Barracas Central","abbr":"BAR","primary":"#d71920","secondary":"#ffffff","pattern":"stripes","reputation":76,"stadium":"Claudio Chiqui Tapia","uefa2026":null},{"name":"Belgrano","abbr":"BEL","primary":"#66bde6","secondary":"#111111","pattern":"solid","reputation":82,"stadium":"Julio César Villagra","uefa2026":null,"homeShorts":"#111111","homeSocks":"#66bde6"},{"name":"Boca Juniors","abbr":"BOC","primary":"#003f7d","secondary":"#ffcc00","pattern":"chestBand","reputation":86,"stadium":"Alberto J. Armando (La Bombonera)","uefa2026":null,"homeShorts":"#003f7d","homeSocks":"#003f7d"},{"name":"Central Córdoba","abbr":"CCO","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":75,"stadium":"Único Madre de Ciudades","uefa2026":null,"homeShorts":"#111111","homeSocks":"#111111"},{"name":"Defensa y Justicia","abbr":"DYJ","primary":"#f5d000","secondary":"#15803d","pattern":"solid","reputation":77,"stadium":"Norberto Tomaghello","uefa2026":null},{"name":"Deportivo Riestra","abbr":"RIE","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":72,"stadium":"Guillermo Laza","uefa2026":null},{"name":"Estudiantes de La Plata","abbr":"ELP","primary":"#e30613","secondary":"#ffffff","pattern":"stripes","reputation":83,"stadium":"Jorge Luis Hirschi","uefa2026":null,"homeShorts":"#111111","homeSocks":"#ffffff"},{"name":"Estudiantes de Río Cuarto","abbr":"ERC","primary":"#75aadb","secondary":"#ffffff","pattern":"stripes","reputation":69,"stadium":"Antonio Candini","uefa2026":null},{"name":"Gimnasia y Esgrima La Plata","abbr":"GLP","primary":"#ffffff","secondary":"#132257","pattern":"chestBand","reputation":78,"stadium":"Juan Carmelo Zerillo","uefa2026":null},{"name":"Gimnasia y Esgrima Mendoza","abbr":"GMD","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":73,"stadium":"Víctor Antonio Legrotaglie","uefa2026":null},{"name":"Huracán","abbr":"HUR","primary":"#ffffff","secondary":"#d71920","pattern":"solid","reputation":79,"stadium":"Tomás Adolfo Ducó","uefa2026":null},{"name":"Independiente","abbr":"IND","primary":"#d71920","secondary":"#ffffff","pattern":"solid","reputation":82,"stadium":"Libertadores de América-Ricardo Enrique Bochini","uefa2026":null},{"name":"Independiente Rivadavia","abbr":"IRM","primary":"#0057b8","secondary":"#ffffff","pattern":"stripes","reputation":80,"stadium":"Bautista Gargantini","uefa2026":null},{"name":"Instituto","abbr":"INS","primary":"#d71920","secondary":"#ffffff","pattern":"stripes","reputation":78,"stadium":"Monumental Presidente Perón","uefa2026":null},{"name":"Lanús","abbr":"LAN","primary":"#7a263a","secondary":"#ffffff","pattern":"solid","reputation":80,"stadium":"Ciudad de Lanús-Néstor Díaz Pérez","uefa2026":null},{"name":"Newell's Old Boys","abbr":"NOB","primary":"#d71920","secondary":"#111111","pattern":"halves","reputation":78,"stadium":"Marcelo Bielsa","uefa2026":null},{"name":"Platense","abbr":"PLA","primary":"#6b3f2a","secondary":"#ffffff","pattern":"solid","reputation":79,"stadium":"Ciudad de Vicente López","uefa2026":null},{"name":"Racing Club","abbr":"RAC","primary":"#75aadb","secondary":"#ffffff","pattern":"stripes","reputation":83,"stadium":"Presidente Perón","uefa2026":null,"homeShorts":"#ffffff","homeSocks":"#75aadb"},{"name":"River Plate","abbr":"RIV","primary":"#ffffff","secondary":"#d71920","pattern":"sash","reputation":88,"stadium":"Monumental","uefa2026":null,"homeShorts":"#111111","homeSocks":"#ffffff"},{"name":"Rosario Central","abbr":"ROS","primary":"#0057b8","secondary":"#fcd116","pattern":"stripes","reputation":81,"stadium":"Gigante de Arroyito","uefa2026":null,"homeShorts":"#0057b8","homeSocks":"#0057b8"},{"name":"San Lorenzo","abbr":"SLO","primary":"#1d3f8f","secondary":"#d71920","pattern":"stripes","reputation":80,"stadium":"Pedro Bidegain","uefa2026":null},{"name":"Sarmiento","abbr":"SAR","primary":"#15803d","secondary":"#ffffff","pattern":"solid","reputation":74,"stadium":"Eva Perón","uefa2026":null},{"name":"Talleres","abbr":"TAL","primary":"#0b2f6b","secondary":"#ffffff","pattern":"stripes","reputation":80,"stadium":"Mario Alberto Kempes","uefa2026":null,"homeShorts":"#0b2f6b","homeSocks":"#ffffff"},{"name":"Tigre","abbr":"TIG","primary":"#1d3f8f","secondary":"#d71920","pattern":"chestBand","reputation":77,"stadium":"José Dellagiovanna","uefa2026":null},{"name":"Unión","abbr":"UNI","primary":"#d71920","secondary":"#ffffff","pattern":"stripes","reputation":78,"stadium":"15 de Abril","uefa2026":null},{"name":"Vélez Sarsfield","abbr":"VEL","primary":"#ffffff","secondary":"#0054a6","pattern":"chestBand","reputation":81,"stadium":"José Amalfitani","uefa2026":null,"homeShorts":"#ffffff","homeSocks":"#ffffff"}]}],"meta":{"name":"Argentina","domesticCups":[["copa-argentina","Copa Argentina","🏆"],["trofeo-de-campeones","Trofeo de Campeones","🛡️"]],"topSize":30}},"brazil":{"season":"2026","verified":true,"country":"brazil","divisions":[{"id":"bra-a","name":"Campeonato Brasileiro Série A 2026","level":1,"expectedSize":20,"clubs":[{"name":"Athletico Paranaense","abbr":"CAP","primary":"#d71920","secondary":"#111111","pattern":"stripes","reputation":84,"stadium":"Arena da Baixada","uefa2026":null,"homeShorts":"#111111","homeSocks":"#111111"},{"name":"Atlético Mineiro","abbr":"CAM","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":82,"stadium":"Arena MRV","uefa2026":null,"homeShorts":"#111111","homeSocks":"#111111"},{"name":"Bahia","abbr":"BAH","primary":"#ffffff","secondary":"#0057b8","pattern":"solid","reputation":81,"stadium":"Arena Fonte Nova","uefa2026":null,"homeShorts":"#ffffff","homeSocks":"#ffffff"},{"name":"Botafogo","abbr":"BOT","primary":"#111111","secondary":"#ffffff","pattern":"stripes","reputation":83,"stadium":"Nilton Santos","uefa2026":null,"homeShorts":"#111111","homeSocks":"#111111"},{"name":"Chapecoense","abbr":"CHA","primary":"#00843d","secondary":"#ffffff","pattern":"solid","reputation":69,"stadium":"Arena Condá","uefa2026":null},{"name":"Corinthians","abbr":"COR","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":83,"stadium":"Neo Química Arena","uefa2026":null,"homeShorts":"#111111","homeSocks":"#ffffff"},{"name":"Coritiba","abbr":"CFC","primary":"#ffffff","secondary":"#007a33","pattern":"hoops","reputation":76,"stadium":"Couto Pereira","uefa2026":null},{"name":"Cruzeiro","abbr":"CRU","primary":"#0033a0","secondary":"#ffffff","pattern":"solid","reputation":84,"stadium":"Mineirão","uefa2026":null,"homeShorts":"#ffffff","homeSocks":"#0033a0"},{"name":"Flamengo","abbr":"FLA","primary":"#d71920","secondary":"#111111","pattern":"hoops","reputation":89,"stadium":"Maracanã","uefa2026":null,"homeShorts":"#111111","homeSocks":"#111111"},{"name":"Fluminense","abbr":"FLU","primary":"#7a263a","secondary":"#006341","pattern":"stripes","reputation":84,"stadium":"Maracanã","uefa2026":null,"homeShorts":"#ffffff","homeSocks":"#ffffff"},{"name":"Grêmio","abbr":"GRE","primary":"#6cb4e4","secondary":"#111111","pattern":"stripes","reputation":80,"stadium":"Arena do Grêmio","uefa2026":null,"homeShorts":"#ffffff","homeSocks":"#6cb4e4"},{"name":"Internacional","abbr":"INT","primary":"#d71920","secondary":"#ffffff","pattern":"solid","reputation":80,"stadium":"Beira-Rio","uefa2026":null},{"name":"Mirassol","abbr":"MIR","primary":"#f7d417","secondary":"#15803d","pattern":"solid","reputation":77,"stadium":"José Maria de Campos Maia","uefa2026":null},{"name":"Palmeiras","abbr":"PAL","primary":"#006437","secondary":"#ffffff","pattern":"solid","reputation":89,"stadium":"Allianz Parque","uefa2026":null,"homeShorts":"#ffffff","homeSocks":"#006437"},{"name":"Red Bull Bragantino","abbr":"RBB","primary":"#ffffff","secondary":"#d71920","pattern":"solid","reputation":80,"stadium":"Nabi Abi Chedid","uefa2026":null},{"name":"Remo","abbr":"REM","primary":"#002b5c","secondary":"#ffffff","pattern":"solid","reputation":72,"stadium":"Baenão","uefa2026":null},{"name":"Santos","abbr":"SAN","primary":"#ffffff","secondary":"#111111","pattern":"solid","reputation":79,"stadium":"Vila Belmiro","uefa2026":null,"homeShorts":"#ffffff","homeSocks":"#ffffff"},{"name":"São Paulo","abbr":"SAO","primary":"#ffffff","secondary":"#d71920","pattern":"chestBand","reputation":82,"stadium":"MorumBIS","uefa2026":null,"homeShorts":"#ffffff","homeSocks":"#ffffff"},{"name":"Vasco da Gama","abbr":"VAS","primary":"#ffffff","secondary":"#111111","pattern":"sash","reputation":78,"stadium":"São Januário","uefa2026":null,"homeShorts":"#111111","homeSocks":"#ffffff"},{"name":"Vitória","abbr":"VIT","primary":"#d71920","secondary":"#111111","pattern":"hoops","reputation":75,"stadium":"Barradão","uefa2026":null}]}],"meta":{"name":"Brazil","domesticCups":[["copa-do-brasil","Copa do Brasil","🏆"],["supercopa-rei","Supercopa Rei","🛡️"]],"topSize":20}}};
+  const CXI_NATIONAL_KITS_2026={"afghanistan":[["#d71920","#111111","solid","#111111","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"albania":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"algeria":[["#00843d","#ffffff","solid","#00843d","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"andorra":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"angola":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"antigua-and-barbuda":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"argentina":[["#ffffff","#75aadb","stripes","#111111","#ffffff"],["#111111","#75aadb","solid","#111111","#111111"]],"armenia":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"australia":[["#fcd116","#008751","solid","#008751","#fcd116"],["#008751","#fcd116","solid","#008751","#008751"]],"austria":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"azerbaijan":[["#75aadb","#d71920","solid","#d71920","#75aadb"],["#ffffff","#75aadb","solid","#ffffff","#ffffff"]],"bahamas":[["#75aadb","#f5c400","solid","#f5c400","#75aadb"],["#ffffff","#75aadb","solid","#ffffff","#ffffff"]],"bahrain":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"bangladesh":[["#00843d","#ffffff","solid","#00843d","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"barbados":[["#f5c400","#1d4ed8","solid","#1d4ed8","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"belarus":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"belgium":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"belize":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"benin":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"bhutan":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"bolivia":[["#00843d","#d71920","solid","#d71920","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"bosnia-and-herzegovina":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"botswana":[["#75aadb","#ffffff","solid","#75aadb","#75aadb"],["#ffffff","#75aadb","solid","#ffffff","#ffffff"]],"brazil":[["#fedf00","#009b3a","solid","#0038a8","#ffffff"],["#0038a8","#ffffff","solid","#ffffff","#0038a8"]],"brunei":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"bulgaria":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"burkina-faso":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"burundi":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"cabo-verde":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"cambodia":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"cameroon":[["#00843d","#d71920","solid","#d71920","#f5c400"],["#f5c400","#00843d","solid","#f5c400","#f5c400"]],"canada":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"central-african-republic":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"chad":[["#1d4ed8","#f5c400","solid","#f5c400","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"chile":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"china":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"colombia":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"comoros":[["#00843d","#ffffff","solid","#00843d","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"costa-rica":[["#d71920","#1d4ed8","solid","#1d4ed8","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"croatia":[["#ffffff","#d71920","checkered","#ffffff","#ffffff"],["#0b1f5b","#75aadb","solid","#0b1f5b","#0b1f5b"]],"cuba":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"cyprus":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"czechia":[["#d71920","#1d4ed8","solid","#1d4ed8","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"democratic-republic-of-the-congo":[["#1d4ed8","#d71920","solid","#d71920","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"denmark":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"djibouti":[["#75aadb","#00843d","solid","#00843d","#75aadb"],["#ffffff","#75aadb","solid","#ffffff","#ffffff"]],"dominica":[["#00843d","#ffffff","solid","#00843d","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"dominican-republic":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"ecuador":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"egypt":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"el-salvador":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"england":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"equatorial-guinea":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"eritrea":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"estonia":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"eswatini":[["#1d4ed8","#d71920","solid","#d71920","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"ethiopia":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"fiji":[["#ffffff","#75aadb","solid","#75aadb","#ffffff"],["#75aadb","#ffffff","solid","#75aadb","#75aadb"]],"finland":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"france":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"gabon":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"gambia":[["#00843d","#ffffff","solid","#00843d","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"georgia":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"germany":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"ghana":[["#ffffff","#111111","solid","#ffffff","#ffffff"],["#d71920","#f5c400","solid","#d71920","#d71920"]],"greece":[["#1d4ed8","#ffffff","stripes","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"grenada":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"guatemala":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"guinea":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"guinea-bissau":[["#d71920","#f5c400","solid","#f5c400","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"guyana":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"haiti":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"honduras":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"hungary":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"iceland":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"india":[["#1d4ed8","#f58220","solid","#f58220","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"indonesia":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"iran":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"iraq":[["#00843d","#ffffff","solid","#00843d","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"ireland":[["#00843d","#ffffff","solid","#00843d","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"israel":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"italy":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"ivory-coast":[["#f58220","#ffffff","solid","#f58220","#f58220"],["#ffffff","#f58220","solid","#ffffff","#ffffff"]],"jamaica":[["#f5c400","#00843d","solid","#111111","#f5c400"],["#00843d","#f5c400","solid","#00843d","#00843d"]],"japan":[["#000555","#ffffff","solid","#000555","#000555"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"jordan":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"kazakhstan":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"kenya":[["#d71920","#111111","solid","#111111","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"kiribati":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"kosovo":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"kuwait":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"kyrgyzstan":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"laos":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"latvia":[["#7a263a","#ffffff","solid","#7a263a","#7a263a"],["#ffffff","#7a263a","solid","#ffffff","#ffffff"]],"lebanon":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"lesotho":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"liberia":[["#d71920","#ffffff","stripes","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"libya":[["#ffffff","#d71920","solid","#d71920","#ffffff"],["#d71920","#ffffff","solid","#d71920","#d71920"]],"liechtenstein":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"lithuania":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"luxembourg":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"madagascar":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"malawi":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"malaysia":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"maldives":[["#d71920","#00843d","solid","#00843d","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"mali":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"malta":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"marshall-islands":[["#1d4ed8","#f58220","solid","#f58220","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"mauritania":[["#00843d","#f5c400","solid","#f5c400","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"mauritius":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"mexico":[["#00843d","#ffffff","solid","#ffffff","#d71920"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"micronesia":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"moldova":[["#1d4ed8","#f5c400","solid","#f5c400","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"monaco":[["#d71920","#ffffff","halves","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"mongolia":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"montara":[["#6d28d9","#ffffff","solid","#6d28d9","#6d28d9"],["#ffffff","#6d28d9","solid","#ffffff","#ffffff"]],"montenegro":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"morocco":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"mozambique":[["#d71920","#00843d","solid","#00843d","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"myanmar":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"namibia":[["#d71920","#1d4ed8","solid","#1d4ed8","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"nauru":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"nepal":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"netherlands":[["#f36c21","#111111","solid","#f36c21","#f36c21"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"new-zealand":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"nicaragua":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"niger":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"nigeria":[["#00843d","#ffffff","solid","#ffffff","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"north-korea":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"north-macedonia":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"northern-ireland":[["#00843d","#ffffff","solid","#00843d","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"norway":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"oman":[["#00843d","#ffffff","solid","#00843d","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"pakistan":[["#00843d","#ffffff","solid","#00843d","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"palau":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"palestine":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"panama":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"papua-new-guinea":[["#d71920","#111111","solid","#111111","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"paraguay":[["#d71920","#ffffff","stripes","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"peru":[["#ffffff","#d71920","sash","#ffffff","#ffffff"],["#d71920","#ffffff","sash","#d71920","#d71920"]],"philippines":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"poland":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"portugal":[["#c8102e","#046a38","solid","#00843d","#d71920"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"qatar":[["#8a1538","#ffffff","solid","#8a1538","#8a1538"],["#ffffff","#8a1538","solid","#ffffff","#ffffff"]],"republic-of-the-congo":[["#00843d","#ffffff","solid","#00843d","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"romania":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"russia":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"rwanda":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"saint-kitts-and-nevis":[["#d71920","#00843d","solid","#00843d","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"saint-lucia":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"saint-vincent-and-the-grenadines":[["#1d4ed8","#f5c400","solid","#f5c400","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"samoa":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"san-marino":[["#75aadb","#ffffff","solid","#75aadb","#75aadb"],["#ffffff","#75aadb","solid","#ffffff","#ffffff"]],"sao-tome-and-principe":[["#00843d","#f5c400","solid","#f5c400","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"saudi-arabia":[["#00843d","#ffffff","solid","#00843d","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"scotland":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"senegal":[["#ffffff","#00843d","solid","#ffffff","#ffffff"],["#00843d","#f5c400","solid","#00843d","#00843d"]],"serbia":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"seychelles":[["#1d4ed8","#d71920","solid","#d71920","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"sierra-leone":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"singapore":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"slovakia":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"slovenia":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"solomon-islands":[["#00843d","#1d4ed8","solid","#1d4ed8","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"somalia":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"south-africa":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#00843d","#f5c400","solid","#00843d","#00843d"]],"south-korea":[["#ef3340","#111111","solid","#ef3340","#ef3340"],["#111111","#ef3340","solid","#111111","#111111"]],"south-sudan":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"spain":[["#aa151b","#f1bf00","solid","#1b2a57","#d71920"],["#75aadb","#0b1f5b","solid","#75aadb","#75aadb"]],"sri-lanka":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"sudan":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"suriname":[["#00843d","#ffffff","solid","#00843d","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"sweden":[["#f5c400","#1d4ed8","solid","#1d4ed8","#f5c400"],["#1d4ed8","#f5c400","solid","#1d4ed8","#1d4ed8"]],"switzerland":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"syria":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"taiwan":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"tajikistan":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"tanzania":[["#75aadb","#00843d","solid","#00843d","#75aadb"],["#ffffff","#75aadb","solid","#ffffff","#ffffff"]],"thailand":[["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"],["#ffffff","#1d4ed8","solid","#ffffff","#ffffff"]],"timor-leste":[["#d71920","#111111","solid","#111111","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"togo":[["#00843d","#ffffff","solid","#00843d","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"tonga":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"trinidad-and-tobago":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"tunisia":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"turkey":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"turkmenistan":[["#00843d","#ffffff","solid","#00843d","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"tuvalu":[["#75aadb","#f5c400","solid","#f5c400","#75aadb"],["#ffffff","#75aadb","solid","#ffffff","#ffffff"]],"uae":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"uganda":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"ukraine":[["#f5c400","#1d4ed8","solid","#f5c400","#f5c400"],["#1d4ed8","#f5c400","solid","#1d4ed8","#1d4ed8"]],"uruguay":[["#55b5e5","#111111","solid","#111111","#111111"],["#ffffff","#75aadb","solid","#ffffff","#ffffff"]],"usa":[["#ffffff","#d71920","stripes","#0b1f5b","#ffffff"],["#0b1f5b","#d71920","solid","#0b1f5b","#0b1f5b"]],"uzbekistan":[["#ffffff","#1d4ed8","solid","#1d4ed8","#ffffff"],["#1d4ed8","#ffffff","solid","#1d4ed8","#1d4ed8"]],"vanuatu":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]],"venezuela":[["#8a1538","#ffffff","solid","#8a1538","#8a1538"],["#ffffff","#8a1538","solid","#ffffff","#ffffff"]],"vietnam":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"wales":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"yemen":[["#d71920","#ffffff","solid","#d71920","#d71920"],["#ffffff","#d71920","solid","#ffffff","#ffffff"]],"zambia":[["#00843d","#ffffff","solid","#00843d","#00843d"],["#ffffff","#00843d","solid","#ffffff","#ffffff"]],"zimbabwe":[["#f5c400","#00843d","solid","#00843d","#f5c400"],["#ffffff","#f5c400","solid","#ffffff","#ffffff"]]};
+  const CXI_NATIONAL_TEAM_RATINGS_2026={"afghanistan":60,"albania":75,"algeria":82,"andorra":60,"angola":73,"antigua-and-barbuda":62,"argentina":91,"armenia":71,"australia":82,"austria":83,"azerbaijan":68,"bahamas":52,"bahrain":73,"bangladesh":58,"barbados":60,"belarus":73,"belgium":87,"belize":60,"benin":73,"bhutan":56,"bolivia":74,"bosnia-and-herzegovina":76,"botswana":65,"brazil":88,"brunei":56,"bulgaria":74,"burkina-faso":76,"burundi":65,"cabo-verde":76,"cambodia":60,"cameroon":79,"canada":82,"central-african-republic":67,"chad":58,"chile":78,"china":73,"colombia":86,"comoros":71,"costa-rica":77,"croatia":85,"cuba":62,"cyprus":68,"czechia":78,"democratic-republic-of-the-congo":79,"denmark":83,"djibouti":56,"dominica":58,"dominican-republic":65,"ecuador":83,"egypt":83,"el-salvador":73,"england":89,"equatorial-guinea":71,"eritrea":58,"estonia":68,"eswatini":62,"ethiopia":65,"fiji":64,"finland":75,"france":90,"gabon":74,"gambia":70,"georgia":75,"germany":86,"ghana":76,"greece":78,"grenada":62,"guatemala":73,"guinea":74,"guinea-bissau":67,"guyana":65,"haiti":73,"honduras":75,"hungary":80,"iceland":75,"india":67,"indonesia":70,"iran":83,"iraq":76,"ireland":77,"israel":74,"italy":85,"ivory-coast":81,"jamaica":75,"japan":84,"jordan":75,"kazakhstan":70,"kenya":71,"kiribati":54,"kosovo":74,"kuwait":67,"kyrgyzstan":71,"laos":58,"latvia":67,"lebanon":70,"lesotho":65,"liberia":67,"libya":71,"liechtenstein":52,"lithuania":65,"luxembourg":73,"madagascar":71,"malawi":68,"malaysia":67,"maldives":60,"mali":77,"malta":62,"marshall-islands":53,"mauritania":70,"mauritius":60,"mexico":86,"micronesia":52,"moldova":64,"monaco":55,"mongolia":58,"montara":68,"montenegro":74,"morocco":88,"mozambique":71,"myanmar":64,"namibia":68,"nauru":51,"nepal":60,"netherlands":87,"new-zealand":73,"nicaragua":67,"niger":70,"nigeria":82,"north-korea":70,"north-macedonia":75,"northern-ireland":75,"norway":84,"oman":74,"pakistan":56,"palau":51,"palestine":73,"panama":79,"papua-new-guinea":62,"paraguay":81,"peru":78,"philippines":67,"poland":80,"portugal":87,"qatar":76,"republic-of-the-congo":67,"romania":77,"russia":81,"rwanda":68,"saint-kitts-and-nevis":64,"saint-lucia":62,"saint-vincent-and-the-grenadines":62,"samoa":58,"san-marino":52,"sao-tome-and-principe":56,"saudi-arabia":76,"scotland":79,"senegal":84,"serbia":80,"seychelles":52,"sierra-leone":68,"singapore":65,"slovakia":79,"slovenia":76,"solomon-islands":64,"somalia":56,"south-africa":77,"south-korea":81,"south-sudan":62,"spain":92,"sri-lanka":58,"sudan":70,"suriname":68,"sweden":80,"switzerland":85,"syria":74,"taiwan":60,"tajikistan":71,"tanzania":70,"thailand":73,"timor-leste":52,"togo":70,"tonga":56,"trinidad-and-tobago":71,"tunisia":76,"turkey":82,"turkmenistan":65,"tuvalu":52,"uae":75,"uganda":73,"ukraine":81,"uruguay":84,"usa":84,"uzbekistan":76,"vanuatu":64,"venezuela":78,"vietnam":73,"wales":80,"yemen":65,"zambia":73,"zimbabwe":68};
+  const CXI_NATIONAL_RATING_SOURCE='FIFA Men · 20 July 2026';
   const CXI_UEFA_PARTICIPANTS_2026={"ucl":[["Arsenal","england"],["Aston Villa","england"],["Atlético de Madrid","spain"],["Borussia Dortmund","germany"],["FC Barcelona","spain"],["Bayern Munich","germany"],["Club Brugge","belgium"],["Como","italy"],["Feyenoord","netherlands"],["Galatasaray","turkey"],["Inter","italy"],["RB Leipzig","germany"],["RC Lens","france"],["LOSC Lille","france"],["Liverpool","england"],["Manchester City","england"],["Manchester United","england"],["Napoli","italy"],["Paris Saint-Germain","france"],["Porto","portugal"],["PSV","netherlands"],["Real Betis","spain"],["Real Madrid","spain"],["Roma","italy"],["Shakhtar Donetsk","ukraine"],["Slavia Prague","czechia"],["Sporting CP","portugal"],["VfB Stuttgart","germany"],["Villarreal CF","spain"],["AEK Athens","greece"],["Bodø/Glimt","norway"],["Celtic","scotland"],["Fenerbahçe","turkey"],["Dinamo Zagreb","croatia"],["LASK","austria"],["Olympique Lyonnais","france"],["Sparta Prague","czechia"],["Sturm Graz","austria"],["Union SG","belgium"]],"uel":[["AZ Alkmaar","netherlands"],["Bournemouth","england"],["Celta Vigo","spain"],["Crystal Palace","england"],["TSG Hoffenheim","germany"],["Juventus","italy"],["Bayer Leverkusen","germany"],["Olympique Marseille","france"],["AC Milan","italy"],["Real Sociedad","spain"],["Stade Rennais","france"],["Sunderland","england"],["Torreense","portugal"],["Benfica","portugal"],["Beşiktaş","turkey"],["Crvena Zvezda","serbia"],["Ferencváros","hungary"],["Rangers","scotland"],["Salzburg","austria"],["Viktoria Plzeň","czechia"],["PAOK","greece"]],"uecl":[["Ajax","netherlands"],["Atalanta","italy"],["Austria Wien","austria"],["Braga","portugal"],["Brann","norway"],["Brighton & Hove Albion","england"],["Copenhagen","denmark"],["SC Freiburg","germany"],["Gent","belgium"],["Getafe CF","spain"],["Hajduk Split","croatia"],["Hearts","scotland"],["Hibernian","scotland"],["Lugano","switzerland"],["AS Monaco","france"],["Panathinaikos","greece"],["Partizan","serbia"],["Rangers","scotland"],["Rijeka","croatia"],["Shamrock Rovers","ireland"],["Twente","netherlands"]]};
   const CXI_ASSOCIATION_RULES_2026={"england":{"name":"England","domesticCups":[["fa-cup","FA Cup","🏆"],["efl-cup","EFL Cup","🛡️"]],"topSize":20,"ucl":4},"spain":{"name":"Spain","domesticCups":[["copa-del-rey","Copa del Rey","🏆"],["supercopa","Supercopa","🛡️"]],"topSize":20,"ucl":4},"germany":{"name":"Germany","domesticCups":[["dfb-pokal","DFB-Pokal","🏆"],["dfl-supercup","DFL-Supercup","🛡️"]],"topSize":18,"ucl":4},"italy":{"name":"Italy","domesticCups":[["coppa-italia","Coppa Italia","🏆"],["supercoppa","Supercoppa","🛡️"]],"topSize":20,"ucl":4},"france":{"name":"France","domesticCups":[["coupe-de-france","Coupe de France","🏆"],["trophee-des-champions","Trophée des Champions","🛡️"]],"topSize":18,"ucl":3}};
   const CXI_UEFA_DEFS={
@@ -181,8 +386,110 @@
     'europa-league':{id:'europa-league',name:'UEFA Europa League',shortName:'Europa League',icon:'◆',format:'league-phase',leaguePhaseSize:36,leaguePhaseMatches:8,knockoutFrom:24,automaticTop:8,nextRound:'Knockout phase play-off'},
     'conference-league':{id:'conference-league',name:'UEFA Conference League',shortName:'Conference League',icon:'◇',format:'league-phase',leaguePhaseSize:36,leaguePhaseMatches:6,knockoutFrom:24,automaticTop:8,nextRound:'Knockout phase play-off'}
   };
+  // ─────────────────────────────────────────────────────────────────────────────
+  // v75.19 GLOBAL COMPETITION + CALENDAR ENGINE
+  // Association/confederation membership is explicit and never inferred only from geography.
+  const CXI_GLOBAL_COMPETITION_VERSION='v75.19-global-continental-calendar';
+  const CXI_CONFEDERATION_BY_CONTINENT=Object.freeze({Europe:'UEFA','South America':'CONMEBOL','North America':'CONCACAF',Africa:'CAF',Asia:'AFC',Oceania:'OFC'});
+  const CXI_CONFEDERATION_EXCEPTIONS=Object.freeze({
+    australia:'AFC',kazakhstan:'UEFA',israel:'UEFA',guyana:'CONCACAF',suriname:'CONCACAF'
+  });
+  const CXI_CONCACAF_CENTRAL=new Set(['belize','costa-rica','el-salvador','guatemala','honduras','nicaragua','panama']);
+  const CXI_CONCACAF_CARIBBEAN=new Set(['antigua-and-barbuda','bahamas','barbados','cuba','curacao','dominican-republic','grenada','guyana','haiti','jamaica','saint-kitts-and-nevis','saint-lucia','saint-vincent-and-the-grenadines','suriname','trinidad-and-tobago']);
+  const CXI_CONFEDERATIONS=Object.freeze({
+    UEFA:{id:'UEFA',name:'UEFA',icon:'🌍',national:{id:'uefa-euro',name:'UEFA European Championship',shortName:'EURO',qualifier:'European Qualifiers',window:'UEFA Nations League',cycleStart:2028,cycle:4},club:[
+      {id:'champions-league',name:'UEFA Champions League',shortName:'Champions League',icon:'★',tier:1,stageLabel:'League phase',leaguePhaseMatches:8,leaguePhaseSize:36,knockoutFrom:24,automaticTop:8,knockoutRounds:['Knockout phase play-off','Round of 16','Quarter-final','Semi-final','Final']},
+      {id:'europa-league',name:'UEFA Europa League',shortName:'Europa League',icon:'◆',tier:2,stageLabel:'League phase',leaguePhaseMatches:8,leaguePhaseSize:36,knockoutFrom:24,automaticTop:8,knockoutRounds:['Knockout phase play-off','Round of 16','Quarter-final','Semi-final','Final']},
+      {id:'conference-league',name:'UEFA Conference League',shortName:'Conference League',icon:'◇',tier:3,stageLabel:'League phase',leaguePhaseMatches:6,leaguePhaseSize:36,knockoutFrom:24,automaticTop:8,knockoutRounds:['Knockout phase play-off','Round of 16','Quarter-final','Semi-final','Final']}
+    ]},
+    CONMEBOL:{id:'CONMEBOL',name:'CONMEBOL',icon:'🌎',national:{id:'copa-america',name:'CONMEBOL Copa América',shortName:'Copa América',qualifier:'CONMEBOL World Cup Qualifying',window:'CONMEBOL World Cup Qualifying',cycleStart:2028,cycle:4},club:[
+      {id:'copa-libertadores',name:'CONMEBOL Libertadores',shortName:'Libertadores',icon:'🏆',tier:1,stageLabel:'Group stage',leaguePhaseMatches:6,leaguePhaseSize:32,knockoutFrom:16,automaticTop:16,knockoutRounds:['Round of 16','Quarter-final','Semi-final','Final']},
+      {id:'copa-sudamericana',name:'CONMEBOL Sudamericana',shortName:'Sudamericana',icon:'◆',tier:2,stageLabel:'Group stage',leaguePhaseMatches:6,leaguePhaseSize:32,knockoutFrom:16,automaticTop:16,knockoutRounds:['Round of 16','Quarter-final','Semi-final','Final']}
+    ]},
+    CONCACAF:{id:'CONCACAF',name:'Concacaf',icon:'🌎',national:{id:'gold-cup',name:'Concacaf Gold Cup',shortName:'Gold Cup',qualifier:'Concacaf Gold Cup Qualifying',window:'Concacaf Nations League',cycleStart:2027,cycle:2},club:[
+      {id:'concacaf-champions-cup',name:'Concacaf Champions Cup',shortName:'Champions Cup',icon:'🏆',tier:1,stageLabel:'Knockout',leaguePhaseMatches:0,knockoutRounds:['Round One','Round of 16','Quarter-final','Semi-final','Final']},
+      {id:'central-american-cup',name:'Concacaf Central American Cup',shortName:'Central American Cup',icon:'◆',tier:2,stageLabel:'Group stage',leaguePhaseMatches:4,leaguePhaseSize:20,knockoutFrom:8,automaticTop:8,knockoutRounds:['Quarter-final','Semi-final','Final']},
+      {id:'caribbean-cup',name:'Concacaf Caribbean Cup',shortName:'Caribbean Cup',icon:'◇',tier:3,stageLabel:'Group stage',leaguePhaseMatches:4,leaguePhaseSize:10,knockoutFrom:4,automaticTop:4,knockoutRounds:['Semi-final','Final']}
+    ]},
+    AFC:{id:'AFC',name:'AFC',icon:'🌏',national:{id:'afc-asian-cup',name:'AFC Asian Cup',shortName:'Asian Cup',qualifier:'AFC Asian Cup / World Cup Qualifying',window:'AFC World Cup Qualifying',cycleStart:2027,cycle:4},club:[
+      {id:'acl-elite',name:'AFC Champions League Elite',shortName:'ACL Elite',icon:'★',tier:1,stageLabel:'League stage',leaguePhaseMatches:8,leaguePhaseSize:24,knockoutFrom:16,automaticTop:16,knockoutRounds:['Round of 16','Quarter-final','Semi-final','Final']},
+      {id:'acl-two',name:'AFC Champions League Two',shortName:'ACL Two',icon:'◆',tier:2,stageLabel:'Group stage',leaguePhaseMatches:6,leaguePhaseSize:32,knockoutFrom:16,automaticTop:16,knockoutRounds:['Round of 16','Quarter-final','Semi-final','Final']},
+      {id:'afc-challenge-league',name:'AFC Challenge League',shortName:'Challenge League',icon:'◇',tier:3,stageLabel:'Group stage',leaguePhaseMatches:4,leaguePhaseSize:20,knockoutFrom:8,automaticTop:8,knockoutRounds:['Quarter-final','Semi-final','Final']}
+    ]},
+    CAF:{id:'CAF',name:'CAF',icon:'🌍',national:{id:'afcon',name:'Africa Cup of Nations',shortName:'AFCON',qualifier:'AFCON / World Cup Qualifying',window:'CAF Qualifying',cycleStart:2027,cycle:2},club:[
+      {id:'caf-champions-league',name:'CAF Champions League',shortName:'CAF Champions League',icon:'★',tier:1,stageLabel:'Group stage',leaguePhaseMatches:6,leaguePhaseSize:16,knockoutFrom:8,automaticTop:8,knockoutRounds:['Quarter-final','Semi-final','Final']},
+      {id:'caf-confederation-cup',name:'CAF Confederation Cup',shortName:'Confederation Cup',icon:'◆',tier:2,stageLabel:'Group stage',leaguePhaseMatches:6,leaguePhaseSize:16,knockoutFrom:8,automaticTop:8,knockoutRounds:['Quarter-final','Semi-final','Final']}
+    ]},
+    OFC:{id:'OFC',name:'OFC',icon:'🌏',national:{id:'ofc-nations-cup',name:"OFC Men's Nations Cup",shortName:'OFC Nations Cup',qualifier:'OFC World Cup Qualifying',window:'OFC Qualifying',cycleStart:2028,cycle:4},club:[
+      {id:'ofc-champions-league',name:"OFC Men's Champions League",shortName:'OFC Champions League',icon:'🏆',tier:1,stageLabel:'Group stage',leaguePhaseMatches:3,leaguePhaseSize:8,knockoutFrom:4,automaticTop:4,knockoutRounds:['Semi-final','Final']}
+    ]}
+  });
+  const CXI_GLOBAL_CALENDAR=Object.freeze({slotDays:4,clubSeasonSlots:76,summerStartSlot:77,summerEndSlot:92,minRecoveryHours:72,internationalWindowSlots:[15,16,17,18,26,27,59,60]});
+  const CXI_ALL_CONTINENTAL_COMP_IDS=new Set(Object.values(CXI_CONFEDERATIONS).flatMap(c=>c.club.map(x=>x.id)));
+  function cxiCountryById(countryOrId){if(countryOrId&&typeof countryOrId==='object')return countryOrId;return(circleXIManagerCore?.COUNTRIES||window.CXICore?.COUNTRIES||[]).find(c=>c.id===countryOrId||c.name===countryOrId)||null}
+  function cxiConfederationForCountry(countryOrId){const country=cxiCountryById(countryOrId),id=CXI_CONFEDERATION_EXCEPTIONS[country?.id]||CXI_CONFEDERATION_BY_CONTINENT[country?.elementId||country?.continent]||'UEFA';return CXI_CONFEDERATIONS[id]||CXI_CONFEDERATIONS.UEFA}
+  function cxiClubConfederation(save=career){return cxiConfederationForCountry(save?.world?.countryId||save?.club?.countryId)}
+  function cxiNationalConfederation(save=career){return cxiConfederationForCountry(careerCountry(save)||save?.player?.nationality)}
+  function cxiCompetitionDefById(id){for(const confed of Object.values(CXI_CONFEDERATIONS)){const found=confed.club.find(x=>x.id===id);if(found)return{...found,confederationId:confed.id,confederationName:confed.name}}return null}
+  function cxiConfedClubDef(confedId,tier=1,countryId=null){const confed=CXI_CONFEDERATIONS[confedId]||CXI_CONFEDERATIONS.UEFA;if(confedId==='CONCACAF'&&tier>1){if(CXI_CONCACAF_CENTRAL.has(countryId))return confed.club.find(x=>x.id==='central-american-cup');if(['usa','mexico','canada'].includes(countryId))return null;return confed.club.find(x=>x.id==='caribbean-cup')}return confed.club.find(x=>x.tier===tier)||null}
+  function cxiQualificationObject(def,stage='league-phase'){return def?{competitionId:def.id,confederationId:def.confederationId||Object.values(CXI_CONFEDERATIONS).find(c=>c.club.some(x=>x.id===def.id))?.id,tier:def.tier||1,stage}:null}
+  function cxiQualificationFromLegacy(value){if(!value)return null;const s=String(value);if(s.startsWith('ucl'))return cxiQualificationObject({...CXI_CONFEDERATIONS.UEFA.club[0],confederationId:'UEFA'},s.includes('league')?'league-phase':'qualifying');if(s.startsWith('uel'))return cxiQualificationObject({...CXI_CONFEDERATIONS.UEFA.club[1],confederationId:'UEFA'},s.includes('league')?'league-phase':'qualifying');if(s.startsWith('uecl'))return cxiQualificationObject({...CXI_CONFEDERATIONS.UEFA.club[2],confederationId:'UEFA'},s.includes('league')?'league-phase':'qualifying');return null}
+  function cxiQualificationForPosition(countryId,position,leagueSize=20){
+    const confed=cxiConfederationForCountry(countryId),id=confed.id,pos=Math.max(1,Number(position)||99),n=Math.max(2,Number(leagueSize)||20);
+    if(id==='UEFA'){if(pos<=Math.min(4,n))return cxiQualificationObject({...confed.club[0],confederationId:id});if(pos===5)return cxiQualificationObject({...confed.club[1],confederationId:id});if(pos===6)return cxiQualificationObject({...confed.club[2],confederationId:id});}
+    if(id==='CONMEBOL'){const big=['brazil','argentina'].includes(countryId),p1=big?6:2,p2=big?12:4;if(pos<=Math.min(p1,n))return cxiQualificationObject({...confed.club[0],confederationId:id});if(pos<=Math.min(p2,n))return cxiQualificationObject({...confed.club[1],confederationId:id});}
+    if(id==='AFC'){if(pos<=2)return cxiQualificationObject({...confed.club[0],confederationId:id});if(pos<=4)return cxiQualificationObject({...confed.club[1],confederationId:id});if(pos===5)return cxiQualificationObject({...confed.club[2],confederationId:id});}
+    if(id==='CAF'){if(pos<=2)return cxiQualificationObject({...confed.club[0],confederationId:id});if(pos<=4)return cxiQualificationObject({...confed.club[1],confederationId:id});}
+    if(id==='OFC'){if(pos<=2)return cxiQualificationObject({...confed.club[0],confederationId:id});}
+    if(id==='CONCACAF'){if(['usa','mexico','canada'].includes(countryId)){if(pos<=3)return cxiQualificationObject({...confed.club[0],confederationId:id});}else{const regional=cxiConfedClubDef(id,2,countryId)||cxiConfedClubDef(id,3,countryId);if(regional&&pos<=3)return cxiQualificationObject({...regional,confederationId:id});if(pos===1)return cxiQualificationObject({...confed.club[0],confederationId:id});}}
+    return null;
+  }
+  function cxiInitialContinentalQualification(selection,club){if(!selection||Number(selection.league?.level||1)!==1)return null;const legacy=cxiQualificationFromLegacy(club?.uefa2026);if(legacy)return legacy;const ranked=[...(selection.league?.clubs||[])].sort((a,b)=>(b.reputation||60)-(a.reputation||60)),pos=Math.max(1,ranked.findIndex(c=>(club?.id&&c.id===club.id)||c.name===club?.name)+1);return cxiQualificationForPosition(selection.country?.id,pos,ranked.length)}
+  function cxiCalendarBaseDate(season=career?.season||1){return new Date(CAREER_SEASON_START.year+Math.max(0,(season||1)-1),CAREER_SEASON_START.month,1)}
+  function cxiIsInternationalWindowSlot(slot){return CXI_GLOBAL_CALENDAR.internationalWindowSlots.includes(Number(slot))}
+  function cxiNextClubSlot(slot){let out=Math.max(1,Number(slot)||1);while(cxiIsInternationalWindowSlot(out))out++;return out}
+  function cxiCompetitionStartSlot(confedId,tier=1){return cxiNextClubSlot(({UEFA:8,CAF:10,AFC:11,CONMEBOL:34,CONCACAF:12,OFC:47}[confedId]||8)+(tier-1)*2)}
+  function cxiNextCupSlot(save,desired){let slot=Math.max(save?.week||1,Number(desired)||1);slot=cxiNextClubSlot(slot);return slot}
+  function cxiNationalPool(confedId,homeCountryId,allWorld=false){const countries=(circleXIManagerCore?.COUNTRIES||[]).filter(c=>c.id!==homeCountryId&&(allWorld||cxiConfederationForCountry(c).id===confedId));return countries.sort((a,b)=>cxiNationalOverall(b)-cxiNationalOverall(a)||a.name.localeCompare(b.name))}
+  function cxiWindowCompetitionName(save,index=0){const confed=cxiNationalConfederation(save),year=CAREER_SEASON_START.year+(save?.season||1)-1;return index<4?confed.national.window:confed.national.qualifier}
+  function cxiEnsureInternationalWindowSchedule(save=career){
+    if(!save)return null;const intl=save.international&&typeof save.international==='object'?save.international:ensureInternationalCareer(save),country=careerCountry(save),confed=cxiNationalConfederation(save),season=save.season||1;
+    if(intl.windowSchedule?.season===season)return intl.windowSchedule;
+    const pool=cxiNationalPool(confed.id,country?.id),seed=(season*13+String(country?.id||intl.countryName||'team').length)%Math.max(1,pool.length);
+    intl.windowSchedule={season,confederationId:confed.id,fixtures:CXI_GLOBAL_CALENDAR.internationalWindowSlots.map((slot,i)=>({week:slot,window:true,competitionName:cxiWindowCompetitionName(save,i),round:`International window · Match ${i+1}`,opponent:pool.length?nationalTeamClub(pool[(seed+i*7)%pool.length]):nationalTeamClub('World XI',72),status:'scheduled'}))};
+    return intl.windowSchedule;
+  }
+  function cxiInternationalWindowFixture(save=career,slot=save?.week){const schedule=cxiEnsureInternationalWindowSchedule(save);return schedule?.fixtures?.find(f=>f.week===Number(slot)&&f.status!=='played')||null}
+  function cxiAdvancePastUnusedInternationalWindow(save=career){if(!save)return;let guard=0;while(cxiIsInternationalWindowSlot(save.week)&&guard++<20){const intl=ensureInternationalCareer(save);if(intl.lastWindowAssessmentSeason!==(save.season||1)){evaluateInternationalCallup(save,true);intl.lastWindowAssessmentSeason=save.season||1;cxiEnsureInternationalWindowSchedule(save)}if(intl.selected&&cxiInternationalWindowFixture(save,save.week))break;save.week++;}}
+  function cxiInternationalCompetitionPlan(save=career){
+    const confed=cxiNationalConfederation(save),year=CAREER_SEASON_START.year+(save?.season||1),worldCup=year>=2030&&(year-2030)%4===0,champ=year>=confed.national.cycleStart&&(year-confed.national.cycleStart)%confed.national.cycle===0;
+    if(worldCup)return{id:'fifa-world-cup',name:'FIFA World Cup',shortName:'World Cup',championship:true,world:true,confederationId:'FIFA',year};
+    if(champ)return{id:confed.national.id,name:confed.national.name,shortName:confed.national.shortName,championship:true,world:false,confederationId:confed.id,year};
+    return{id:`${confed.id.toLowerCase()}-qualifying-${year}`,name:confed.national.qualifier,shortName:'Qualifying',championship:false,world:false,confederationId:confed.id,year};
+  }
+  function cxiContinentalQualificationFromSeason(save,home){if(Number(save.world?.leagueLevel||1)!==1)return null;const position=finishedLeaguePosition(save,home),confed=cxiClubConfederation(save),cups=ensureCupCompetitions(save);if(confed.id==='CONCACAF'){const feeder=cups.find(c=>['central-american-cup','caribbean-cup'].includes(c.id)&&c.winner);if(feeder)return cxiQualificationObject({...confed.club[0],confederationId:'CONCACAF'});}return cxiQualificationForPosition(save.world?.countryId,position,save.league?.length||20)}
+  const cxiContinentalPoolCache=new Map();
+  function cxiContinentalParticipantPool(cup,save=career){
+    const confedId=cup?.confederationId||cxiClubConfederation(save).id,key=`${confedId}-${save?.season||1}`;if(cxiContinentalPoolCache.has(key))return cxiContinentalPoolCache.get(key);
+    const countries=(circleXIManagerCore?.COUNTRIES||[]).filter(c=>cxiConfederationForCountry(c).id===confedId),pool=[];
+    countries.slice(0,70).forEach(country=>{try{const db=loadCircleXIManagerCountry(country.id),top=db?.leagues?.find(l=>Number(l.level)===1)||db?.leagues?.[0];(top?.clubs||[]).slice().sort((a,b)=>(b.reputation||60)-(a.reputation||60)).slice(0,2).forEach(c=>pool.push({...c,countryId:country.id}))}catch(_){}});
+    pool.sort((a,b)=>(b.reputation||60)-(a.reputation||60)||a.name.localeCompare(b.name));cxiContinentalPoolCache.set(key,pool);return pool;
+  }
+  function cxiContinentalKnockoutRounds(cup){return Array.isArray(cup?.knockoutRounds)&&cup.knockoutRounds.length?cup.knockoutRounds:UEFA_KNOCKOUT_ROUNDS}
+  function cxiGlobalCalendarAudit(save=career){
+    if(!save)return{ok:false,errors:['No career loaded'],warnings:[]};const errors=[],warnings=[],cups=ensureCupCompetitions(save),intl=cxiEnsureInternationalWindowSchedule(save);
+    cups.filter(c=>!c.eliminated).forEach(c=>{if(cxiIsInternationalWindowSlot(c.nextWeek))errors.push(`${c.name} scheduled inside international window at slot ${c.nextWeek}`)});
+    const dates=[];for(let slot=Math.max(1,save.week||1);slot<=CXI_GLOBAL_CALENDAR.clubSeasonSlots;slot++){const comp=scheduledCompetitionForWeek(save,slot);if(comp?.type==='international'||comp?.type==='cup'||comp?.type==='league')dates.push({slot,date:careerDateForWeek(slot),type:comp.type,name:comp.name})}
+    for(let i=1;i<dates.length;i++){const hrs=(dates[i].date-dates[i-1].date)/36e5;if(hrs<CXI_GLOBAL_CALENDAR.minRecoveryHours)errors.push(`Recovery breach: ${dates[i-1].name} → ${dates[i].name} (${Math.round(hrs)}h)`) }
+    return{version:CXI_GLOBAL_COMPETITION_VERSION,ok:!errors.length,errors,warnings,clubConfederation:cxiClubConfederation(save).id,nationalConfederation:cxiNationalConfederation(save).id,reservedInternationalSlots:[...CXI_GLOBAL_CALENDAR.internationalWindowSlots],minimumRecoveryHours:CXI_GLOBAL_CALENDAR.minRecoveryHours,activeContinentalCups:cups.filter(c=>c.continental&&!c.eliminated).map(c=>c.name),internationalFixtures:intl?.fixtures?.length||0};
+  }
   function cxiSlug(value){return String(value||'club').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')}
   function cxiSimpleContrast(hex){const h=String(hex||'#111827').replace('#','');const r=parseInt(h.slice(0,2),16)||0,g=parseInt(h.slice(2,4),16)||0,b=parseInt(h.slice(4,6),16)||0;return(r*299+g*587+b*114)/1000>150?'#111827':'#f8fafc'}
+  function cxiNationalOverall(countryOrId){
+    const id=typeof countryOrId==='string'?countryOrId:countryOrId?.id;
+    const fallback=typeof countryOrId==='object'?Number(countryOrId?.reputation):NaN;
+    return clamp(Math.round(CXI_NATIONAL_TEAM_RATINGS_2026[id]??(Number.isFinite(fallback)?fallback:68)),48,95);
+  }
   function cxiExplicitKits(club){
     const p=club.primary||'#2563eb',s=club.secondary||'#f8fafc',pattern=club.pattern||'solid';
     const dark=['#111827','#0b1020','#1f2937'].every(x=>x.toLowerCase()!==p.toLowerCase())?'#111827':'#f8fafc';
@@ -666,6 +973,18 @@
     window.CXICore = circleXIManagerCore;
     window.CXIElements = circleXIElements;
   }
+  circleXIManagerCore.COUNTRIES=(circleXIManagerCore.COUNTRIES||[]).filter(country=>country.id!=='montara');
+  window.CXICore.COUNTRIES=circleXIManagerCore.COUNTRIES;
+  delete CXI_NATIONAL_KITS_2026.montara;
+  delete CXI_NATIONAL_TEAM_RATINGS_2026.montara;
+
+  // v75.18: national-team identity is explicit for every playable country.
+  (circleXIManagerCore.COUNTRIES||[]).forEach(country=>{
+    const national=CXI_NATIONAL_KITS_2026[country.id];
+    if(national){country.elementPalette=[national[0][0],national[0][1]];country.nationalKits=national;}
+    country.reputation=cxiNationalOverall(country);
+    country.nationalRatingSource=CXI_NATIONAL_RATING_SOURCE;
+  });
 
   // Prefer the verified 2026/27 snapshot for supported real-world career pyramids.
   const cxiLegacyGenerateWorld=circleXIManagerCore.generateWorld.bind(circleXIManagerCore);
@@ -694,15 +1013,15 @@
   function syncCreatorName(){const first=($('#firstName')?.value||'').trim(),surname=($('#surname')?.value||'').trim(),full=[first,surname].filter(Boolean).join(' ')||'John Smith';if($('#playerName'))$('#playerName').value=full;return full}
   function selectedNationalityCountry(){const value=$('#nationality')?.value;return (circleXIManagerCore?.COUNTRIES||[]).find(c=>c.id===value||c.name===value)||null}
   function nationalTeamSnapshot(country){
-    if(!country)return null;const rep=clamp(Math.round(country.reputation||68),48,94),profile=circleXIElements?.profile?.(country.elementId||country.continent)||{},tactical=profile.tactical||{},n=(value,fallback=65)=>Number.isFinite(Number(value))?Number(value):fallback;
+    if(!country)return null;const rep=cxiNationalOverall(country),profile=circleXIElements?.profile?.(country.elementId||country.continent)||{},tactical=profile.tactical||{},n=(value,fallback=65)=>Number.isFinite(Number(value))?Number(value):fallback;
     const jitter=(key,spread=5)=>Math.round((seededUnit(`${country.id}-${key}`)-.5)*spread*2);
     const attack=clamp(Math.round(rep+(n(tactical.risk)-65)*.07+(n(tactical.transition)-65)*.05+jitter('attack')),45,96);
     const midfield=clamp(Math.round(rep+(n(tactical.control)-65)*.08+(n(tactical.directness)-65)*.025+jitter('midfield')),45,96);
     const defence=clamp(Math.round(rep+(n(tactical.defence)-65)*.08+(n(tactical.pressing)-65)*.035+jitter('defence')),45,96);
     const goalkeeper=clamp(Math.round(rep+((country.identity||'').toLowerCase().includes('goalkeeper')?6:0)+jitter('goalkeeper')),45,96);
-    const overall=Math.round((attack+midfield+defence+goalkeeper)/4),ratings={attack,midfield,defence,goalkeeper};
+    const overall=rep,ratings={attack,midfield,defence,goalkeeper};
     const strongest=Object.entries(ratings).sort((a,b)=>b[1]-a[1])[0],weakest=Object.entries(ratings).sort((a,b)=>a[1]-b[1])[0];
-    const nk=CXI_NATIONAL_KITS_2026[country.id],kits=nk?{home:{primary:nk[0][0],secondary:nk[0][1],pattern:nk[0][2]},away:{primary:nk[1][0],secondary:nk[1][1],pattern:nk[1][2]}}:null;return{...ratings,overall,strongest,weakest,style:country.elementTacticalStyle||country.identity||profile.tagline||'Balanced football',palette:kits?[kits.home.primary,kits.home.secondary]:(country.elementPalette||profile.palette||['#2563eb','#f8fafc']),kits,icon:cxiSafeCountryIcon(country)||profile.icon||'\u25ce'};
+    const nk=CXI_NATIONAL_KITS_2026[country.id],kits=nk?{home:{primary:nk[0][0],secondary:nk[0][1],pattern:nk[0][2],shorts:nk[0][3]||nk[0][1],socks:nk[0][4]||nk[0][0]},away:{primary:nk[1][0],secondary:nk[1][1],pattern:nk[1][2],shorts:nk[1][3]||nk[1][1],socks:nk[1][4]||nk[1][0]}}:null;return{...ratings,overall,strongest,weakest,style:country.elementTacticalStyle||country.identity||profile.tagline||'Balanced football',palette:kits?[kits.home.primary,kits.home.secondary]:(country.elementPalette||profile.palette||['#2563eb','#f8fafc']),kits,icon:cxiSafeCountryIcon(country)||profile.icon||'\u25ce'};
   }
   function renderNationalityInsights(){
     const root=$('#nationalTeamInsights'),country=selectedNationalityCountry();if(!root)return;
@@ -729,6 +1048,8 @@
     ['firstName','surname'].forEach(id=>$('#'+id)?.addEventListener('input',()=>{syncCreatorName();updateCreationPreview()}));
     $('#nationalityContinent')?.addEventListener('change',()=>{});
   }
+
+  ['careerBackground','careerPersonality'].forEach(id=>$('#'+id)?.addEventListener('change',()=>updateCreationPreview()));
 
   function playerClubFromManagerClub(club) {
     const primaryCol = club.primary || club.colours?.[0] || '#6d28d9';
@@ -819,7 +1140,7 @@
     return database && league && club ? { continent: database.country.continent, country: database.country, league, club } : null;
   }
 
-  const CXI_COUNTRY_ICON_FALLBACKS = Object.freeze({ england:'ENG', scotland:'SCO', wales:'WAL', 'northern-ireland':'NIR', montara:'MT' });
+  const CXI_COUNTRY_ICON_FALLBACKS = Object.freeze({ england:'ENG', scotland:'SCO', wales:'WAL', 'northern-ireland':'NIR' });
   function cxiSafeCountryIcon(country){
     const fallback=CXI_COUNTRY_ICON_FALLBACKS[country?.id] || String(country?.name||country?.id||'').replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase() || 'NAT';
     const icon=String(country?.elementIcon||'').trim();
@@ -837,15 +1158,18 @@
     const continentLabel=id=>`${circleXIElements.profile(id).icon} ${id}`;
     if(nationalityContinent){
       nationalityContinent.innerHTML=circleXIElements.ELEMENT_ORDER.map(id=>`<option value="${id}">${continentLabel(id)}</option>`).join('');
-      const preferredCountry=countries.find(c=>c.name==='Montara')||countries[0],preferredElement=preferredCountry?.elementId||preferredCountry?.continent||circleXIElements.ELEMENT_ORDER[0];
+      const preferredCountry=countries.find(c=>c.id==='england')||countries[0],preferredElement=preferredCountry?.elementId||preferredCountry?.continent||circleXIElements.ELEMENT_ORDER[0];
       nationalityContinent.value=preferredElement;
       const refreshNationalities=()=>{
         const continent=nationalityContinent.value,available=countries.filter(c=>(c.elementId||c.continent)===continent),previous=nationality?.value;
-        if(nationality){nationality.innerHTML=available.map(c=>`<option value="${c.id}">${cxiSafeCountryIcon(c)} ${c.name}</option>`).join('');if(available.some(c=>c.id===previous||c.name===previous))nationality.value=available.find(c=>c.id===previous||c.name===previous).id;else nationality.value=(available.find(c=>c.name==='Montara')||available[0])?.id||'';}
+        if(nationality){nationality.innerHTML=available.map(c=>`<option value="${c.id}">${cxiSafeCountryIcon(c)} ${c.name}</option>`).join('');if(available.some(c=>c.id===previous||c.name===previous))nationality.value=available.find(c=>c.id===previous||c.name===previous).id;else nationality.value=(available.find(c=>c.id==='england')||available[0])?.id||'';}
         renderNationalityInsights();updateCreationPreview();
       };
-      nationalityContinent.onchange=refreshNationalities;
-      if(nationality)nationality.onchange=()=>{renderNationalityInsights();updateCreationPreview()};
+      nationalityContinent.onchange=()=>{refreshNationalities();window.__cxiSyncCareerHome?.()};
+      // Keep the club country following the nationality until the player picks one themselves.
+      // Signing abroad is a deliberate choice; being dropped somewhere unrelated by default is
+      // not, and the club list is alphabetical so the default used to land on Albania.
+      if(nationality)nationality.onchange=()=>{renderNationalityInsights();window.__cxiSyncCareerHome?.();updateCreationPreview()};
       refreshNationalities();
     }
     const careerContinent=$('#careerContinent'),careerCountry=$('#careerCountry'),careerLeague=$('#careerLeague'),careerClub=$('#careerClub');
@@ -864,9 +1188,28 @@
     const refreshCountries = () => {
       const continent = careerContinent.value, available = countries.filter(c=>(c.elementId || c.continent)===continent);
       careerCountry.innerHTML = available.map(c=>`<option value="${c.id}">${cxiSafeCountryIcon(c)} ${c.name}${CXI_VERIFIED_FOOTBALL_2026[c.id]?' · 2026/27 VERIFIED':' · GENERATED'}</option>`).join('');
+      // Start on the player's own country where it exists in this continent. The list is
+      // alphabetical, so an English player used to be dropped into the Albanian top flight.
+      const preferred=$('#nationality')?.value;
+      if(preferred&&available.some(c=>c.id===preferred))careerCountry.value=preferred;
       refreshLeagues();
     };
-    careerContinent.onchange=refreshCountries;careerCountry.onchange=refreshLeagues;careerLeague.onchange=refreshClubs;careerClub.onchange=updateCreationPreview;
+    // Once the player chooses a country or a club themselves, stop steering it for them.
+    let careerHomePinned=false;
+    careerContinent.onchange=()=>{careerHomePinned=true;refreshCountries()};
+    careerCountry.onchange=()=>{careerHomePinned=true;refreshLeagues()};
+    careerLeague.onchange=refreshClubs;
+    careerClub.onchange=()=>{careerHomePinned=true;updateCreationPreview()};
+    // Re-point the career at the player's nationality while they are still choosing one.
+    window.__cxiSyncCareerHome=()=>{
+      if(careerHomePinned)return;
+      const natContinent=$('#nationalityContinent')?.value;
+      if(natContinent&&[...careerContinent.options].some(o=>o.value===natContinent))careerContinent.value=natContinent;
+      refreshCountries();
+    };
+    // Match the starting continent to the chosen nationality before the first population.
+    const startContinent=$('#nationalityContinent')?.value;
+    if(startContinent&&[...careerContinent.options].some(o=>o.value===startContinent))careerContinent.value=startContinent;
     refreshCountries();
   }
 
@@ -889,9 +1232,12 @@
     if (!select || !container) return;
     if(selectId==='build'){
       const details={
-        Lean:{tag:'LEAN',copy:'Light frame · narrow shoulders · slim limbs'},
-        Athletic:{tag:'ATHLETIC',copy:'Balanced football build · tapered torso · toned limbs'},
-        Strong:{tag:'STRONG',copy:'Power frame · broad shoulders · muscular arms and legs'}
+        Lean:{tag:'LEAN',copy:'Very light frame · quickest turning · less contact strength'},
+        Slim:{tag:'SLIM',copy:'Narrow football frame · agile movement · light contact profile'},
+        Balanced:{tag:'BALANCED',copy:'Neutral proportions · no major physical trade-off'},
+        Athletic:{tag:'ATHLETIC',copy:'Tapered football build · acceleration and stamina emphasis'},
+        Powerful:{tag:'POWERFUL',copy:'Broad athletic frame · stronger shielding and aerial contact'},
+        Stocky:{tag:'STOCKY',copy:'Compact power frame · balance and strength over agility'}
       };
       container.classList.add('classic-build-picker');
       container.innerHTML=Array.from(select.options).map(o=>{const d=details[o.value]||details.Athletic;return `<button type="button" class="classic-build-card build-${String(o.value).toLowerCase()}" data-value="${o.value}"><span class="build-silhouette"><i class="build-head"></i><i class="build-torso"></i><i class="build-arm left"></i><i class="build-arm right"></i><i class="build-leg left"></i><i class="build-leg right"></i></span><b>${d.tag}</b><small>${d.copy}</small></button>`}).join('');
@@ -910,23 +1256,104 @@
     container.innerHTML=HAIR_STYLES.map(style=>{const locked=!STARTER_HAIR_STYLES.includes(style);const rule=HAIR_UNLOCK_RULES[style];return `<button type="button" class="hair-card ${select.value===style?'active':''} ${locked?'locked':''}" data-value="${style}" ${locked?'disabled':''}><span class="hair-thumb ${hairSlug(style)}" style="--hair:${colour};--skin:${skin}"><i></i></span><b>${style}</b><small>${locked?`\ud83d\udd12 ${rule?.detail||'Career unlock'}`:'\u2713 Available'}</small></button>`}).join('');
     container.onclick=e=>{const btn=e.target.closest('[data-value]');if(!btn||btn.disabled)return;select.value=btn.dataset.value;buildHairStyleCards();select.dispatchEvent(new Event('input',{bubbles:true}))};
   }
-  const CREATOR_STEP_NAMES=['Identity','Club','Football','Style','Review'];
+  const CREATOR_STEP_NAMES=['Identity','Club','Role','Style','Review'];
   let activeCreatorStep=0;
-  function setCreatorStep(step){
-    activeCreatorStep=clamp(Number(step)||0,0,4);localStorage.setItem('circleXICreatorStep',String(activeCreatorStep));
+  let creatorUnlockedStep=0;
+
+  function creatorFieldValue(id){const el=$(`#${id}`);return String(el?.value??'').trim()}
+  function creatorValidationResult(valid,message='',fieldId=''){return {valid,message,fieldId}}
+  function validateCreatorStep(step){
+    const n=Number(step)||0;
+    if(n===0){
+      if(!creatorFieldValue('firstName'))return creatorValidationResult(false,'Enter a first name before continuing.','firstName');
+      if(!creatorFieldValue('surname'))return creatorValidationResult(false,'Enter a surname before continuing.','surname');
+      const dob=creatorFieldValue('dateOfBirth');if(!dob)return creatorValidationResult(false,'Choose a date of birth before continuing.','dateOfBirth');
+      const dt=new Date(`${dob}T12:00:00`);if(Number.isNaN(dt.getTime()))return creatorValidationResult(false,'Choose a valid date of birth.','dateOfBirth');
+      if(!creatorFieldValue('nationalityContinent'))return creatorValidationResult(false,'Choose a nationality continent.','nationalityContinent');
+      if(!creatorFieldValue('nationality'))return creatorValidationResult(false,'Choose a nationality.','nationality');
+      const second=creatorFieldValue('secondaryNationality');if(second&&second===creatorFieldValue('nationality'))return creatorValidationResult(false,'Your second nationality must be different from your primary nationality.','secondaryNationality');
+      return creatorValidationResult(true,'Identity complete. You can continue to Club.');
+    }
+    if(n===1){
+      if(!creatorFieldValue('careerContinent'))return creatorValidationResult(false,'Choose the continent where your career will begin.','careerContinent');
+      if(!creatorFieldValue('careerCountry'))return creatorValidationResult(false,'Choose a country for your starting career.','careerCountry');
+      if(!creatorFieldValue('careerLeague'))return creatorValidationResult(false,'Choose a starting league.','careerLeague');
+      if(!creatorFieldValue('careerClub'))return creatorValidationResult(false,'Choose your starting club.','careerClub');
+      const world=selectedCircleXIWorld?.();if(!world?.club)return creatorValidationResult(false,'Choose a valid starting club before continuing.','careerClub');
+      return creatorValidationResult(true,'Club pathway complete. You can continue to Role.');
+    }
+    if(n===2){
+      if(!creatorFieldValue('position'))return creatorValidationResult(false,'Choose your primary position.','position');
+      if(!creatorFieldValue('archetype'))return creatorValidationResult(false,'Choose a playing archetype.','archetype');
+      if(!creatorFieldValue('build'))return creatorValidationResult(false,'Choose a body build.','build');
+      const primary=creatorFieldValue('position'),secondary=creatorFieldValue('secondaryPosition');
+      if(secondary&&secondary===primary)return creatorValidationResult(false,'Your secondary position must be different from your primary position.','secondaryPosition');
+      const s1=creatorFieldValue('signatureStrength1'),s2=creatorFieldValue('signatureStrength2'),weak=creatorFieldValue('signatureWeakness');
+      if(!s1)return creatorValidationResult(false,'Choose your first signature strength.','signatureStrength1');
+      if(!s2)return creatorValidationResult(false,'Choose your second signature strength.','signatureStrength2');
+      if(s1===s2)return creatorValidationResult(false,'Choose two different signature strengths.','signatureStrength2');
+      if(!weak)return creatorValidationResult(false,'Choose a development weakness.','signatureWeakness');
+      if(weak===s1||weak===s2)return creatorValidationResult(false,'Your development weakness must be different from your signature strengths.','signatureWeakness');
+      if(!creatorFieldValue('careerBackground'))return creatorValidationResult(false,'Choose a football background.','careerBackground');
+      if(!creatorFieldValue('careerPersonality'))return creatorValidationResult(false,'Choose a personality.','careerPersonality');
+      if(!creatorFieldValue('foot'))return creatorValidationResult(false,'Choose a preferred foot.','foot');
+      const weakFoot=Number(creatorFieldValue('weakFootRating'));if(!Number.isFinite(weakFoot)||weakFoot<1||weakFoot>5)return creatorValidationResult(false,'Choose a weak-foot rating from 1 to 5 stars.','weakFootRating');
+      return creatorValidationResult(true,'Role complete. You can continue to Style.');
+    }
+    if(n===3){
+      const required=[['skinTone','Choose a skin tone.'],['hair','Choose a hairstyle.'],['hairColour','Choose a hair colour.'],['headShape','Choose a head shape.'],['jawStyle','Choose a jaw style.'],['noseStyle','Choose a nose style.'],['eyeStyle','Choose an eye style.'],['browStyle','Choose an eyebrow style.'],['hairlineStyle','Choose a hairline.'],['facialHair','Choose facial hair.'],['complexion','Choose a complexion.'],['bootModel','Choose a boot model.'],['bootColour','Choose a boot colour.'],['bootSecondaryColour','Choose a secondary boot colour.'],['sleeveLength','Choose a sleeve style.'],['shirtStyle','Choose a shirt style.'],['sockHeight','Choose a sock height.'],['wristTape','Choose a wrist tape option.'],['matchAccessories','Choose an accessories option.']];
+      for(const [id,msg] of required)if(!creatorFieldValue(id))return creatorValidationResult(false,msg,id);
+      const shirt=Number(creatorFieldValue('shirtNumber'));if(!Number.isInteger(shirt)||shirt<1||shirt>99)return creatorValidationResult(false,'Choose a preferred shirt number from 1 to 99.','shirtNumber');
+      return creatorValidationResult(true,'Style complete. You can continue to Review.');
+    }
+    if(n===4){
+      if(!creatorFieldValue('careerDifficulty'))return creatorValidationResult(false,'Choose a Career Journey before beginning your career.','careerDifficulty');
+      if(!creatorFieldValue('careerMode'))return creatorValidationResult(false,'Choose your Career Rules.','careerMode');
+      if(!creatorFieldValue('createDifficulty'))return creatorValidationResult(false,'Choose a Match Difficulty before beginning your career.','createDifficulty');
+      const journey=creatorFieldValue('careerDifficulty')==='Realistic Career'?'Authentic Journey':creatorFieldValue('careerDifficulty')==='Underdog'?'Underdog Story':creatorFieldValue('careerDifficulty');
+      const match={Easy:'Amateur',Balanced:'Professional',Hard:'World Class'}[creatorFieldValue('createDifficulty')]||creatorFieldValue('createDifficulty');
+      return creatorValidationResult(true,`Career setup complete · ${journey} · ${match}.`);
+    }
+    return creatorValidationResult(true,'');
+  }
+  function creatorStepsBeforeValid(target){for(let i=0;i<target;i++){const check=validateCreatorStep(i);if(!check.valid)return {valid:false,step:i,check}}return {valid:true}}
+  function creatorStepReachable(target){target=clamp(Number(target)||0,0,4);if(target===0)return true;if(target>creatorUnlockedStep)return false;return creatorStepsBeforeValid(target).valid}
+  function focusCreatorProblem(check){if(!check?.fieldId)return;const el=$(`#${check.fieldId}`);const panel=el?.closest?.('[data-creator-panel]')||$(`[data-creator-panel="${activeCreatorStep}"]`);panel?.classList.remove('creator-step-invalid');void panel?.offsetWidth;panel?.classList.add('creator-step-invalid');setTimeout(()=>panel?.classList.remove('creator-step-invalid'),520);if(el&&!el.classList.contains('visually-hidden-input')){try{el.focus({preventScroll:false})}catch(_){el.focus?.()}}}
+  function creatorValidationMessage(text,tone='neutral'){
+    const box=$('#creatorValidationMessage');if(!box)return;box.textContent=text||'';box.className=`creator-validation-message ${tone}`;
+  }
+  function refreshCreatorWizardLocks(showStatus=false){
+    const currentCheck=validateCreatorStep(activeCreatorStep);
+    $$('#creatorStepNav [data-creator-step]').forEach(btn=>{const n=Number(btn.dataset.creatorStep),reachable=creatorStepReachable(n),completed=n<activeCreatorStep&&validateCreatorStep(n).valid;btn.disabled=!reachable;btn.classList.toggle('locked',!reachable);btn.classList.toggle('complete',completed);btn.setAttribute('aria-disabled',String(!reachable));btn.title=!reachable?`Complete ${CREATOR_STEP_NAMES[Math.max(0,n-1)]} first`:''});
+    const next=$('#creatorNext');if(next&&activeCreatorStep<4){next.disabled=!currentCheck.valid;next.setAttribute('aria-disabled',String(!currentCheck.valid));next.title=currentCheck.valid?'':currentCheck.message}
+    const submit=$('#creatorSubmit');if(submit&&activeCreatorStep===4){const all=creatorStepsBeforeValid(5),ready=activeCreatorStep===4&&creatorUnlockedStep>=4&&currentCheck.valid&&all.valid;submit.disabled=!ready;submit.setAttribute('aria-disabled',String(!ready));submit.title=ready?'':(all.check?.message||currentCheck.message)}
+    if(showStatus){if(activeCreatorStep===4&&!currentCheck.valid)creatorValidationMessage('Player review ready. Open Career Setup to choose your Career Journey and Match Difficulty.','neutral');else creatorValidationMessage(currentCheck.message,currentCheck.valid?'success':'error')}
+    return currentCheck;
+  }
+  function setCreatorStep(step,{force=false}={}){
+    const target=clamp(Number(step)||0,0,4);
+    if(!force&&target>activeCreatorStep){
+      if(target>creatorUnlockedStep){const check=validateCreatorStep(activeCreatorStep);creatorValidationMessage(check.valid?`Use Next to complete ${CREATOR_STEP_NAMES[activeCreatorStep]} before opening ${CREATOR_STEP_NAMES[target]}.`:check.message,'error');if(!check.valid)focusCreatorProblem(check);return false}
+      const prior=creatorStepsBeforeValid(target);if(!prior.valid){creatorValidationMessage(`${CREATOR_STEP_NAMES[prior.step]} is not complete. ${prior.check.message}`,'error');if(prior.step!==activeCreatorStep)setCreatorStep(prior.step,{force:true});focusCreatorProblem(prior.check);return false}
+    }
+    activeCreatorStep=target;localStorage.setItem('circleXICreatorStep',String(activeCreatorStep));
     $$('[data-creator-panel]').forEach(panel=>panel.classList.toggle('active',Number(panel.dataset.creatorPanel)===activeCreatorStep));
-    $$('#creatorStepNav [data-creator-step]').forEach(btn=>{const n=Number(btn.dataset.creatorStep);btn.classList.toggle('active',n===activeCreatorStep);btn.classList.toggle('complete',n<activeCreatorStep)});
-    const current=$('#creatorCurrentStep'),nextLabel=$('#creatorNextLabel'),stepLabel=$('#creatorStepLabel'),stepCount=$('#creatorStepCount');if(current)current.textContent=`Step ${activeCreatorStep+1} of 5 \u00b7 ${CREATOR_STEP_NAMES[activeCreatorStep]}`;if(nextLabel)nextLabel.textContent=activeCreatorStep===3?'Review player':CREATOR_STEP_NAMES[activeCreatorStep+1]||'Create career';if(stepLabel)stepLabel.textContent=CREATOR_STEP_NAMES[activeCreatorStep];if(stepCount)stepCount.textContent=`Step ${activeCreatorStep+1} of 5`;
+    $$('#creatorStepNav [data-creator-step]').forEach(btn=>{const n=Number(btn.dataset.creatorStep);btn.classList.toggle('active',n===activeCreatorStep)});
+    const current=$('#creatorCurrentStep'),nextLabel=$('#creatorNextLabel'),stepLabel=$('#creatorStepLabel'),stepCount=$('#creatorStepCount');if(current)current.textContent=`Step ${activeCreatorStep+1} of 5 · ${CREATOR_STEP_NAMES[activeCreatorStep]}`;if(nextLabel)nextLabel.textContent=activeCreatorStep===3?'Review player':CREATOR_STEP_NAMES[activeCreatorStep+1]||'Create career';if(stepLabel)stepLabel.textContent=CREATOR_STEP_NAMES[activeCreatorStep];if(stepCount)stepCount.textContent=`Step ${activeCreatorStep+1} of 5`;
     if($('#creatorPrevious'))$('#creatorPrevious').disabled=activeCreatorStep===0;
     if($('#creatorNext'))$('#creatorNext').classList.toggle('hidden',activeCreatorStep===4);
     if($('#creatorSubmit'))$('#creatorSubmit').classList.toggle('hidden',activeCreatorStep!==4);
-    $('#playerForm')?.scrollTo?.({top:0,behavior:'smooth'});updateCreationPreview();
+    $('#playerForm')?.scrollTo?.({top:0,behavior:'smooth'});updateCreationPreview();refreshCreatorWizardLocks(true);return true;
   }
   function setupCreatorWizard(){
-    $('#creatorStepNav')?.addEventListener('click',e=>{const btn=e.target.closest('[data-creator-step]');if(btn)setCreatorStep(btn.dataset.creatorStep)});
-    if($('#creatorPrevious'))$('#creatorPrevious').onclick=()=>setCreatorStep(activeCreatorStep-1);
-    if($('#creatorNext'))$('#creatorNext').onclick=()=>setCreatorStep(activeCreatorStep+1);
-    setCreatorStep(0);
+    creatorUnlockedStep=0;
+    $('#creatorStepNav')?.addEventListener('click',e=>{const btn=e.target.closest('[data-creator-step]');if(!btn)return;const target=Number(btn.dataset.creatorStep);if(btn.disabled){const blocker=target>0?creatorStepsBeforeValid(Math.min(target,creatorUnlockedStep+1)):null,check=blocker&&!blocker.valid?blocker.check:validateCreatorStep(activeCreatorStep);creatorValidationMessage(check.valid?`Finish ${CREATOR_STEP_NAMES[activeCreatorStep]} and use Next before opening ${CREATOR_STEP_NAMES[target]}.`:check.message,'error');if(!check.valid)focusCreatorProblem(check);return}setCreatorStep(target)});
+    if($('#creatorPrevious'))$('#creatorPrevious').onclick=()=>setCreatorStep(activeCreatorStep-1,{force:true});
+    if($('#creatorNext'))$('#creatorNext').onclick=()=>{const check=validateCreatorStep(activeCreatorStep);if(!check.valid){creatorValidationMessage(check.message,'error');focusCreatorProblem(check);refreshCreatorWizardLocks();return}creatorUnlockedStep=Math.max(creatorUnlockedStep,Math.min(4,activeCreatorStep+1));setCreatorStep(activeCreatorStep+1,{force:true})};
+    $('#playerForm')?.addEventListener('input',()=>refreshCreatorWizardLocks(false));
+    $('#playerForm')?.addEventListener('change',()=>refreshCreatorWizardLocks(false));
+    $('#playerForm')?.addEventListener('submit',e=>{if(activeCreatorStep!==4||creatorUnlockedStep<4){e.preventDefault();e.stopImmediatePropagation();creatorValidationMessage(`Complete ${CREATOR_STEP_NAMES[activeCreatorStep]} and progress through each step before beginning the career.`,'error');return}const all=creatorStepsBeforeValid(5);const review=validateCreatorStep(4);if(!all.valid||!review.valid){e.preventDefault();e.stopImmediatePropagation();const failed=!all.valid?all:{step:4,check:review};creatorUnlockedStep=Math.max(creatorUnlockedStep,failed.step);setCreatorStep(failed.step,{force:true});creatorValidationMessage(failed.check.message,'error');focusCreatorProblem(failed.check)}},true);
+    setCreatorStep(0,{force:true});
   }
   function setupCreatorPickers() {
     buildCreatorChips('age', 'ageChips');
@@ -938,24 +1365,24 @@
     bindCreatorPicker($('#positionBoard'), $('#position'));
     const diffSelect = $('#createDifficulty'), diffContainer = $('#difficultyCards');
     if (diffSelect && diffContainer) {
-      const blurb = { Easy: 'Slower opponents and forgiving challenges - good for learning the controls.', Balanced: 'A fair, realistic test for most players.', Hard: 'Sharp AI and tight margins - for experienced players.' };
-      diffContainer.innerHTML = Array.from(diffSelect.options).map(o => `<button type="button" class="difficulty-card" data-value="${o.value}"><b>${o.textContent}</b><span>${blurb[o.value] || ''}</span></button>`).join('');
+      const meta = {
+        Easy:{name:'Amateur',icon:'🌱',tag:'RELAXED',text:'More reaction time, gentler pressure and more forgiving action windows.',bullets:['Slower opposition pressure','More forgiving passing','Easier shooting windows']},
+        Balanced:{name:'Professional',icon:'⚽',tag:'RECOMMENDED',text:'The intended Circle XI match-engine balance with realistic pressure and assistance.',bullets:['Realistic pressure','Standard assistance','Balanced goalkeepers']},
+        Hard:{name:'World Class',icon:'🔥',tag:'COMPETITIVE',text:'Smarter positioning, faster defensive reactions and mistakes punished more aggressively.',bullets:['Smarter defensive shape','Less space on the ball','Sharper punishment for errors']}
+      };
+      diffContainer.innerHTML = Array.from(diffSelect.options).filter(o=>o.value).map(o => {const m=meta[o.value];return `<button type="button" class="difficulty-card v772-difficulty-card" data-value="${o.value}"><span>${m.icon}</span><div><small>${m.tag}</small><b>${m.name}</b><p>${m.text}</p><ul>${m.bullets.map(x=>`<li>${x}</li>`).join('')}</ul></div></button>`}).join('');
       bindCreatorPicker(diffContainer, diffSelect);
     }
     const modeSelect=$('#careerMode'),modeContainer=$('#careerModeCards');
     if(modeSelect&&modeContainer){
       const modes={
-        'Standard Career':{icon:'\ud83c\udfc6',text:'Natural development only. Achievements and records stay fully enabled.'},
-        'Assisted Career':{icon:'\ud83d\udee0\ufe0f',text:'Attribute tools are available and the save is clearly marked as assisted.'},
-        'Attribute Editor Career':{icon:'\u2699\ufe0f',text:'Start with full access to edit, reset and specialise every attribute.'}
+        'Standard Career':{icon:'🏆',name:'Standard',tag:'RECOMMENDED',text:'Natural development only. Achievements and records stay fully enabled.'},
+        'Assisted Career':{icon:'🛠️',name:'Assisted',tag:'EXTRA HELP',text:'Development assistance is available and the save is clearly marked as assisted.'},
+        'Attribute Editor Career':{icon:'⚙️',name:'Custom / Editor',tag:'FULL CONTROL',text:'Full access to edit, reset and specialise attributes throughout the career.'}
       };
-      modeContainer.innerHTML=Array.from(modeSelect.options).map(o=>`<button type="button" class="career-mode-card" data-value="${o.value}"><span>${modes[o.value].icon}</span><b>${o.textContent}</b><small>${modes[o.value].text}</small></button>`).join('');
+      modeContainer.innerHTML=Array.from(modeSelect.options).map(o=>{const m=modes[o.value];return `<button type="button" class="career-mode-card" data-value="${o.value}"><span>${m.icon}</span><small>${m.tag}</small><b>${m.name}</b><p>${m.text}</p></button>`}).join('');
       bindCreatorPicker(modeContainer,modeSelect);
-      const syncFootEditor=()=>{
-        const editable=modeSelect.value==='Attribute Editor Career',weak=$('#weakFootRating'),both=$('#bothFootedToggle'),note=$('#weakFootEditorNote');
-        if(weak)weak.disabled=!editable;if(both)both.disabled=!editable;if(note)note.textContent=editable?'Editable before the career begins':'Improve this through Weak Foot Development training';
-        updateWeakFootCreatorLabel();
-      };
+      const syncFootEditor=()=>{const note=$('#weakFootEditorNote');if(note)note.textContent='Choose your starting weak foot · improve it later through training';updateWeakFootCreatorLabel()};
       modeSelect.addEventListener('input',syncFootEditor);modeSelect.addEventListener('change',syncFootEditor);syncFootEditor();
     }
     $('#weakFootRating')?.addEventListener('input',updateWeakFootCreatorLabel);
@@ -1045,6 +1472,7 @@
     c.editorHistory ||= [];
     c.discipline ||= { fouls:0, yellows:0, reds:0 };
     c.player ||= {};
+    ensureVisualIdentity(c.player);
     // V69: keep the creator's Classic Media appearance authoritative across
     // home, profile and overview, including older saves created before all
     // appearance fields were persisted consistently.
@@ -1053,6 +1481,13 @@
     c.player.hair ||= c.player.hairStyle || 'Short';
     c.player.hairColour ||= '#21140d';
     c.player.bootColour ||= c.player.boots || '#111827';
+    c.player.build = normalisePhysicalBuild(c.player.build || c.player.bodyBuild || 'Athletic');
+    c.player.bodyBuild = c.player.build;
+    if(!Number.isFinite(Number(c.player.heightCm))) c.player.heightCm = c.player.position==='GK'?190:c.player.position==='CB'?186:180;
+    if(!Number.isFinite(Number(c.player.weightKg))) c.player.weightKg = Math.round(expectedFootballWeight(c.player.heightCm,c.player.build));
+    ensureVisualIdentity(c.player);
+    c.player.physicalProfileVersion = V773_PHYSICAL_PROFILE_VERSION;
+    applyPhysicalProfileToRuntime(c.player);
     if (c.player.attrs) {
       c.player.originalAttrs ||= cloneData(c.player.attrs);
       c.player.attributeProgress ||= Object.fromEntries(Object.entries(c.player.attrs).map(([key,value])=>[key,Number(value)]));
@@ -1189,14 +1624,14 @@
     try {
       if (!ensureAudioContext()) return;
       const pitch = clamp(freq / 440, .45, 2.4);
-      soundNoise(Math.max(.018, duration * .55), volume * 1.15, 2100 * pitch, 'bandpass', 0, 'white', 900 * pitch);
-      soundTone(180 * pitch, Math.max(.04, duration * .9), volume * .55, 92 * pitch, 'triangle');
+      // Cleaner UI chirp: short band-pass click + soft body
+      soundNoise(Math.max(.014, duration * .42), volume * 1.05, 2400 * pitch, 'bandpass', 0, 'white', 1100 * pitch);
+      soundTone(210 * pitch, Math.max(.035, duration * .85), volume * .48, 110 * pitch, 'triangle');
     } catch {}
   }
 
   let matchNoiseBuffer = null, pinkNoiseBuffer = null, brownNoiseBuffer = null, masterCompressor = null;
-  // Mixer buses. Master / Crowd / Effects in Settings previously stored a value that
-  // nothing ever read, so the three sliders did nothing at all.
+  // Mixer buses: Master / Crowd / Effects — driven by Settings sliders
   let masterGain = null, sfxBus = null, crowdBus = null, audioUnlockBound = false;
   function audioMixLevel(key, fallback) {
     const raw = Number(settings?.[key]);
@@ -1237,9 +1672,13 @@
     let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
     for (let i = 0; i < data.length; i++) {
       const w = Math.random() * 2 - 1;
-      b0=.99886*b0+w*.0555179; b1=.99332*b1+w*.0750759; b2=.96900*b2+w*.1538520;
-      b3=.86650*b3+w*.3104856; b4=.55000*b4+w*.5329522; b5=-.7616*b5-w*.0168980;
-      data[i] = (b0+b1+b2+b3+b4+b5+b6+w*.5362)*.11;
+      b0 = .99886 * b0 + w * .0555179;
+      b1 = .99332 * b1 + w * .0750759;
+      b2 = .96900 * b2 + w * .1538520;
+      b3 = .86650 * b3 + w * .3104856;
+      b4 = .55000 * b4 + w * .5329522;
+      b5 = -.7616 * b5 - w * .0168980;
+      data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * .5362) * .11;
       b6 = w * .115926;
     }
   }
@@ -1253,41 +1692,38 @@
   }
 
   function ensureAudioContext() {
-    if (!settings.sound) return null;
     try {
-      audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
-      const sr = audioCtx.sampleRate, len = sr * 2;
-      if (!matchNoiseBuffer) {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const sr = audioCtx.sampleRate, len = sr * 2;
         matchNoiseBuffer = audioCtx.createBuffer(1, len, sr);
         fillWhiteNoise(matchNoiseBuffer.getChannelData(0));
-      }
-      if (!pinkNoiseBuffer) {
         pinkNoiseBuffer = audioCtx.createBuffer(1, len, sr);
         fillPinkNoise(pinkNoiseBuffer.getChannelData(0));
-      }
-      if (!brownNoiseBuffer) {
         brownNoiseBuffer = audioCtx.createBuffer(1, len, sr);
         fillBrownNoise(brownNoiseBuffer.getChannelData(0));
-      }
-      if (!masterCompressor) {
+        masterGain = audioCtx.createGain();
+        masterGain.gain.value = audioMixLevel('masterVolume', 1);
+        sfxBus = audioCtx.createGain();
+        sfxBus.gain.value = audioMixLevel('effectsVolume', .9);
+        crowdBus = audioCtx.createGain();
+        crowdBus.gain.value = audioMixLevel('crowdVolume', .85);
         masterCompressor = audioCtx.createDynamicsCompressor();
         masterCompressor.threshold.value = -18;
         masterCompressor.knee.value = 12;
         masterCompressor.ratio.value = 3.2;
         masterCompressor.attack.value = .008;
-        masterCompressor.release.value = .22;
-        masterGain = audioCtx.createGain();
-        masterGain.connect(audioCtx.destination);
-        masterCompressor.connect(masterGain);
-        sfxBus = audioCtx.createGain();
+        masterCompressor.release.value = .18;
         sfxBus.connect(masterCompressor);
-        crowdBus = audioCtx.createGain();
         crowdBus.connect(masterCompressor);
-        refreshAudioMix();
+        masterCompressor.connect(masterGain);
+        masterGain.connect(audioCtx.destination);
       }
+      if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
       return audioCtx;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }
 
   function audioRand(scale=.08) {
@@ -1297,19 +1733,15 @@
   function soundTone(frequency, duration, volume=.035, endFrequency=null, type='sine', delay=0, channel='sfx') {
     const ctx=ensureAudioContext();if(!ctx)return null;
     const now=ctx.currentTime+delay, osc=ctx.createOscillator(), gain=ctx.createGain();
-    const f0 = Math.max(25, frequency * audioRand(.06));
-    const f1 = endFrequency != null ? Math.max(25, endFrequency * audioRand(.06)) : null;
     osc.type=type;
-    osc.frequency.setValueAtTime(f0, now);
-    if (f1) osc.frequency.exponentialRampToValueAtTime(f1, now+duration);
-    const v = Math.max(.0001, volume * audioRand(.1));
-    gain.gain.setValueAtTime(v, now);
-    // Punch: tiny attack overshoot then exponential release
-    gain.gain.linearRampToValueAtTime(v * 1.15, now + Math.min(.012, duration * .08));
-    gain.gain.exponentialRampToValueAtTime(.0001, now+duration);
+    osc.frequency.setValueAtTime(Math.max(20, frequency), now);
+    if (endFrequency != null) osc.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), now + Math.max(.01, duration));
+    gain.gain.setValueAtTime(.0001, now);
+    gain.gain.exponentialRampToValueAtTime(Math.max(.0002, volume), now + .012);
+    gain.gain.exponentialRampToValueAtTime(.0001, now + Math.max(.02, duration));
     osc.connect(gain); gain.connect(audioOut(channel));
-    osc.start(now); osc.stop(now+duration+.03);
-    return {osc,gain};
+    osc.start(now); osc.stop(now + duration + .05);
+    return {osc, gain};
   }
 
   function soundNoise(duration=.08, volume=.025, filterFrequency=1200, filterType='lowpass', delay=0, color='white', moveFilter=null, channel='sfx') {
@@ -1317,261 +1749,318 @@
     const buf = color==='pink' ? pinkNoiseBuffer : color==='brown' ? brownNoiseBuffer : matchNoiseBuffer;
     if (!buf) return null;
     const now=ctx.currentTime+delay, source=ctx.createBufferSource(), filter=ctx.createBiquadFilter(), gain=ctx.createGain();
-    source.buffer=buf;
-    filter.type=filterType;
-    const fStart = Math.max(40, filterFrequency * audioRand(.08));
-    filter.frequency.setValueAtTime(fStart, now);
-    if (moveFilter != null) {
-      filter.frequency.exponentialRampToValueAtTime(Math.max(40, moveFilter * audioRand(.08)), now + duration);
-    }
+    source.buffer = buf;
+    source.loop = true;
+    filter.type = filterType;
+    filter.frequency.setValueAtTime(Math.max(40, filterFrequency), now);
+    if (moveFilter != null) filter.frequency.exponentialRampToValueAtTime(Math.max(40, moveFilter), now + Math.max(.02, duration));
     filter.Q.value = filterType === 'bandpass' ? 1.1 : .7;
-    const v = Math.max(.0001, volume * audioRand(.1));
-    gain.gain.setValueAtTime(v, now);
-    gain.gain.linearRampToValueAtTime(v * 1.2, now + Math.min(.01, duration * .1));
-    gain.gain.exponentialRampToValueAtTime(.0001, now+duration);
+    gain.gain.setValueAtTime(.0001, now);
+    gain.gain.exponentialRampToValueAtTime(Math.max(.0002, volume), now + .008);
+    gain.gain.exponentialRampToValueAtTime(.0001, now + Math.max(.02, duration));
     source.connect(filter); filter.connect(gain); gain.connect(audioOut(channel));
-    source.start(now); source.stop(now+duration+.03);
-    return {source,gain,filter};
+    source.start(now); source.stop(now + duration + .04);
+    return {source, filter, gain};
   }
 
-  /** Modal synthesis: inharmonic partials with independent decays \u2014 metal/wood impacts */
   function soundModalImpact(freqs, decays, volumes, strength=.6, delay=0) {
     const ctx=ensureAudioContext();if(!ctx)return;
-    const now = ctx.currentTime + delay, power = clamp(strength, .1, 1.4);
+    const now = ctx.currentTime + delay;
+    const out = audioOut('sfx');
     freqs.forEach((f, i) => {
       const osc = ctx.createOscillator(), gain = ctx.createGain();
-      const freq = Math.max(40, f * audioRand(.04));
-      const dur = (decays[i] || .2) * audioRand(.08);
-      const vol = Math.max(.0001, (volumes[i] || .02) * power * audioRand(.1));
-      osc.type = i === 0 ? 'triangle' : 'sine';
-      osc.frequency.setValueAtTime(freq, now);
-      osc.frequency.exponentialRampToValueAtTime(freq * .92, now + dur);
-      gain.gain.setValueAtTime(vol, now);
-      gain.gain.exponentialRampToValueAtTime(.0001, now + dur);
-      osc.connect(gain); gain.connect(audioOut('sfx'));
-      osc.start(now); osc.stop(now + dur + .02);
+      const vol = (volumes[i] || .02) * strength;
+      const dec = decays[i] || .15;
+      osc.type = i === 0 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(f * audioRand(.02), now);
+      gain.gain.setValueAtTime(.0001, now);
+      gain.gain.exponentialRampToValueAtTime(Math.max(.0002, vol), now + .004);
+      gain.gain.exponentialRampToValueAtTime(.0001, now + Math.max(.03, dec));
+      osc.connect(gain); gain.connect(out);
+      osc.start(now); osc.stop(now + dec + .05);
     });
   }
 
   function soundGrainCloud(opts={}) {
-    const channel=opts.channel||'sfx';
+    const {
+      channel='sfx', color='pink', duration=.25, density=16, grainMs=24,
+      volume=.02, filterFreq=1400, filterJitter=200, rateScatter=.12, panSpread=.3, delay=0
+    } = opts;
     const ctx=ensureAudioContext();if(!ctx)return;
-    const color=opts.color||'pink';
-    const buf=color==='brown'?brownNoiseBuffer:color==='white'?matchNoiseBuffer:pinkNoiseBuffer;
-    if(!buf)return;
-    const duration=Math.max(.05,opts.duration||.4);
-    const density=clamp(opts.density||30,4,90);
-    const grainMs=clamp(opts.grainMs||22,6,60)/1000;
-    const volume=Math.max(.0001,(opts.volume||.03)*audioRand(.1));
-    const filterFreq=opts.filterFreq||1000;
-    const filterJitter=opts.filterJitter||350;
-    const rateScatter=opts.rateScatter||.12;
-    const panSpread=opts.panSpread||0;
-    const delay0=opts.delay||0;
-    const moveTo=opts.moveFilter;
-    const total=Math.min(48, Math.max(4, Math.round(density*duration)));
-    const now=ctx.currentTime+delay0;
-    for(let i=0;i<total;i++){
-      const t=now+(i/total)*duration*audioRand(.15)+Math.random()*.008;
+    const buf = color==='brown' ? brownNoiseBuffer : color==='white' ? matchNoiseBuffer : pinkNoiseBuffer;
+    if (!buf) return;
+    const out = audioOut(channel);
+    const start = ctx.currentTime + delay;
+    const n = Math.max(1, Math.round(density));
+    for (let i = 0; i < n; i++) {
+      const t = start + (i / n) * duration * (.7 + Math.random() * .5);
+      const gDur = (grainMs / 1000) * (.7 + Math.random() * .6);
       const src=ctx.createBufferSource(), filt=ctx.createBiquadFilter(), gain=ctx.createGain();
-      src.buffer=buf;
-      src.playbackRate.value=clamp(1+(Math.random()*2-1)*rateScatter,.7,1.35);
-      filt.type=opts.filterType||'bandpass';
-      const f=Math.max(60, filterFreq+(Math.random()*2-1)*filterJitter);
-      filt.frequency.setValueAtTime(f,t);
-      if(moveTo)filt.frequency.exponentialRampToValueAtTime(Math.max(60,moveTo*audioRand(.1)),t+grainMs);
-      filt.Q.value=opts.q||1.2;
-      // Hann-ish window
-      const peak=volume*(.55+Math.random()*.45)*(opts.densityEnv?1:1);
-      gain.gain.setValueAtTime(.0001,t);
-      gain.gain.linearRampToValueAtTime(peak,t+grainMs*.35);
-      gain.gain.exponentialRampToValueAtTime(.0001,t+grainMs);
-      src.connect(filt);filt.connect(gain);
-      if(panSpread>0&&ctx.createStereoPanner){
-        const pan=ctx.createStereoPanner();
-        pan.pan.value=(Math.random()*2-1)*panSpread;
-        gain.connect(pan);pan.connect(audioOut(channel));
-      }else{
-        gain.connect(audioOut(channel));
-      }
-      try{src.start(t);src.stop(t+grainMs+.02);}catch{}
+      src.buffer = buf;
+      src.loop = true;
+      src.playbackRate.value = 1 + (Math.random() * 2 - 1) * rateScatter;
+      filt.type = 'bandpass';
+      filt.frequency.value = filterFreq * (1 + (Math.random() * 2 - 1) * (filterJitter / Math.max(1, filterFreq)));
+      filt.Q.value = .9 + Math.random() * .6;
+      const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+      if (pan) pan.pan.value = (Math.random() * 2 - 1) * panSpread;
+      gain.gain.setValueAtTime(.0001, t);
+      gain.gain.exponentialRampToValueAtTime(Math.max(.0002, volume * (.55 + Math.random() * .55)), t + gDur * .2);
+      gain.gain.exponentialRampToValueAtTime(.0001, t + gDur);
+      src.connect(filt); filt.connect(gain);
+      if (pan) { gain.connect(pan); pan.connect(out); } else gain.connect(out);
+      src.start(t); src.stop(t + gDur + .03);
     }
   }
 
-  /**
-   * Referee whistle. A real pea whistle sits around 3.2-4 kHz and rattles: the pea
-   * chops the tone roughly 25-30 times a second. The old version was a pair of plain
-   * 1.4 kHz sines, which is why it read as a menu beep rather than a whistle.
-   */
+  /** Richer ball-kick: leather contact + compression body + transient snap */
+  function soundKickImpact(variant, power) {
+    const shot = ['shoot','standardShot','drivenShot','placedShot','powerShot','finesse','chip','volley','header','freeKick','penaltyKick'].includes(variant);
+    const loft = ['cross','cornerKick','loftedPass'].includes(variant);
+    const driven = ['drivenPass','through','indirectKick','drivenShot','powerShot'].includes(variant);
+    const placed = variant === 'placedShot' || variant === 'finesse';
+    const p = clamp(power, .15, 1.35);
+
+    // Boot / leather transient
+    soundNoise(shot ? .028 : .018, (shot ? .055 : .028) * p, shot ? 3200 : 2400, 'highpass', 0, 'white', shot ? 900 : 1200);
+    // Ball compression body (brown)
+    soundNoise(shot ? .11 : .07, (shot ? .065 : .032) * p,
+      shot ? (driven ? 180 : placed ? 280 : 240) : (loft ? 380 : driven ? 220 : 480),
+      'lowpass', 0, 'brown', 70);
+    // Resonant body tone
+    const baseF = shot ? (driven ? 68 : placed ? 92 : 80) : (loft ? 120 : driven ? 95 : 140);
+    soundTone(baseF, shot ? .18 : .11, (shot ? .04 : .022) * p, baseF * .55, 'sine');
+    // Secondary mid thud
+    soundTone(baseF * 1.7, shot ? .09 : .06, (shot ? .018 : .01) * p, baseF * .9, 'triangle', .008);
+
+    if (variant === 'finesse') {
+      soundTone(480, .16, .012 * p, 720, 'sine', .02);
+      soundNoise(.04, .018 * p, 2800, 'bandpass', .01, 'white', 1600);
+    }
+    if (variant === 'chip') {
+      soundTone(560, .14, .012 * p, 820, 'triangle', .015);
+      soundNoise(.05, .016 * p, 1800, 'bandpass', 0, 'pink', 900);
+    }
+    if (variant === 'knuckle' || variant === 'powerShot' || variant === 'shoot') {
+      soundTone(52, .24, .022 * p, 32, 'sine', .01);
+      soundNoise(.06, .02 * p, 140, 'lowpass', .015, 'brown');
+    }
+    if (variant === 'header') {
+      soundNoise(.06, .048 * p, 850, 'bandpass', 0, 'white', 400);
+      soundTone(110, .12, .02 * p, 70, 'sine');
+      soundGrainCloud({color:'white', duration:.08, density:10, grainMs:14, volume:.014 * p, filterFreq:1200, filterJitter:300, rateScatter:.2, panSpread:.25});
+    }
+    if (variant === 'penaltyKick' || variant === 'freeKick') {
+      soundTone(60, .22, .026 * p, 36, 'sine', .006);
+      soundNoise(.05, .03 * p, 200, 'lowpass', 0, 'brown');
+    }
+    if (variant === 'volley') {
+      soundNoise(.035, .04 * p, 2600, 'highpass', 0, 'white', 1000);
+      soundTone(88, .14, .03 * p, 50, 'sine');
+    }
+  }
+
+  /** Net: snap + bag thump + mesh rustle + optional settle */
+  function soundNetImpact(variant, power) {
+    const section = String(variant || 'standard');
+    const settle = /settle/i.test(section);
+    const sideNet = /side/i.test(section);
+    const roof = /roof|upper/i.test(section);
+    const corner = /corner/i.test(section);
+    const p = clamp(power, .2, 1.35);
+
+    if (settle) {
+      soundGrainCloud({color:'pink', duration:.5, density:18, grainMs:40, volume:.014 * p, filterFreq:1100, filterJitter:220, rateScatter:.12, panSpread:.35, delay:0});
+      soundNoise(.35, .012 * p, 320, 'lowpass', .03, 'pink');
+      soundTone(90, .2, .006 * p, 50, 'sine', .05);
+      return;
+    }
+
+    // Sharp mesh snap
+    const snapCut = (sideNet ? 2000 : roof ? 3000 : corner ? 2600 : 2300) * (.85 + p * .35);
+    soundNoise(.04, .07 * p, snapCut, 'highpass', 0, 'white', snapCut * .35);
+    // Bag thump body
+    soundNoise(.12, .04 * p, sideNet ? 280 : roof ? 420 : 340, 'lowpass', .01, 'brown', 90);
+    // Modal mesh ring
+    soundModalImpact(
+      [sideNet ? 480 : roof ? 720 : 580, sideNet ? 960 : roof ? 1520 : 1180, sideNet ? 1900 : roof ? 2900 : 2400, 340],
+      [.2, .14, .09, .28],
+      [.032, .018, .012, .014],
+      p
+    );
+    // Travelling mesh grains
+    soundGrainCloud({
+      color:'pink',
+      duration: sideNet ? .28 : .45,
+      density: sideNet ? 18 : 32,
+      grainMs: 18,
+      volume: (sideNet ? .024 : .038) * p,
+      filterFreq: sideNet ? 1350 : roof ? 1950 : corner ? 1650 : 1500,
+      filterJitter: sideNet ? 200 : 340,
+      rateScatter: .14,
+      panSpread: .4,
+      delay: .02
+    });
+    // Soft after-thump
+    soundTone(sideNet ? 70 : 55, .16, .014 * p, 30, 'sine', .04);
+  }
+
   function soundWhistleBlast(power=1, length=.34, pitch=1, delay=0) {
     const ctx=ensureAudioContext();if(!ctx)return;
     const now=ctx.currentTime+delay, out=audioOut('sfx');
-    const f1=2650*pitch*audioRand(.025), f2=f1*1.49, vol=Math.max(.0001,.15*power);
+    const f1=2680*pitch*audioRand(.02), f2=f1*1.48, vol=Math.max(.0001,.16*power);
     const body=ctx.createGain();
     body.gain.setValueAtTime(.0001,now);
-    body.gain.exponentialRampToValueAtTime(vol,now+.018);          // fast chiff onset
-    body.gain.setValueAtTime(vol,now+length*.72);
-    body.gain.exponentialRampToValueAtTime(.0001,now+length);      // clean cut-off
+    body.gain.exponentialRampToValueAtTime(vol,now+.014);
+    body.gain.setValueAtTime(vol,now+length*.7);
+    body.gain.exponentialRampToValueAtTime(.0001,now+length);
     body.connect(out);
-    // The pea chops the tone. This has to be a multiplicative stage of its own: feeding
-    // an LFO into the level envelope's own gain param would add to it instead of
-    // modulating it, and the blast would drown the rest of the match.
     const chop=ctx.createGain();
-    chop.gain.value=.66;
+    chop.gain.value=.64;
     chop.connect(body);
     const trill=ctx.createOscillator(), trillDepth=ctx.createGain();
-    trill.type='sine'; trill.frequency.setValueAtTime(21*audioRand(.08),now);
-    trill.frequency.linearRampToValueAtTime(24*audioRand(.08),now+length);
-    trillDepth.gain.value=.34;                                     // stays inside 0.32-1.00
+    trill.type='sine'; trill.frequency.setValueAtTime(22*audioRand(.07),now);
+    trill.frequency.linearRampToValueAtTime(25*audioRand(.07),now+length);
+    trillDepth.gain.value=.36;
     trill.connect(trillDepth); trillDepth.connect(chop.gain);
     trill.start(now); trill.stop(now+length+.05);
-    [[f1,.62],[f2,.26],[f1*2.02,.10]].forEach(([freq,mix],i)=>{
+    [[f1,.58],[f2,.28],[f1*2.01,.12]].forEach(([freq,mix],i)=>{
       const osc=ctx.createOscillator(), gain=ctx.createGain();
       osc.type=i===2?'triangle':'sine';
-      osc.frequency.setValueAtTime(freq*.985,now);
-      osc.frequency.linearRampToValueAtTime(freq,now+.05);          // slight pitch rise as air builds
-      osc.frequency.linearRampToValueAtTime(freq*.99,now+length);
+      osc.frequency.setValueAtTime(freq*.988,now);
+      osc.frequency.linearRampToValueAtTime(freq,now+.04);
+      osc.frequency.linearRampToValueAtTime(freq*.992,now+length);
       gain.gain.value=mix;
       osc.connect(gain); gain.connect(chop);
       osc.start(now); osc.stop(now+length+.05);
       const flutter=ctx.createOscillator(), flutterDepth=ctx.createGain();
-      flutter.type='sine'; flutter.frequency.value=22*audioRand(.1);
-      flutterDepth.gain.value=freq*.006;
+      flutter.type='sine'; flutter.frequency.value=23*audioRand(.09);
+      flutterDepth.gain.value=freq*.007;
       flutter.connect(flutterDepth); flutterDepth.connect(osc.frequency);
       flutter.start(now); flutter.stop(now+length+.05);
     });
-    // breath / air escaping around the mouthpiece
-    soundNoise(.06,.022*power,4800,'highpass',delay,'white',2800);
-    soundNoise(length*.85,.011*power,3600,'bandpass',delay+.02,'pink',3100);
+    soundNoise(.05,.02*power,5200,'highpass',delay,'white',2600);
+    soundNoise(length*.8,.01*power,3400,'bandpass',delay+.015,'pink',2900);
   }
+
   function soundRefereeWhistle(variant='foul',power=1) {
     const v=String(variant||'foul');
-    if(v==='fullTime'){                       // three blasts, the last one held
-      soundWhistleBlast(power,.26,1.0,0);
-      soundWhistleBlast(power,.24,1.02,.30);
-      soundWhistleBlast(power*1.1,.72,.98,.58);
-    }else if(v==='halfTime'){                 // two blasts
-      soundWhistleBlast(power,.26,1.01,0);
-      soundWhistleBlast(power*1.05,.52,.99,.30);
+    if(v==='fullTime'){
+      soundWhistleBlast(power,.24,1.0,0);
+      soundWhistleBlast(power,.22,1.02,.28);
+      soundWhistleBlast(power*1.12,.78,.97,.52);
+    }else if(v==='halfTime'){
+      soundWhistleBlast(power,.24,1.01,0);
+      soundWhistleBlast(power*1.06,.55,.98,.28);
     }else if(v==='kickOff'||v==='restart'){
-      soundWhistleBlast(power,.30,1.03,0);
-    }else if(v==='advantage'){                // short chirp, higher and lighter
-      soundWhistleBlast(power*.7,.14,1.12,0);
-    }else if(v==='penalty'||v==='card'){      // long, insistent
-      soundWhistleBlast(power*1.12,.62,.97,0);
-    }else{                                    // ordinary foul
-      soundWhistleBlast(power,.34,1,0);
+      soundWhistleBlast(power,.28,1.04,0);
+    }else if(v==='advantage'){
+      soundWhistleBlast(power*.65,.12,1.14,0);
+    }else if(v==='penalty'||v==='card'){
+      soundWhistleBlast(power*1.15,.68,.96,0);
+    }else{
+      soundWhistleBlast(power,.32,1,0);
     }
   }
+
   /**
-   * Goal roar. Real crowd noise swells rather than starting at full volume, holds, and
-   * then decays over a couple of seconds with individual voices poking through. The old
-   * version hit peak instantly and layered sawtooth "yell" tones, which buzzed.
+   * Goal roar — multi-band swell with staggered grain "voices" so it feels like a real crowd
+   * rather than a single noise burst.
    */
   function soundCrowdRoar(variant='home',power=1) {
     const ctx=ensureAudioContext();if(!ctx||!pinkNoiseBuffer)return;
     const home=variant!=='away';
-    const base=clamp(power,.15,1.4)*(home?1:.55)*audioRand(.05);
+    const base=clamp(power,.15,1.45)*(home?1:.52)*audioRand(.04);
     const out=audioOut('crowd');
     const now=ctx.currentTime;
-    const rise=home?.22:.34, hold=home?1.25:.7, tail=home?2.9:1.9, total=rise+hold+tail;
-    // Layered noise bands = the body of the roar. Each swells and decays on its own curve.
-    const layer=(buf,type,freq,q,peak,freqEnd)=>{
+    const rise=home?.28:.4, hold=home?1.4:.75, tail=home?3.4:2.1, total=rise+hold+tail;
+
+    const layer=(buf,type,freq,q,peak,freqEnd,riseMul=1)=>{
       const src=ctx.createBufferSource(), filt=ctx.createBiquadFilter(), gain=ctx.createGain();
       src.buffer=buf; src.loop=true;
       filt.type=type; filt.frequency.setValueAtTime(freq,now); filt.Q.value=q;
       if(freqEnd)filt.frequency.exponentialRampToValueAtTime(Math.max(60,freqEnd),now+total);
+      const r = rise * riseMul;
       gain.gain.setValueAtTime(.0001,now);
-      gain.gain.exponentialRampToValueAtTime(Math.max(.0002,peak*base),now+rise);
-      gain.gain.setValueAtTime(Math.max(.0002,peak*base),now+rise+hold);
+      gain.gain.exponentialRampToValueAtTime(Math.max(.0002,peak*base),now+r);
+      gain.gain.setValueAtTime(Math.max(.0002,peak*base*(home?.92:.85)),now+r+hold);
       gain.gain.exponentialRampToValueAtTime(.0001,now+total);
       src.connect(filt); filt.connect(gain); gain.connect(out);
-      src.start(now); src.stop(now+total+.1);
+      src.start(now); src.stop(now+total+.12);
     };
-    layer(brownNoiseBuffer||pinkNoiseBuffer,'lowpass',128,.8,.34,190);
-    layer(pinkNoiseBuffer,'bandpass',380,.55,.22,310);
-    layer(pinkNoiseBuffer,'bandpass',860,.7,.14,640);
-    layer(matchNoiseBuffer||pinkNoiseBuffer,'highpass',2100,.45,.05,1650);
-    soundGrainCloud({channel:'crowd',color:'brown',duration:home?1.8:1.0,density:home?18:9,grainMs:140,
-      volume:.042*base,filterFreq:620,filterJitter:280,rateScatter:.18,panSpread:.78,filterType:'bandpass',q:1.05,delay:rise*.5});
-    soundGrainCloud({channel:'crowd',color:'pink',duration:home?2.4:1.3,density:home?12:6,grainMs:95,
-      volume:.018*base,filterFreq:1680,filterJitter:520,rateScatter:.22,panSpread:.86,delay:rise+.15});
-    if(home){
-      // A second wave — the crowd finding its voice again a beat later.
-      layer(pinkNoiseBuffer,'bandpass',780,.7,.11,620);
-      soundGrainCloud({channel:'crowd',color:'brown',duration:1.6,density:10,grainMs:160,
-        volume:.028*base,filterFreq:480,filterJitter:200,rateScatter:.16,panSpread:.62,filterType:'lowpass',q:.8,delay:1.05});
-    }else{
-      // Away goal: a groan from the home end under the travelling support.
-      soundNoise(1.5,.10*base,260,'lowpass',.05,'brown',150,'crowd');
+
+    // Body of the roar
+    layer(brownNoiseBuffer||pinkNoiseBuffer,'lowpass',110,.85,.38,175,1);
+    layer(pinkNoiseBuffer,'bandpass',320,.5,.26,280,1.05);
+    layer(pinkNoiseBuffer,'bandpass',720,.55,.16,560,1.12);
+    layer(pinkNoiseBuffer,'bandpass',1600,.65,.1,1200,1.2);
+    // "Voices" as staggered grain clouds
+    soundGrainCloud({channel:'crowd',color:'brown',duration:home?2.2:1.2,density:home?24:12,grainMs:120,
+      volume:.018*base,filterFreq:280,filterJitter:90,rateScatter:.08,panSpread:.55,delay:rise*.3});
+    soundGrainCloud({channel:'crowd',color:'pink',duration:home?2.8:1.5,density:home?16:8,grainMs:80,
+      volume:.014*base,filterFreq:900,filterJitter:250,rateScatter:.15,panSpread:.6,delay:rise*.5});
+    if (home) {
+      soundGrainCloud({channel:'crowd',color:'brown',duration:1.8,density:14,grainMs:150,
+        volume:.012*base,filterFreq:180,filterJitter:60,rateScatter:.06,panSpread:.4,delay:rise+hold*.2});
+      soundNoise(1.8,.09*base,220,'lowpass',.08,'brown',140,'crowd');
     }
-    swellCrowdAmbience(base*(home?1.7:.9),home?3.2:2.0);
+    swellCrowdAmbience(base*(home?1.85:.95), home?3.6:2.2);
   }
+
   function playMatchSound(kind,variant='standard',strength=.6) {
-    if(!settings.sound)return;const power=clamp(Number(strength)||.6,.1,1.35);
+    if(!settings.sound)return;
+    const power=clamp(Number(strength)||.6,.1,1.4);
     if(kind==='kick'){
-      const shots=['shoot','standardShot','drivenShot','placedShot','powerShot','finesse','chip','volley','header','freeKick','penaltyKick'],crosses=['cross','cornerKick','loftedPass'];
-      const shot=shots.includes(variant),loft=crosses.includes(variant),driven=['drivenPass','through','indirectKick','drivenShot'].includes(variant),placed=variant==='placedShot';
-      soundNoise(shot?.09:.055,(shot?.07:.038)*power,shot?driven?220:placed?340:280:loft?420:driven?260:520,'lowpass',0,'brown',90);
-      soundNoise(shot?.028:.02,(shot?.04:.02)*power,shot?3800:2600,'highpass',0,'white',1400);
-      soundTone(shot?driven?72:placed?96:84:loft?128:driven?102:148,shot?.16:.1,(shot?.045:.024)*power,shot?driven?42:placed?58:48:loft?76:92,'sine');
-      if(variant==='finesse')soundTone(420,.14,.01*power,640,'sine',.02);
-      if(variant==='chip')soundTone(540,.12,.01*power,780,'triangle',.018);
-      if(variant==='knuckle'||variant==='powerShot'||variant==='shoot')soundTone(56,.2,.018*power,36,'sine',.012);
-      if(variant==='header')soundNoise(.05,.04*power,900,'bandpass',0,'white',420);
-      if(variant==='penaltyKick'||variant==='freeKick')soundTone(64,.18,.022*power,38,'sine',.008);
+      soundKickImpact(variant, power);
     }else if(kind==='net'){
-      const section = String(variant||'standard');
-      const settle = /settle/i.test(section);
-      const sideNet = /side/i.test(section);
-      const roof = /roof|upper/i.test(section);
-      const corner = /corner/i.test(section);
-      const lower = /lower/i.test(section);
-      if(settle){
-        soundGrainCloud({color:'pink',duration:.42,density:14,grainMs:36,volume:.012*power,filterFreq:1200,filterJitter:180,rateScatter:.1,panSpread:.28,delay:0});
-        soundNoise(.28,.01*power,380,'lowpass',.02,'pink');
-        return;
-      }
-      const snapCut = (sideNet?1900:roof?2800:corner?2500:2200) * (0.8 + power * 0.4);
-      soundNoise(.035,.06*power,snapCut,'highpass',0,'white',snapCut*.38);
-      soundModalImpact(
-        [sideNet?520:roof?740:610, sideNet?980:roof?1480:1220, sideNet?1960:roof?2860:2440],
-        [.18,.12,.08],[.028,.016,.01],power
-      );
-      soundGrainCloud({
-        color:'pink',duration:sideNet?.26:.4,density:sideNet?16:28,grainMs:20,volume:(sideNet?.022:.036)*power,
-        filterFreq:sideNet?1400:roof?1900:corner?1700:1550,filterJitter:sideNet?180:320,rateScatter:.12,panSpread:sideNet?.22:.5,filterType:'bandpass',q:1.4
-      });
-      soundNoise(sideNet?.2:.32,.018*power,lower?210:roof?360:280,'lowpass',.02,'brown');
-      if(!sideNet)soundTone(lower?88:roof?128:108,.26,.012*power,lower?52:68,'sine',.04);
+      soundNetImpact(variant, power);
     }else if(kind==='grass'){
-      soundNoise(.12,.028*power,360,'lowpass',0,'brown');
-      soundNoise(.05,.012*power,2400,'highpass',.01,'white',1100);
+      // Pitch landing: dry vs wet feel from variant string when available
+      const wet = /wet|damp|soft/i.test(String(variant||''));
+      soundNoise(wet ? .16 : .11, (wet ? .032 : .026) * power, wet ? 280 : 380, 'lowpass', 0, 'brown');
+      soundNoise(wet ? .07 : .045, (wet ? .01 : .014) * power, wet ? 1600 : 2600, 'highpass', .012, 'white', wet ? 700 : 1200);
+      soundTone(wet ? 55 : 72, .1, .01 * power, 35, 'sine', .02);
+      if (!wet) soundGrainCloud({color:'white', duration:.06, density:8, grainMs:12, volume:.008*power, filterFreq:2200, filterJitter:400, rateScatter:.2, panSpread:.2});
     }else if(kind==='woodwork'){
-      const bar=variant==='crossbar';
-      soundNoise(.03,.07*power,bar?4200:3100,'highpass',0,'white',bar?1800:1300);
-      if(bar) soundModalImpact([1420,2280,3360,880],[.22,.16,.1,.28],[.04,.026,.016,.02],power);
-      else soundModalImpact([980,1640,2480,560],[.2,.14,.09,.26],[.038,.024,.014,.018],power);
-      soundTone(bar?1180:760,.16,.016*power,bar?860:520,'sine',.02);
+      const bar = variant === 'crossbar';
+      // Bright metallic attack
+      soundNoise(.035, .08 * power, bar ? 4500 : 3400, 'highpass', 0, 'white', bar ? 2000 : 1400);
+      if (bar) {
+        soundModalImpact([1480, 2360, 3480, 920, 520], [.24, .18, .12, .3, .22], [.045, .03, .018, .022, .014], power);
+        soundTone(1220, .18, .018 * power, 780, 'sine', .015);
+      } else {
+        soundModalImpact([1020, 1720, 2580, 600, 380], [.22, .16, .1, .28, .2], [.042, .028, .016, .02, .012], power);
+        soundTone(780, .16, .016 * power, 480, 'sine', .015);
+      }
+      // Short reverb-ish tail via grains
+      soundGrainCloud({color:'pink', duration:.2, density:12, grainMs:22, volume:.012*power, filterFreq:bar?2000:1400, filterJitter:300, rateScatter:.1, panSpread:.3, delay:.03});
     }else if(kind==='tackle'){
       const v=String(variant||'standard');
       if(v==='keeperSave'){
-        soundNoise(.04,.07*power,1800,'bandpass',0,'white',800);
-        soundNoise(.14,.04*power,360,'lowpass',.01,'brown');
-        soundTone(168,.09,.026*power,98,'sine',.008);
+        // Glove leather + firm palms
+        soundNoise(.045, .075 * power, 1900, 'bandpass', 0, 'white', 850);
+        soundNoise(.16, .045 * power, 320, 'lowpass', .012, 'brown');
+        soundTone(155, .1, .028 * power, 90, 'sine', .008);
+        soundGrainCloud({color:'white', duration:.08, density:10, grainMs:16, volume:.016*power, filterFreq:1600, filterJitter:280, rateScatter:.15, panSpread:.25});
       }else if(v==='interception'){
-        soundNoise(.035,.042*power,1600,'bandpass',0,'white',700);
-        soundTone(136,.07,.024*power,82,'sine');
+        soundNoise(.038, .048 * power, 1700, 'bandpass', 0, 'white', 750);
+        soundTone(128, .08, .026 * power, 78, 'sine');
+        soundNoise(.05, .018 * power, 900, 'lowpass', .01, 'brown');
       }else if(v==='block'){
-        soundNoise(.045,.048*power,720,'lowpass',0,'brown',240);
-        soundTone(108,.11,.028*power,64,'triangle');
+        soundNoise(.055, .052 * power, 680, 'lowpass', 0, 'brown', 220);
+        soundTone(98, .12, .03 * power, 58, 'triangle');
+        soundNoise(.03, .022 * power, 2200, 'highpass', .005, 'white');
       }else if(v==='slide'||v==='slideTackle'){
-        soundNoise(.38,.042*power,640,'bandpass',0,'brown',220);
-        soundTone(52,.18,.032*power,30,'sine',.02);
-        soundGrainCloud({color:'brown',duration:.28,density:12,grainMs:30,volume:.012*power,filterFreq:440,filterJitter:140,rateScatter:.12,panSpread:.32,delay:.02});
+        // Studs scrape + body slide
+        soundNoise(.42, .048 * power, 580, 'bandpass', 0, 'brown', 180);
+        soundTone(48, .22, .036 * power, 28, 'sine', .02);
+        soundGrainCloud({color:'brown', duration:.32, density:16, grainMs:28, volume:.014*power, filterFreq:420, filterJitter:160, rateScatter:.14, panSpread:.35, delay:.02});
+        soundNoise(.08, .02 * power, 2400, 'highpass', .05, 'white', 1000);
       }else{
-        soundNoise(.08,.04*power,520,'lowpass',0,'brown');
-        soundTone(70,.1,.03*power,40,'sine');
+        // Standard challenge
+        soundNoise(.09, .045 * power, 480, 'lowpass', 0, 'brown');
+        soundTone(66, .12, .032 * power, 38, 'sine');
+        soundNoise(.04, .02 * power, 1800, 'highpass', .01, 'white');
       }
     }else if(kind==='whistle'){
       soundRefereeWhistle(variant,power);
@@ -1591,17 +2080,28 @@
       src.start();
       return {src, filt, g};
     };
-    const low = makeBranch(brownNoiseBuffer || pinkNoiseBuffer, 'lowpass', 220, .7, .012);
-    const mid = makeBranch(pinkNoiseBuffer, 'bandpass', 480, .45, .014);
-    const high = makeBranch(pinkNoiseBuffer, 'bandpass', 1400, .55, .008);
+    // Richer continuous bed: low murmur, mid chatter, high air, distant edge
+    const low = makeBranch(brownNoiseBuffer || pinkNoiseBuffer, 'lowpass', 190, .75, .014);
+    const mid = makeBranch(pinkNoiseBuffer, 'bandpass', 420, .48, .016);
+    const high = makeBranch(pinkNoiseBuffer, 'bandpass', 1250, .58, .009);
+    const edge = makeBranch(pinkNoiseBuffer, 'bandpass', 2400, .7, .0045);
     const swell = ctx.createOscillator(), swellGain = ctx.createGain();
-    swell.type = 'sine'; swell.frequency.value = .11;
-    swellGain.gain.value = .004;
+    swell.type = 'sine'; swell.frequency.value = .09;
+    swellGain.gain.value = .005;
     swell.connect(swellGain);
-    // LFO nudges mid branch
     swellGain.connect(mid.g.gain);
-    swell.start();
-    const state = { low, mid, high, swell, swellGain, intensity: 1, baseVol: { low: .012, mid: .014, high: .008 } };
+    // Secondary slow drift on high for "living" crowd
+    const swell2 = ctx.createOscillator(), swell2Gain = ctx.createGain();
+    swell2.type = 'sine'; swell2.frequency.value = .17;
+    swell2Gain.gain.value = .0025;
+    swell2.connect(swell2Gain);
+    swell2Gain.connect(high.g.gain);
+    swell.start(); swell2.start();
+    const state = {
+      low, mid, high, edge, swell, swellGain, swell2, swell2Gain,
+      intensity: 1,
+      baseVol: { low: .014, mid: .016, high: .009, edge: .0045 }
+    };
     return state;
   }
 
@@ -1609,15 +2109,15 @@
     const amb = typeof game !== 'undefined' && game ? game.crowdAmbience : null;
     if (!amb || !audioCtx) return;
     const now = audioCtx.currentTime;
-    const peak = clamp(amount, .3, 2.2);
-    ['low','mid','high'].forEach((key, i) => {
-      const g = amb[key]?.g?.gain, base = amb.baseVol[key];
-      if (!g) return;
-      const mult = key === 'high' ? 1.6 : key === 'mid' ? 1.35 : 1.15;
+    const peak = clamp(amount, .3, 2.4);
+    ['low','mid','high','edge'].forEach((key, i) => {
+      const g = amb[key]?.g?.gain, base = amb.baseVol?.[key];
+      if (!g || base == null) return;
+      const mult = key === 'edge' ? 2.1 : key === 'high' ? 1.75 : key === 'mid' ? 1.4 : 1.2;
       try {
         g.cancelScheduledValues(now);
         g.setValueAtTime(Math.max(.0001, g.value), now);
-        g.linearRampToValueAtTime(base * peak * mult, now + .12 + i * .04);
+        g.linearRampToValueAtTime(base * peak * mult, now + .14 + i * .035);
         g.exponentialRampToValueAtTime(Math.max(.0001, base), now + duration);
       } catch {}
     });
@@ -1627,27 +2127,28 @@
     const amb = typeof game !== 'undefined' && game ? game.crowdAmbience : null;
     if (!amb || !audioCtx || !reaction) return;
     const t = clamp(reaction.age / Math.max(.01, reaction.duration || 5), 0, 1);
-    // Spectral tilt: early high energy, then settle into mid/low roar
     const env = t < .15 ? t / .15 : t < .55 ? 1 : Math.max(0, 1 - (t - .55) / .45);
     const intensity = (reaction.intensity || 1) * env;
     const now = audioCtx.currentTime;
     try {
-      if (amb.high?.g) amb.high.g.gain.setTargetAtTime(amb.baseVol.high * (1 + intensity * 1.8), now, .08);
-      if (amb.mid?.g) amb.mid.g.gain.setTargetAtTime(amb.baseVol.mid * (1 + intensity * 1.2), now, .1);
-      if (amb.low?.g) amb.low.g.gain.setTargetAtTime(amb.baseVol.low * (1 + intensity * .7), now, .12);
+      if (amb.edge?.g) amb.edge.g.gain.setTargetAtTime(amb.baseVol.edge * (1 + intensity * 2.4), now, .07);
+      if (amb.high?.g) amb.high.g.gain.setTargetAtTime(amb.baseVol.high * (1 + intensity * 1.9), now, .08);
+      if (amb.mid?.g) amb.mid.g.gain.setTargetAtTime(amb.baseVol.mid * (1 + intensity * 1.25), now, .1);
+      if (amb.low?.g) amb.low.g.gain.setTargetAtTime(amb.baseVol.low * (1 + intensity * .75), now, .12);
     } catch {}
   }
 
   function stopCrowdAmbience(ambience) {
     if (!ambience) return;
-    const now = (audioCtx?.currentTime || 0) + .2;
+    const now = (audioCtx?.currentTime || 0) + .25;
     try {
-      ['low','mid','high'].forEach(k => {
+      ['low','mid','high','edge'].forEach(k => {
         const g = ambience[k]?.g?.gain;
         if (g) g.exponentialRampToValueAtTime(.0001, now);
-        ambience[k]?.src?.stop(now + .05);
+        ambience[k]?.src?.stop(now + .06);
       });
-      ambience.swell?.stop(now + .05);
+      ambience.swell?.stop(now + .06);
+      ambience.swell2?.stop(now + .06);
     } catch {}
   }
 
@@ -1659,7 +2160,7 @@
     if (!target) return;
     target.classList.add('active');
     document.body.dataset.screen=name;
-    $('#topCareerSummary').classList.toggle('hidden', !career || ['menu', 'create', 'match'].includes(name));
+    $('#topCareerSummary')?.classList.toggle('hidden', !career || ['menu', 'create', 'match'].includes(name));
     if (name === 'menu') renderHomeScreen();
     if (name === 'create') setCreatorStep(0);
     if (name === 'hub') renderHub();
@@ -1743,7 +2244,7 @@
     const savesBtn=$('#careerSavesBtn');if(savesBtn)savesBtn.setAttribute('aria-label',`Career Saves ${careerSlots.length} of ${MAX_CAREER_SLOTS}`);
     if (career) {
       ensureCareerIdentity(career);
-      $('#topCareerSummary').textContent = `${career.player.name} \u00b7 ${career.player.position} \u00b7 OVR ${career.player.overall}${career.assistedCareer?' \u00b7 \u2699 Assisted':''}`;
+      if($('#topCareerSummary'))$('#topCareerSummary').textContent = `${career.player.name} \u00b7 ${career.player.position} \u00b7 OVR ${career.player.overall}${career.assistedCareer?' \u00b7 \u2699 Assisted':''}`;
     } else if($('#topCareerSummary')) $('#topCareerSummary').textContent='';
     renderHomeScreen();
   }
@@ -1981,6 +2482,25 @@
       return profiles.standardChip;
     }
     return profiles[action]||profiles.pass;
+  }
+  function visualKickProfile(profile,p={},action=''){
+    if(!profile)return profile;const v=resolvedVisualIdentity(p),style=v.shootingStyle,stance=v.freeKickStance,pen=v.penaltyRunUp,out={...profile};
+    const mul=(keys,f)=>keys.forEach(k=>{if(Number.isFinite(out[k]))out[k]*=f});
+    if(['shoot','finesse','chip','volley','halfVolley','bicycleKick'].includes(action)){
+      if(style==='Power'){mul(['back','reach','follow','arm'],1.10);out.bodyLean=(out.bodyLean||0)*1.12}
+      else if(style==='Placement'){mul(['across','sweep','bodyTurn'],1.16);mul(['back','reach'],.96)}
+      else if(style==='Quick Release'){mul(['back','follow','arm'],.82);mul(['reach'],.94)}
+      else if(style==='Compact'){mul(['back','arm'],.91)}
+    }
+    if(String(action).toLowerCase().includes('free')||String(action).toLowerCase().startsWith('fk')){
+      if(stance==='Side On'){out.bodyTurn=(out.bodyTurn||0)+.10;mul(['across','sweep'],1.12)}
+      else if(stance==='Short Run Up'){mul(['back','reach','follow'],.88)}
+      else if(stance==='Power Run Up'){mul(['back','reach','arm'],1.12);out.bodyLean=(out.bodyLean||0)*1.12}
+    }
+    if(action==='penaltyKick'){
+      if(pen==='Short')mul(['back','reach','follow'],.88);else if(pen==='Stutter'){mul(['back'],.92);out.bodyTurn=(out.bodyTurn||0)+.035}else if(pen==='Power')mul(['back','reach','arm'],1.12);
+    }
+    return out;
   }
 
   function kickContactTiming(action,variant=''){
@@ -2447,9 +2967,9 @@
       stopping:{stride:2.5,knee:.42,arm:.78,bounce:.12,lean:-.45,width:1.1,cadence:5.4,air:.04}
     };
     const base = profiles[state] || profiles.run;
-    const build = String(p.build || p.bodyBuild || 'Athletic');
-    const buildStride = build === 'Lean' ? 1.06 : build === 'Strong' ? .95 : 1;
-    const buildCadence = build === 'Lean' ? 1.05 : build === 'Strong' ? .94 : 1;
+    const physical=p.physicalProfile||calculatePhysicalProfile(p),build=physical.buildName,runStyle=resolvedVisualIdentity(p).runningStyle;
+    const styleMods={Light:{stride:.96,cadence:1.05,knee:.94,arm:.92,lean:.92},Balanced:{stride:1,cadence:1,knee:1,arm:1,lean:1},Powerful:{stride:1.055,cadence:.965,knee:1.08,arm:1.10,lean:1.08},Explosive:{stride:1.025,cadence:1.035,knee:1.12,arm:1.13,lean:1.15}}[runStyle]||{stride:1,cadence:1,knee:1,arm:1,lean:1};
+    const buildStride=physical.strideLengthFactor*styleMods.stride,buildCadence=physical.cadenceFactor*styleMods.cadence;
     const tiredStride = lerp(1, .78, fatigue * fatigue);
     const tiredCadence = lerp(1, .88, fatigue);
     return {
@@ -2459,10 +2979,10 @@
       injurySide:injury.side,
       stride:base.stride*buildStride*tiredStride*(injury.active?lerp(.96,.76,injury.severity):1),
       cadence:base.cadence*buildCadence*tiredCadence*(injury.active?lerp(.94,.72,injury.severity):1),
-      knee:base.knee*lerp(1,.72,fatigue)*(injury.active?lerp(.92,.64,injury.severity):1),
-      arm:base.arm*lerp(1,.68,fatigue)*(injury.active?lerp(.92,.7,injury.severity):1),
+      knee:base.knee*styleMods.knee*lerp(1,.72,fatigue)*(injury.active?lerp(.92,.64,injury.severity):1),
+      arm:base.arm*styleMods.arm*lerp(1,.68,fatigue)*(injury.active?lerp(.92,.7,injury.severity):1),
       bounce:base.bounce*lerp(1,.7,fatigue),
-      lean:base.lean+fatigue*.14+(injury.active?injury.severity*.12:0),
+      lean:base.lean*styleMods.lean+fatigue*.14+(injury.active?injury.severity*.12:0),
       width:base.width*(build==='Strong'?1.08:build==='Lean'?.96:1)*(injury.active?1.05:1)
     };
   }
@@ -2494,25 +3014,11 @@
   // Exercise-specific renderers may change pose or clothing, but never invent a
   // different body, head, hair or player identity.
   function sharedPlayerBodyProfile(p={}){
-    const buildName=String(p.build||p.bodyBuild||'Athletic');
-    const buildProfile=buildName==='Strong'
-      ? {shoulder:1.11,limb:1.13,waist:1.07,head:.98}
-      : buildName==='Lean'
-        ? {shoulder:.94,limb:.91,waist:.93,head:1.01}
-        : {shoulder:1,limb:1,waist:1,head:1};
-    const keeper=p.position==='GK';
+    const visual=visualIdentityForContext(p,{context:'SHARED',weather:p.visualWeather||''}),physical=calculatePhysicalProfile({...p,build:visual.bodyBuild,heightCm:visual.heightCm,weightKg:visual.weightKg});
     return {
-      buildName,buildProfile,
-      skin:p.skin||p.skinTone||'#b9784c',
-      hair:p.hair||p.hairStyle||'Short',
-      hairColour:p.hairColour||'#21140d',
-      boots:p.boots||p.bootColour||'#111827',
-      shoulderScale:clamp((Number(p.shoulderScale)||1)*buildProfile.shoulder,.88,1.24),
-      headScale:clamp((Number(p.headScale)||1)*buildProfile.head,.9,1.08),
-      heightScale:clamp(Number(p.heightScale)||(keeper?1.06:1),.92,1.12),
-      legScale:clamp((Number(p.legScale)||1)*(buildName==='Lean'?1.035:1),.92,1.14),
-      limbMass:buildProfile.limb,
-      waistScale:buildProfile.waist
+      buildName:physical.buildName,buildProfile:{shoulder:physical.shoulderScale,limb:physical.limbMass,waist:physical.waistScale,head:physical.headScale},physical,visual,
+      skin:visual.skinTone,hair:visual.hairStyle,hairColour:visual.hairColour,boots:visual.bootColour,
+      shoulderScale:physical.shoulderScale,headScale:physical.headScale,heightScale:physical.visualHeightScale,legScale:physical.legLengthScale,limbMass:physical.limbMass,waistScale:physical.waistScale,torsoScale:physical.torsoLengthScale
     };
   }
 
@@ -2522,10 +3028,10 @@
   function sharedPlayerRigMetrics(p={},sideView=false){
     const body=sharedPlayerBodyProfile(p);
     const torsoWidth=(sideView?5.55:7.15)*body.shoulderScale;
-    const hipY=3.9*body.heightScale,kneeY=7.15*body.legScale,footY=11.45*body.legScale;
+    const torsoScale=body.torsoScale||1,hipY=3.9*torsoScale,kneeY=7.15*body.legScale,footY=11.45*body.legScale;
     return {
       body,torsoWidth,
-      torsoTop:-4.8,torsoBottom:4.1,torsoHeight:8.9,
+      torsoTop:-4.8*torsoScale,torsoBottom:4.1*torsoScale,torsoHeight:8.9*torsoScale,
       waistHalf:3.35*body.waistScale,
       hipY,kneeY,footY,
       thighLength:Math.max(2.6,kneeY-hipY),
@@ -2589,29 +3095,25 @@
   // Saved career-player values always win. Squad members without explicit visual
   // data receive a stable appearance derived from their player id/name instead of
   // being re-randomised by each mode.
-  function canonicalMatchDayVisualProfile(playerData={},team=0,index=0,isKeeper=false){
-    const key=`${career?.careerId||'career'}|${playerData?.id||playerData?.name||index}|${team}|${index}`;
-    const unit=n=>((hashText(`${key}|${n}`)%10000)/9999);
-    const choose=(arr,n)=>arr[Math.min(arr.length-1,Math.floor(unit(n)*arr.length))];
-    const build=playerData?.build||playerData?.bodyBuild||choose(['Lean','Athletic','Athletic','Strong'],1);
-    const heightScale=playerData?.height?clamp(Number(playerData.height)/180,.9,1.13):Number(playerData?.heightScale)||lerp(isKeeper?1.04:.94,isKeeper?1.11:1.08,unit(2));
-    return {
-      skin:playerData?.skin||playerData?.skinTone||choose(['#f2c9a0','#c98d5b','#9a5d38','#7b4b2a','#4a2b1a'],3),
-      hair:playerData?.hair||playerData?.hairStyle||choose(['Short','Fade','Afro','Braids','Shaved'],4),
-      hairColour:playerData?.hairColour||choose(['#21130d','#111827','#3f2314'],5),
-      boots:playerData?.boots||playerData?.bootColour||choose(['#111827','#111827','#f8fafc','#374151','#ef4444'],6),
-      build,
-      heightScale:clamp(heightScale,.9,1.13),
-      legScale:clamp(Number(playerData?.legScale)||lerp(isKeeper?1.02:.94,isKeeper?1.09:1.08,unit(7)),.92,1.14),
-      shoulderScale:clamp(Number(playerData?.shoulderScale)||lerp(.94,1.07,unit(8)),.88,1.24),
-      headScale:clamp(Number(playerData?.headScale)||lerp(.96,1.04,unit(9)),.9,1.08)
-    };
+  function canonicalMatchDayVisualProfile(playerData={},team=0,index=0,isKeeper=false,position='CM'){
+    const pos=position||playerData?.position||(isKeeper?'GK':'CM'),stableIdentity=playerData?.id||playerData?.playerId||playerData?.name||'',key=stableIdentity?`${career?.careerId||'career'}|${stableIdentity}`:`${career?.careerId||'career'}|generated|${team}|${index}`;
+    const unit=n=>((hashText(`${key}|${n}`)%10000)/9999),choose=(arr,n)=>arr[Math.min(arr.length-1,Math.floor(unit(n)*arr.length))];
+    const buildsByPosition={GK:['Balanced','Athletic','Athletic','Powerful','Slim'],CB:['Balanced','Athletic','Athletic','Powerful','Powerful','Stocky'],RB:['Slim','Balanced','Athletic','Athletic','Lean'],LB:['Slim','Balanced','Athletic','Athletic','Lean'],DM:['Balanced','Athletic','Athletic','Powerful','Stocky'],CM:['Slim','Balanced','Balanced','Athletic','Athletic','Lean'],AM:['Lean','Slim','Slim','Balanced','Athletic'],RW:['Lean','Slim','Slim','Balanced','Athletic'],LW:['Lean','Slim','Slim','Balanced','Athletic'],ST:['Balanced','Athletic','Athletic','Powerful','Powerful','Slim']};
+    const ranges={GK:[184,201],CB:[178,198],RB:[166,190],LB:[166,190],DM:[168,193],CM:[165,192],AM:[162,188],RW:[160,189],LW:[160,189],ST:[168,199]},range=ranges[pos]||[165,195];
+    const build=normalisePhysicalBuild(playerData?.build||playerData?.bodyBuild||choose(buildsByPosition[pos]||buildsByPosition.CM,1));let heightCm=Number(playerData?.heightCm||playerData?.height);if(!Number.isFinite(heightCm))heightCm=Math.round(lerp(range[0],range[1],unit(2)));else if(heightCm<3)heightCm*=100;
+    const expected=expectedFootballWeight(heightCm,build),weightKg=Number.isFinite(Number(playerData?.weightKg||playerData?.weight))?Number(playerData?.weightKg||playerData?.weight):Math.round(expected+lerp(-4.5,4.5,unit(7)));
+    const chooseField=(field,n)=>playerData?.[field]||playerData?.visualIdentity?.[field]||choose(V775_AI_OPTIONS[field],n);
+    const visual={skinTone:playerData?.skinTone||playerData?.skin||playerData?.visualIdentity?.skinTone||choose(['#f2c9a0','#c98d5b','#9a5d38','#7b4b2a','#4a2b1a'],3),hairStyle:playerData?.hairStyle||playerData?.hair||playerData?.visualIdentity?.hairStyle||choose(['Short','Fade','Afro','Braids','Cornrows','Shaved'],4),hairColour:playerData?.hairColour||playerData?.visualIdentity?.hairColour||choose(['#21130d','#111827','#3f2314'],5),headShape:chooseField('headShape',8),jawStyle:chooseField('jawStyle',9),noseStyle:chooseField('noseStyle',10),eyeStyle:chooseField('eyeStyle',11),browStyle:chooseField('browStyle',12),hairlineStyle:chooseField('hairlineStyle',28),facialHair:chooseField('facialHair',13),complexion:chooseField('complexion',14),bodyBuild:build,heightCm,weightKg,bootModel:chooseField('bootModel',15),bootColour:playerData?.bootColour||playerData?.boots||playerData?.visualIdentity?.bootColour||choose(['#111827','#111827','#f8fafc','#374151','#ef4444'],6),bootSecondaryColour:playerData?.bootSecondaryColour||playerData?.visualIdentity?.bootSecondaryColour||choose(['#f8fafc','#a3e635','#22d3ee','#111827'],16),shirtNumber:Number(playerData?.shirtNumber||playerData?.preferredShirtNumber||index+1),sleeveLength:chooseField('sleeveLength',18),shirtStyle:chooseField('shirtStyle',19),sockHeight:chooseField('sockHeight',20),wristTape:chooseField('wristTape',21),matchAccessories:chooseField('matchAccessories',22),runningStyle:chooseField('runningStyle',23),shootingStyle:chooseField('shootingStyle',24),goalCelebration:chooseField('goalCelebration',25),freeKickStance:chooseField('freeKickStance',26),penaltyRunUp:chooseField('penaltyRunUp',27)};
+    const merged={...playerData,...visual};ensureVisualIdentity(merged);const v=resolvedVisualIdentity(merged),physical=calculatePhysicalProfile({...merged,position:pos});
+    return {visualIdentity:v,skin:v.skinTone,skinTone:v.skinTone,hair:v.hairStyle,hairStyle:v.hairStyle,hairColour:v.hairColour,boots:v.bootColour,bootColour:v.bootColour,headShape:v.headShape,jawStyle:v.jawStyle,noseStyle:v.noseStyle,eyeStyle:v.eyeStyle,browStyle:v.browStyle,hairlineStyle:v.hairlineStyle,facialHair:v.facialHair,complexion:v.complexion,bootModel:v.bootModel,bootSecondaryColour:v.bootSecondaryColour,sleeveLength:v.sleeveLength,shirtStyle:v.shirtStyle,sockHeight:v.sockHeight,wristTape:v.wristTape,matchAccessories:v.matchAccessories,runningStyle:v.runningStyle,shootingStyle:v.shootingStyle,goalCelebration:v.goalCelebration,freeKickStance:v.freeKickStance,penaltyRunUp:v.penaltyRunUp,build:v.bodyBuild,heightCm:physical.heightCm,weightKg:Math.round(physical.weightKg),heightScale:physical.visualHeightScale,legScale:physical.legLengthScale,shoulderScale:physical.shoulderScale,headScale:physical.headScale,physical};
   }
+
 
   // Robust semi-realistic 2D player renderer. This intentionally uses only basic
   // Canvas primitives so player models remain visible across browsers and saves.
   function drawVisibleFootballer(ctx, p, scale = 1, preview = false) {
     const finite = Number.isFinite;
+    const appearance=visualIdentityForContext(p,{context:p.trainingKit?'TRAINING':'MATCH',weather:p.visualWeather||''});
     const vx = finite(p.vx) ? p.vx : 0;
     const vy = finite(p.vy) ? p.vy : 0;
     // Physics stays immediate for responsive controls; the renderer consumes a
@@ -2659,7 +3161,7 @@
     const celebrationVariant = p.celebrationVariant || 'armsUp';
     const concededReaction = p.concededReaction || celebrationVariant || 'lookDown';
     const isThrow = ['throw','throwReady'].includes(action);
-    const kickProfile = isKick ? kickAnimationProfile(action,p.actionVariant) : null;
+    const kickProfile = isKick ? visualKickProfile(kickAnimationProfile(action,p.actionVariant),p,action) : null;
     const carrying = !!p.hasBall && !keeper && motion > .06 && !isKick && !isThrow;
     const kickSide = (p.actionFoot || p.preferredFoot || 'Right') === 'Left' ? -1 : 1;
     const sharedIdentity=sharedPlayerBodyProfile(p);
@@ -2672,9 +3174,14 @@
     const hair = sharedIdentity.hairColour;
     const boots = swimmingTopless ? skin : sharedIdentity.boots;
     const facing = finite(p.visualFacing) ? p.visualFacing : (finite(p.upperDir) ? p.upperDir : (finite(p.dir) ? p.dir : 0));
-    const face = preview ? {x:0,y:1} : worldAngleToScreenVector(facing);
+    const rawFace = preview ? {x:0,y:1} : worldAngleToScreenVector(facing);
+    // v77.12: build every side-on pose facing right, then mirror the figure for leftward
+    // travel, so left and right are opposite profiles instead of the same drawing.
+    const mirrorSide = (!preview && rawFace.x < -.02) ? -1 : 1;
+    const face = mirrorSide<0 ? {x:-rawFace.x,y:rawFace.y} : rawFace;
     const rawMoveSpeed=Math.hypot(vx,vy);
-    const move=preview||rawMoveSpeed<2?face:{x:vy/rawMoveSpeed,y:-vx/rawMoveSpeed};
+    const rawMove=preview||rawMoveSpeed<2?rawFace:{x:vy/rawMoveSpeed,y:-vx/rawMoveSpeed};
+    const move=mirrorSide<0?{x:-rawMove.x,y:rawMove.y}:rawMove;
     const movementDot=move.x*face.x+move.y*face.y;
     const movementCross=move.x*face.y-move.y*face.x;
     const backpedalling=rawMoveSpeed>20&&movementDot<-.3;
@@ -2718,6 +3225,7 @@
     ctx.globalCompositeOperation = 'source-over';
     ctx.scale(bodyScale, bodyScale);
     if (!preview) ctx.rotate(Math.PI / 2);
+    if (mirrorSide < 0) ctx.scale(-1, 1);
     // Swimming keeps the exact match-player renderer but adds a water-specific
     // body roll and streamline. This gives front crawl a natural shoulder/hip
     // rotation instead of making the footballer look like a rigid sprite.
@@ -2781,10 +3289,11 @@
     const outline = 'rgba(2,8,6,.68)';
     if (isSlide || isDive || isFoul || action === 'stumble') p.dirtLayer = Math.min(0.85, (p.dirtLayer || 0) + 0.005);
     const breathing = p.visualFatigue > 0.3 ? Math.sin(Date.now() / (300 - p.visualFatigue * 150)) * p.visualFatigue * 0.45 : 0;
-    const torsoW = sharedRig.torsoWidth + (horizontal ? 0 : breathing * 3.5);
+    const shirtFit=appearance.shirtStyle==='Fitted'?.95:appearance.shirtStyle==='Tucked'?.98:1;
+    const torsoW = (sharedRig.torsoWidth + (horizontal ? 0 : breathing * 3.5))*shirtFit;
     const limbMass=sharedBody.limbMass,waistScale=sharedBody.waistScale;
     const airborne=Math.max(0,Math.sin(phase*2))*gait.air*motion;
-    const bob = horizontal ? 0 : (Math.cos(phase * 2) * gait.bounce * motion - airborne*.42);
+    const bob = horizontal ? 0 : (Math.cos(phase * 2) * gait.bounce * motion * 1.85 - airborne*.78);
     const idleBreath=(1-motion)*Math.sin(Number.isFinite(p.idleAnim)?p.idleAnim:0)*.12;
     const landingDip = horizontal ? 0 : Math.sin(recoveryWeight*Math.PI)*.72;
     const accelerationWeight=clamp(p.visualAcceleration || 0,-1,1);
@@ -2797,7 +3306,10 @@
     const limpTilt=isLimping?-injurySide*(.015+injurySeverity*.035)*(0.55+limpBeat*.45):0;
     const receiveLean=isFirstTouch&&firstTouchAerial?Math.sin(progress*Math.PI)*(firstTouchVariant.includes('chest')?1.35:.65):0;
     ctx.translate(turnLean-injurySide*injurySeverity*.34-receiveLean*.22, bob+idleBreath+landingDip+Math.abs(momentumLean)*.18+limpDrop+receiveLean*.28);
-    if(!horizontal)ctx.rotate(turnLean*.021+torsoTwist+limpTilt);
+    // v77.16: lean into the run. The pose is always built facing right (the figure is
+    // mirrored for leftward travel), so one positive rotation reads as forward in both.
+    const runLean=horizontal?0:clamp(momentumLean,-1.6,1.6)*Math.abs(face.x)*.062;
+    if(!horizontal)ctx.rotate(turnLean*.021+torsoTwist+limpTilt+runLean);
     if(isInjuryReaction&&!horizontal){ctx.translate(-injurySide*1.2,1.6+actionWave*1.5);ctx.rotate(-injurySide*(.05+.05*actionWave));}
     if(isFoul&&!horizontal){const hit=Math.sin(progress*Math.PI),impact=Number.isFinite(p.foulImpactAngle)?p.foulImpactAngle:(p.dir||0),side=Math.sin(impact-(p.dir||0))>=0?1:-1;if(foulVariant==='trip-forward'||foulVariant==='stumble-forward'){ctx.translate(face.x*1.2*hit,2.2*hit);ctx.rotate(side*(.035+.05*foulSeverity)*hit);}else if(foulVariant==='body-stumble'){ctx.translate(side*(1.7+foulSeverity*1.7)*hit,1.3*hit);ctx.rotate(side*.065*hit);}else if(foulVariant==='leg-trip'){ctx.translate(side*1.3*hit,2.8*hit);ctx.rotate(side*.08*hit);}}
     if(isFrustration&&!horizontal){
@@ -2845,10 +3357,17 @@
     const leftCycle=runningLegCycle(phase,stride,gait.knee),rightCycle=runningLegCycle(phase+Math.PI,stride,gait.knee);
     const stanceWidth=1.6*gait.width;
     const lateralTurn=clamp(p.visualTurn||0,-1,1)*motion;
-    let leftFoot = {x:-stanceWidth-leftCycle.swing*.35-lateralTurn*.42, y:footY + leftCycle.longitudinal-leftCycle.lift*.52};
-    let rightFoot = {x:stanceWidth+rightCycle.swing*.35-lateralTurn*.42, y:footY + rightCycle.longitudinal-rightCycle.lift*.52};
-    let leftKnee = {x:-1.25*gait.width-leftCycle.swing*.18-lateralTurn*.22, y:kneeY + leftCycle.longitudinal*.44-leftCycle.lift*.74};
-    let rightKnee = {x:1.25*gait.width+rightCycle.swing*.18-lateralTurn*.22, y:kneeY + rightCycle.longitudinal*.44-rightCycle.lift*.74};
+    // v77.16: the stride was only ever applied along the figure's local y axis, so a
+    // side-on run swung the legs up and down instead of front to back and showed no
+    // stride separation at all. Split the travel between the two axes by how side-on
+    // the view is - the pose is always built facing right, so forward is +x.
+    const sideAmt=clamp(Math.abs(face.x),0,1);
+    const strideFwd=c=>c.longitudinal*sideAmt;
+    const strideDepth=c=>c.longitudinal*(1-sideAmt);
+    let leftFoot = {x:-stanceWidth-leftCycle.swing*.35-lateralTurn*.42+strideFwd(leftCycle), y:footY + strideDepth(leftCycle)-leftCycle.lift*.52-Math.abs(strideFwd(leftCycle))*.16};
+    let rightFoot = {x:stanceWidth+rightCycle.swing*.35-lateralTurn*.42+strideFwd(rightCycle), y:footY + strideDepth(rightCycle)-rightCycle.lift*.52-Math.abs(strideFwd(rightCycle))*.16};
+    let leftKnee = {x:-1.25*gait.width-leftCycle.swing*.18-lateralTurn*.22+strideFwd(leftCycle)*.46, y:kneeY + strideDepth(leftCycle)*.44-leftCycle.lift*.74};
+    let rightKnee = {x:1.25*gait.width+rightCycle.swing*.18-lateralTurn*.22+strideFwd(rightCycle)*.46, y:kneeY + strideDepth(rightCycle)*.44-rightCycle.lift*.74};
     if(isHandshake){const side=p.handshakeSide||1;rightFoot.y-=side*handshakeLean*.72;rightFoot.x+=handshakeLean*.22;rightKnee.y-=side*handshakeLean*.34;leftFoot.y+=side*handshakeLean*.12;}
     if(p.swimmingPose){
       const swimPhase=Number(p.swimPhase||0),effort=clamp(Number(p.swimEffort??motion),0,1),fatigue=clamp(Number(p.swimFatigue||0),0,1),turning=!!p.swimTurning;
@@ -2998,6 +3517,24 @@
       }
     }
     // Interception stretch \u2014 lead foot lunges
+    // v77.12: the outcome of a challenge is now readable in the body, not only in the
+    // on-screen cue. A clean win plants and stays balanced with the lead leg driving
+    // through the ball; a foul is an off-balance follow-through with the trailing leg
+    // high and the torso falling away.
+    if(p.tackleOutcome&&['tackle','slide','shoulder','block'].includes(action)){
+      const tSide=p.actionFoot==='Left'?-1:1,drive=actionWave;
+      if(p.tackleOutcome==='clean'){
+        leftFoot.x+=tSide*5.4*drive;leftFoot.y+=1.1*drive;
+        leftKnee.x+=tSide*2.8*drive;leftKnee.y+=.5*drive;
+        rightFoot.x-=tSide*2.2*drive;rightKnee.x-=tSide*1.1*drive;
+      }else{
+        const swing=clamp(Number(p.foulFollowThrough||.6),0,1);
+        leftFoot.x+=tSide*(5.0+swing*3.4)*drive;leftFoot.y-=(2.6+swing*2.8)*drive;
+        leftKnee.x+=tSide*(2.6+swing*1.6)*drive;leftKnee.y-=(1.4+swing*1.5)*drive;
+        rightFoot.x-=tSide*(2.6+swing*1.8)*drive;rightFoot.y+=1.6*drive;
+        rightKnee.x-=tSide*1.4*drive;
+      }
+    }
     if(p.action==='tackle'&&p.actionVariant==='stretch'){
       const side=p.actionFoot==='Left'?-1:1;
       leftFoot.x+=side*3.8*actionWave;rightFoot.x+=side*1.2*actionWave;
@@ -3049,20 +3586,24 @@
     const drawLeg = (side,knee,foot) => {
       limb({x:side*1.5*waistScale,y:hipY}, knee, sharedRig.thighWidth, shorts);
       ctx.fillStyle=skin;ctx.strokeStyle=outline;ctx.lineWidth=.42;ctx.beginPath();ctx.arc(knee.x,knee.y,.78*limbMass,0,Math.PI*2);ctx.fill();ctx.stroke();
-      limb(knee, foot, sharedRig.shinWidth, socks);
+      if(appearance.sockHeight==='Low'){const cuff={x:lerp(knee.x,foot.x,.58),y:lerp(knee.y,foot.y,.58)};limb(knee,cuff,sharedRig.shinWidth,skin);limb(cuff,foot,sharedRig.shinWidth,socks)}
+      else if(appearance.sockHeight==='Standard'){const cuff={x:lerp(knee.x,foot.x,.25),y:lerp(knee.y,foot.y,.25)};limb(knee,cuff,sharedRig.shinWidth,skin);limb(cuff,foot,sharedRig.shinWidth,socks)}
+      else limb(knee, foot, sharedRig.shinWidth, socks);
       ctx.save();ctx.translate(foot.x,foot.y);ctx.rotate(foot.angle||0);
       if(p.barefoot){
         const footG=ctx.createLinearGradient(-1.4,-1,1.4,3);footG.addColorStop(0,mixColour(skin,'#ffffff',.14));footG.addColorStop(.55,skin);footG.addColorStop(1,shadeColour(skin,-.16));
         ctx.fillStyle=footG;ctx.strokeStyle=outline;ctx.lineWidth=.5;ctx.beginPath();ctx.ellipse(0,.9,1.3,2.55,.04,0,Math.PI*2);ctx.fill();ctx.stroke();
         ctx.fillStyle=mixColour(skin,'#ffffff',.08);[-.7,-.35,0,.35,.7].forEach((x,i)=>{ctx.beginPath();ctx.arc(x,3.0-Math.abs(i-2)*.08,.16,0,Math.PI*2);ctx.fill()});
       }else{
+        const bootShape={Velocity:[.92,1.08],'Control Pro':[1,1],'Power Strike':[1.10,1.04],'Classic Leather':[1.05,.96]}[appearance.bootModel]||[1,1];ctx.scale(bootShape[0],bootShape[1]);
         const bootG=ctx.createLinearGradient(-1.6,-1,1.6,3.4);bootG.addColorStop(0,mixColour(boots,'#ffffff',.22));bootG.addColorStop(.46,boots);bootG.addColorStop(1,shadeColour(boots,-.32));
         ctx.fillStyle=bootG; ctx.strokeStyle=outline; ctx.lineWidth = .7;
         ctx.beginPath();ctx.moveTo(-1.55,-1.1);ctx.quadraticCurveTo(0,-2.0,1.45,-1.0);ctx.lineTo(1.65,2.25);ctx.quadraticCurveTo(.45,3.45,-1.45,2.85);ctx.closePath();ctx.fill();ctx.stroke();
+        ctx.strokeStyle=appearance.bootSecondaryColour||'#f8fafc';ctx.globalAlpha=.85;ctx.lineWidth=.34;ctx.beginPath();ctx.moveTo(-1.1,1.7);ctx.lineTo(1.1,1.1);ctx.stroke();ctx.globalAlpha=1;
         ctx.strokeStyle='rgba(255,255,255,.46)';ctx.lineWidth=.38;for(let lace=-.55;lace<=.55;lace+=.55){ctx.beginPath();ctx.moveTo(-.82,lace);ctx.lineTo(.82,lace);ctx.stroke()}
         ctx.strokeStyle='rgba(0,0,0,.38)';ctx.lineWidth=.32;ctx.beginPath();ctx.moveTo(-1.25,2.4);ctx.lineTo(1.25,2.1);ctx.stroke();
         ctx.fillStyle='rgba(8,12,16,.6)';[-.75,.75].forEach(x=>{ctx.beginPath();ctx.arc(x,2.75,.22,0,Math.PI*2);ctx.fill()});
-      }ctx.restore();
+      }ctx.restore();if(String(appearance.matchAccessories).includes('Ankle Tape')){ctx.save();ctx.strokeStyle='#f8fafc';ctx.lineWidth=.75;ctx.beginPath();ctx.moveTo(foot.x-.9,foot.y-1.9);ctx.lineTo(foot.x+.9,foot.y-1.9);ctx.stroke();ctx.restore();}
     };
     drawLeg(-1,leftKnee,leftFoot); drawLeg(1,rightKnee,rightFoot);
     if(!preview&&!horizontal&&motion>.18){
@@ -3201,11 +3742,11 @@
         else if(saveVariant==='foot-block'){leftHand={x:-5.2,y:1.2};rightHand={x:5.2,y:1.2};leftElbow={x:-4.6,y:-1.0};rightElbow={x:4.6,y:-1.0};}
         else{leftHand={x:-2.3,y:reachY};rightHand={x:2.3,y:reachY};leftElbow={x:-4.1,y:reachY*.55};rightElbow={x:4.1,y:reachY*.55};}
       }else{
-        const reachX=saveSide*(8.5+reach*5.5),reachY=high?-8.4:low?5.6:-2.8;
-        if(saveVariant==='cross-hand'){leftHand={x:reachX-saveSide*.8,y:reachY+2.2};rightHand={x:reachX+saveSide*1.7,y:reachY-2.2};leftElbow={x:saveSide*(6.4+reach*2.2),y:reachY*.66+1.5};rightElbow={x:saveSide*(7.4+reach*2.6),y:reachY*.72-1.1};}
-        else if(saveVariant==='two-hand-tip'||saveVariant==='two-hand-dive'||saveVariant==='body-behind'){leftHand={x:reachX-saveSide*1.15,y:reachY+1};rightHand={x:reachX+saveSide*1.15,y:reachY-1};leftElbow={x:saveSide*(6.1+reach*2.1),y:reachY*.62+1};rightElbow={x:saveSide*(6.8+reach*2.3),y:reachY*.66-.7};}
-        else if(isParry&&action==='punch'){leftHand={x:reachX-saveSide*1.4,y:reachY+1};rightHand={x:reachX+saveSide*1.2,y:reachY-1};leftElbow={x:saveSide*(6.2+reach*2.2),y:reachY*.62+1.4};rightElbow={x:saveSide*(7.0+reach*2.5),y:reachY*.72-.4};}
-        else{leftHand={x:reachX-saveSide*1.5,y:reachY+1.8};rightHand={x:reachX+saveSide*1.0,y:reachY-1.2};leftElbow={x:saveSide*(6.2+reach*2.2),y:reachY*.62+1.4};rightElbow={x:saveSide*(7.0+reach*2.5),y:reachY*.72-.4};}
+        const reachX=saveSide*(6.3+reach*2.9),reachY=high?-8.4:low?5.6:-2.8;
+        if(saveVariant==='cross-hand'){leftHand={x:reachX-saveSide*.8,y:reachY+2.2};rightHand={x:reachX+saveSide*1.7,y:reachY-2.2};leftElbow={x:saveSide*(4.6+reach*1.2),y:reachY*.66+1.5};rightElbow={x:saveSide*(5.1+reach*1.4),y:reachY*.72-1.1};}
+        else if(saveVariant==='two-hand-tip'||saveVariant==='two-hand-dive'||saveVariant==='body-behind'){leftHand={x:reachX-saveSide*1.15,y:reachY+1};rightHand={x:reachX+saveSide*1.15,y:reachY-1};leftElbow={x:saveSide*(4.5+reach*1.1),y:reachY*.62+1};rightElbow={x:saveSide*(4.9+reach*1.25),y:reachY*.66-.7};}
+        else if(isParry&&action==='punch'){leftHand={x:reachX-saveSide*1.4,y:reachY+1};rightHand={x:reachX+saveSide*1.2,y:reachY-1};leftElbow={x:saveSide*(4.5+reach*1.15),y:reachY*.62+1.4};rightElbow={x:saveSide*(5.0+reach*1.3),y:reachY*.72-.4};}
+        else{leftHand={x:reachX-saveSide*1.5,y:reachY+1.8};rightHand={x:reachX+saveSide*1.0,y:reachY-1.2};leftElbow={x:saveSide*(4.5+reach*1.15),y:reachY*.62+1.4};rightElbow={x:saveSide*(5.0+reach*1.3),y:reachY*.72-.4};}
       }
     }
     if (isCall || isAppeal) { leftHand={x:-5.6,y:-10.5-Math.sin(progress*Math.PI)*2}; }
@@ -3283,7 +3824,8 @@
     const drawArm=(side,hand,posedElbow)=>{
       const shoulder={x:side*torsoW*.47,y:-2.5},elbow=posedElbow||{x:side*4.8,y:.1};
       limb(shoulder,elbow,sharedRig.upperArmWidth,keeper?kit:sleeveColour);
-      limb(elbow,hand,sharedRig.forearmWidth,skin);
+      const longSleeve=!swimmingTopless&&(appearance.sleeveLength==='Long'||appearance.sleeveLength==='Undershirt'),forearmColour=longSleeve?(appearance.sleeveLength==='Undershirt'?shadeColour(kit,-.45):sleeveColour):skin;
+      limb(elbow,hand,sharedRig.forearmWidth,forearmColour);
       if(side===-1 && (p.isCaptain || p.captain)){
         ctx.save();
         const armPt={x:lerp(shoulder.x,elbow.x,.42),y:lerp(shoulder.y,elbow.y,.42)};
@@ -3295,7 +3837,8 @@
         ctx.fillText('C',0,0);
         ctx.restore();
       }
-      ctx.fillStyle=keeper?(p.glove||'#f8fafc'):skin;ctx.strokeStyle=outline;ctx.lineWidth=.55;ctx.save();ctx.translate(hand.x,hand.y);if(isHandshake&&side===1)ctx.rotate((p.handshakeSide||1)*.12+handshakeShake*.025);ctx.beginPath();ctx.ellipse(0,0,keeper?1.55:sharedRig.handRadius,keeper?1.28:(isHandshake&&side===1?sharedRig.handRadius*.78:sharedRig.handRadius),0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();
+      const playerGloves=String(appearance.matchAccessories).includes('Gloves');ctx.fillStyle=keeper?(p.glove||'#f8fafc'):(playerGloves?'#111827':skin);ctx.strokeStyle=outline;ctx.lineWidth=.55;ctx.save();ctx.translate(hand.x,hand.y);if(isHandshake&&side===1)ctx.rotate((p.handshakeSide||1)*.12+handshakeShake*.025);ctx.beginPath();ctx.ellipse(0,0,keeper?1.55:sharedRig.handRadius,keeper?1.28:(isHandshake&&side===1?sharedRig.handRadius*.78:sharedRig.handRadius),0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();
+      const tape=appearance.wristTape||'None';if(!keeper&&(tape==='Both'||(side<0&&tape==='Left')||(side>0&&tape==='Right'))){const wp={x:lerp(elbow.x,hand.x,.78),y:lerp(elbow.y,hand.y,.78)};ctx.strokeStyle='#f8fafc';ctx.lineWidth=.78;ctx.beginPath();ctx.moveTo(wp.x-.55,wp.y);ctx.lineTo(wp.x+.55,wp.y);ctx.stroke();}
       if(keeper){
         ctx.strokeStyle='rgba(20,30,34,.35)';ctx.lineWidth=.35;ctx.beginPath();ctx.moveTo(hand.x-1.05,hand.y);ctx.lineTo(hand.x+1.05,hand.y);ctx.stroke();
         ctx.fillStyle='rgba(15,23,42,.45)';ctx.beginPath();ctx.arc(hand.x,hand.y,.45,0,Math.PI*2);ctx.fill();
@@ -3303,6 +3846,7 @@
       }
     };
     drawArm(-1,leftHand,leftElbow); drawArm(1,rightHand,rightElbow);
+    if(backView&&!swimmingTopless){ctx.save();ctx.fillStyle=mixColour(trim,'#fff',.28);ctx.font='900 3.0px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(appearance.shirtNumber||p.shirtNumber||p.index+1||8),0,.15);ctx.restore();}
 
     if (preview) {
       const numberText = String(p.shirtNumber || p.index+1 || 8);
@@ -3331,26 +3875,12 @@
       headX=side*1.55*breath;headY=-9.65+breath*.42+fatigue*.22;
     }
     ctx.fillStyle=skin;ctx.beginPath();ctx.roundRect(headX-sharedRig.neckWidth/2,headY+1.9,sharedRig.neckWidth,sharedRig.neckHeight,.6);ctx.fill();
+    const faceShape={Round:[1.055,.975],Square:[1.045,1],Long:[.94,1.08],Diamond:[1.015,1.025],Oval:[1,1]}[appearance.headShape]||[1,1],headRX=sharedRig.headRX*faceShape[0],headRY=sharedRig.headRY*faceShape[1];
     const hg=ctx.createRadialGradient(headX-1.0*headScale,headY-.5,.2,headX,headY+.2,3.4*headScale);hg.addColorStop(0,mixColour(skin,'#fff',.26));hg.addColorStop(.62,skin);hg.addColorStop(1,shadeColour(skin,-.18));
-    ctx.fillStyle=hg;ctx.strokeStyle=outline;ctx.lineWidth=.7;ctx.beginPath();ctx.ellipse(headX,headY,sharedRig.headRX,sharedRig.headRY,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-    drawFootballHair(ctx,p.hair||p.hairStyle||'Short',headX,headY,headScale,hair,phase);
-    if (!backView) {
-      ctx.fillStyle=shadeColour(skin,-.12);ctx.beginPath();ctx.ellipse(headX-2.42*headScale,headY+.12,.43,.72,0,0,Math.PI*2);ctx.ellipse(headX+2.42*headScale,headY+.12,.43,.72,0,0,Math.PI*2);ctx.fill();
-      let ex = 0, ey = 0;
-      if (Number.isFinite(p.focusAngle) && Number.isFinite(facing)) {
-        let diff = p.focusAngle - (facing - Math.PI/2);
-        while(diff > Math.PI) diff -= Math.PI*2;
-        while(diff < -Math.PI) diff += Math.PI*2;
-        diff = clamp(diff, -1.2, 1.2);
-        ex = Math.cos(diff + Math.PI/2) * 1.5;
-        ey = Math.sin(diff + Math.PI/2) * 1.5 - 1.5;
-      }
-      ctx.fillStyle='#152018';
-      if(sideView){ctx.beginPath();ctx.arc(headX+Math.sign(face.x||1)*1.02*headScale + ex,headY+.62 + ey,.24,0,Math.PI*2);ctx.fill();}
-      else{ctx.beginPath();ctx.arc(headX-.66*headScale + ex*.3,headY+.62 + ey*.3,.22,0,Math.PI*2);ctx.arc(headX+.66*headScale + ex*.3,headY+.62 + ey*.3,.22,0,Math.PI*2);ctx.fill();ctx.strokeStyle=shadeColour(skin,-.34);ctx.lineWidth=.24;ctx.beginPath();ctx.moveTo(headX-.95,headY+.05);ctx.lineTo(headX-.35,headY-.08);ctx.moveTo(headX+.35,headY-.08);ctx.lineTo(headX+.95,headY+.05);ctx.stroke();}
-      ctx.strokeStyle=shadeColour(skin,-.24);ctx.lineWidth=.25;ctx.beginPath();ctx.moveTo(headX,headY+.55);ctx.lineTo(headX-.12,headY+1.18);ctx.lineTo(headX+.22,headY+1.22);ctx.stroke();
-      ctx.strokeStyle='rgba(70,20,18,.55)';ctx.lineWidth=.26;ctx.beginPath();ctx.moveTo(headX-.52,headY+1.72);ctx.quadraticCurveTo(headX,headY+1.98,headX+.52,headY+1.72);ctx.stroke();
-    }
+    ctx.fillStyle=hg;ctx.strokeStyle=outline;ctx.lineWidth=.7;traceFaceSilhouetteV776(ctx,headX,headY,headRX,headRY,appearance.headShape,appearance.jawStyle);ctx.fill();ctx.stroke();
+    ctx.fillStyle=shadeColour(skin,-.12);ctx.beginPath();ctx.ellipse(headX-headRX*.96,headY+.10,.43,.72,0,0,Math.PI*2);ctx.ellipse(headX+headRX*.96,headY+.10,.43,.72,0,0,Math.PI*2);ctx.fill();
+    drawFootballHair(ctx,appearance.hairStyle,headX,headY,headScale,hair,phase,{...appearance,view:backView?'back':sideView?'side':'front'});
+    drawFaceFeaturesV776(ctx,appearance,headX,headY,headRX,headRY,headScale,{side:sideView,back:backView,media:false,expression:p.action==='celebrate'?'happy':p.action==='frustration'?'concerned':'neutral'});
     if (isThrow && progress < .62) {ctx.fillStyle='#f8fafc';ctx.strokeStyle='#101827';ctx.lineWidth=.55;ctx.beginPath();ctx.arc(0,-14.1,2.45,0,Math.PI*2);ctx.fill();ctx.stroke();}
     } finally {
       // A failed sprite primitive must never leak a transform or drawing state
@@ -3362,8 +3892,8 @@
 
   const TRAINING_FOCUSES = {
     balanced:{label:'Balanced',icon:'\u2696\ufe0f',tone:'balanced',keys:['firstTouch','passing','dribbling','stamina','decisions','positioning'],fatigue:7,desc:'Improve a little of everything'},
-    technical:{label:'Technical',icon:'\u26bd',tone:'technical',keys:['firstTouch','passing','crossing','dribbling','technique','ballControl'],fatigue:8,desc:'Sharper touch, passing and control'},
-    finishing:{label:'Finishing',icon:'\ud83c\udfaf',tone:'finishing',keys:['finishing','composure','technique','offBall','longShots'],fatigue:8,desc:'Become calmer and more clinical'},
+    technical:{label:'Technical',icon:'\u26bd',tone:'technical',keys:['firstTouch','passing','crossing','dribbling','technique','balance'],fatigue:8,desc:'Sharper touch, passing and control'},
+    finishing:{label:'Finishing',icon:'\ud83c\udfaf',tone:'finishing',keys:['finishing','composure','technique','positioning','longShots'],fatigue:8,desc:'Become calmer and more clinical'},
     physical:{label:'Physical',icon:'\ud83d\udcaa',tone:'physical',keys:['pace','acceleration','stamina','strength','agility','balance'],fatigue:13,desc:'Build speed, strength and stamina'},
     mental:{label:'Mental',icon:'\ud83e\udde0',tone:'mental',keys:['decisions','composure','vision','positioning','anticipation','teamwork'],fatigue:6,desc:'Read the game and decide faster'},
     defending:{label:'Defending',icon:'\ud83d\udee1\ufe0f',tone:'defending',keys:['tackling','positioning','marking','anticipation','strength'],fatigue:9,desc:'Improve timing, marking and duels'},
@@ -3373,14 +3903,14 @@
     recovery:{label:'Recovery',icon:'\u2764\ufe0f\u200d\ud83e\ude79',tone:'recovery',keys:[],fatigue:-18,desc:'Restore energy and lower injury risk'}
   };
   const POSITION_TRAINING = {
-    GK:['reflexes','handling','positioning','oneOnOnes','distribution','composure'],
-    CB:['tackling','marking','positioning','strength','concentration','heading'],
+    GK:['positioning','anticipation','decisions','agility','composure','firstTouch'],
+    CB:['tackling','marking','positioning','strength','anticipation','composure'],
     LB:['tackling','positioning','crossing','pace','stamina','passing'], RB:['tackling','positioning','crossing','pace','stamina','passing'],
     DM:['tackling','positioning','passing','decisions','stamina','anticipation'],
     CM:['passing','vision','decisions','teamwork','stamina','positioning'],
-    AM:['passing','vision','dribbling','technique','decisions','offBall'],
-    LW:['dribbling','pace','crossing','finishing','offBall','agility'], RW:['dribbling','pace','crossing','finishing','offBall','agility'],
-    ST:['finishing','offBall','composure','anticipation','pace','heading']
+    AM:['passing','vision','dribbling','technique','decisions','positioning'],
+    LW:['dribbling','pace','crossing','finishing','positioning','agility'], RW:['dribbling','pace','crossing','finishing','positioning','agility'],
+    ST:['finishing','positioning','composure','anticipation','pace','strength']
   };
   function ensureDevelopmentSystem(p){
     p.potential = clamp(Number(p.potential || Math.max(p.overall+12,82)),p.overall,99);
@@ -3433,12 +3963,12 @@
     })[grade]||{basePoints:6,secondaryCount:0,secondaryWeights:[],label:'Foundation progress'};
   }
   const TRAINING_SECONDARY_POOLS={
-    finishing:['composure','technique','offBall','anticipation','longShots','firstTouch'],
+    finishing:['composure','technique','positioning','anticipation','longShots','firstTouch'],
     technical:['firstTouch','technique','vision','composure','agility','decisions'],
     physical:['acceleration','stamina','agility','balance','strength','pace'],
     mental:['decisions','vision','anticipation','composure','teamwork','positioning'],
     defending:['positioning','marking','anticipation','strength','decisions','balance'],
-    setpieces:['technique','curve','composure','crossing','vision','finishing'],
+    setpieces:['technique','freeKicks','composure','crossing','vision','finishing'],
     balanced:['passing','firstTouch','decisions','stamina','composure','positioning'],
     position:['positioning','decisions','stamina','anticipation','composure','teamwork'],
     weakfoot:['passing','crossing','finishing','firstTouch','technique','composure']
@@ -3446,8 +3976,8 @@
   function trainingSecondaryCandidates(p,d,primaryKey){
     if(d?.restrictedDevelopment)return d.keys.slice(1).filter(key=>key!==primaryKey&&key in p.attrs);
     const role=d.focus==='position'?(POSITION_TRAINING[p.position]||[]):[];
-    const penaltyPool=activeTrainingDrill==='penalties'?['composure','finishing','shotPower','technique']:[];
-    const cornerPool=activeTrainingDrill==='corners'?(activeCornerRewardProfile?.mode==='attack'?['heading','finishing','anticipation','offBall','jumping','strength','technique','composure']:['crossing','technique','vision','curve','composure']):[];
+    const penaltyPool=activeTrainingDrill==='penalties'?['composure','finishing','longShots','technique']:[];
+    const cornerPool=activeTrainingDrill==='corners'?(activeCornerRewardProfile?.mode==='attack'?['finishing','anticipation','positioning','strength','technique','composure']:['crossing','technique','vision','freeKicks','composure']):[];
     const pool=[...penaltyPool,...cornerPool,...d.keys.slice(1),...role,...(TRAINING_SECONDARY_POOLS[d.focus]||[])];
     return [...new Set(pool)].filter(key=>key!==primaryKey&&key in p.attrs);
   }
@@ -3591,8 +4121,36 @@
     const chance=clamp(Number(trainingInjuryChance(p))||0,0,1),band=CAREER_RISK_BANDS.find(b=>chance>=b.min)||CAREER_RISK_BANDS.at(-1);
     return{chance,percent:+(chance*100).toFixed(1),label:band.label,tone:band.tone};
   }
+  // Bands for the per-match figure. They sit an order of magnitude above the training bands
+  // because one match rolls for injury on every contact, not once per session.
+  const MATCH_RISK_BANDS=[
+    {min:.20,label:'Severe',tone:'bad'},
+    {min:.14,label:'High',tone:'bad'},
+    {min:.10,label:'Raised',tone:'warn'},
+    {min:.06,label:'Moderate',tone:'warn'},
+    {min:0,label:'Low',tone:'good'}
+  ];
+  // The match-day card used to show trainingInjuryChance() - the risk of getting hurt in
+  // TRAINING - directly beneath text about the next fixture. This mirrors the in-match
+  // checkInjury model instead, compounded over a match's worth of contacts, so the number
+  // on the card is the number the match actually rolls against.
+  function careerMatchInjuryRisk(p=career?.player){
+    if(!p)return{chance:0,percent:0,label:'Low',tone:'good'};
+    const attrs=p.attrs||{};
+    const staminaAttr=clamp(Number(attrs.stamina||55),1,99);
+    const perPlayerRisk=clamp((100-staminaAttr)*.0025+.025,.025,.18);
+    const energy=clamp(Number(p.fitness??82)/100,0,1)*.75;   // representative mid-match energy
+    const severity=.5;                                        // representative contact severity
+    const base=perPlayerRisk*.14,contact=severity*.024;
+    const fatigueResistance=lerp(1.16,.68,staminaAttr/99);
+    const fatigue=Math.pow(1-energy,2)*.035*fatigueResistance;
+    const perContact=clamp((base+contact+fatigue)*careerFatigueMatchProfile(p).injury*MATCH_INJURY_CALIBRATION,.0004,.05);
+    const chance=clamp(1-Math.pow(1-perContact,MATCH_CONTACTS_PER_GAME),0,1);
+    const band=MATCH_RISK_BANDS.find(b=>chance>=b.min)||MATCH_RISK_BANDS.at(-1);
+    return{chance,percent:+(chance*100).toFixed(1),label:band.label,tone:band.tone};
+  }
   function careerVitalNotes(p=career?.player){
-    const c=careerMatchCondition(p),risk=careerInjuryRiskProfile(p),t=(p&&ensureDevelopmentSystem(p))||{},trust=clamp(Number(p?.managerTrust||0),0,100),tier=setPieceTrustTier(trust);
+    const c=careerMatchCondition(p),risk=careerMatchInjuryRisk(p),trainingRisk=careerInjuryRiskProfile(p),t=(p&&ensureDevelopmentSystem(p))||{},trust=clamp(Number(p?.managerTrust||0),0,100),tier=setPieceTrustTier(trust);
     const pct=v=>`${v>=1?'+':''}${Math.round((v-1)*100)}%`;
     return{
       fitness:`Physical attributes ${pct(c.physical)} on match day, and low fitness raises injury risk in training.`,
@@ -3600,8 +4158,8 @@
       morale:`Mental attributes ${pct(c.mental)} on match day, and it scales weekly training gains.`,
       energy:`Match stamina ceiling ${Math.round(careerFatigueMatchProfile(p).ceiling)}%, plus slower recovery and faster drain when low.`,
       trust:`${tier.label} (${tier.rank}) for set pieces, and 20% of the manager approval score.`,
-      risk:`${risk.percent}% chance of a training injury per session at ${t.intensity||'normal'} intensity.`,
-      condition:c,injury:risk,setPiece:tier
+      risk:`${risk.percent}% chance of picking up an injury in the next match. Training at ${t.intensity||'normal'} intensity carries a separate ${trainingRisk.percent}% risk per session.`,
+      condition:c,injury:risk,trainingInjury:trainingRisk,setPiece:tier
     };
   }
   function trainingInjuryChance(p,intensityName=null){
@@ -3677,8 +4235,8 @@
     add(['finishing','composure','technique'],r.goals*.16+r.shots*.015);
     add(['passing','vision','decisions','teamwork'],r.completed*.006+r.keyPasses*.06+r.assists*.14);
     add(['dribbling','agility','balance','technique'],r.successfulDribbles*.035+(r.progressiveCarries||0)*.02);
-    add(['tackling','positioning','anticipation','concentration','strength'],r.tackles*.035+r.interceptions*.04+r.blocks*.04+r.duelsWon*.012);
-    add(['reflexes','handling','oneOnOnes','positioning','distribution'],r.saves*.06+(p.position==='GK'?r.completed*.004:0));
+    add(['tackling','positioning','anticipation','composure','strength'],r.tackles*.035+r.interceptions*.04+r.blocks*.04+r.duelsWon*.012);
+    add(['agility','firstTouch','anticipation','positioning','passing'],r.saves*.06+(p.position==='GK'?r.completed*.004:0));
     if(r.positionScore>72)add(['positioning','decisions'],.04);
     if(r.instructionScore>70)add(['teamwork','decisions'],.035);
     return out;
@@ -3710,13 +4268,14 @@
     return {
       version: 3,careerId:newCareerId(),careerName:`${data.name || 'Player'} Career`,createdDate:now,lastPlayedDate:now,careerMode,assistedCareer:careerMode!=='Standard Career',achievementsEnabled:careerMode==='Standard Career',editorHistory:[],discipline:{fouls:0,yellows:0,reds:0},season:1,week:1,leagueMatchesPlayed:0,injury:null,retired:false,phase:'club',international:null,
       player: { ...data, customAttrs:undefined, worldSelection: undefined, careerMode:undefined, firstName:data.firstName||String(data.name||'Player').split(' ')[0], surname:data.surname||String(data.name||'Player').split(' ').slice(1).join(' '), unlockedHairStyles:[...STARTER_HAIR_STYLES], attrs, originalAttrs:cloneData(attrs), attributeProgress:Object.fromEntries(Object.entries(attrs).map(([key,value])=>[key,Number(value)])), overall, potential: clamp(overall + 18, overall, 96), weakFootRating:clamp(Number(data.weakFootRating)||3,1,5), weakFootProgress:clamp(((Number(data.weakFootRating)||3)-1)*25,0,100), bothFooted:!!data.bothFooted||Number(data.weakFootRating)>=5, naturalFoot:data.foot||'Right', xp: 0, level: 1, managerTrust: 45, fitness: 100, morale: 72, wage: 650, contractWeeks: 104, status: 'Academy Prospect', chemistry: 30 },
-      world: selection ? {continent:selection.continent,countryId:selection.country.id,countryName:selection.country.name,leagueId:selection.league.id,leagueName:selection.league.name,leagueBranding:selection.league.branding||null,leagueLevel:selection.league.level||1,expectedLeagueSize:selection.league.expectedSize||leagueClubs.length,clubId:selectedClub.id,databaseSeason:selection.country.databaseSeason||selection.league.databaseSeason||CXI_DATABASE_SEASON,databaseVerified:!!selection.country.verified} : null,
+      world: selection ? {continent:selection.continent,countryId:selection.country.id,countryName:selection.country.name,confederationId:cxiConfederationForCountry(selection.country).id,leagueId:selection.league.id,leagueName:selection.league.name,leagueBranding:selection.league.branding||null,leagueLevel:selection.league.level||1,expectedLeagueSize:selection.league.expectedSize||leagueClubs.length,clubId:selectedClub.id,databaseSeason:selection.country.databaseSeason||selection.league.databaseSeason||CXI_DATABASE_SEASON,databaseVerified:!!selection.country.verified} : null,
       club: {...selectedClub},clubIndex,nextOpponent: nextOpponent<0?0:nextOpponent,trainingAvailable:true,recentRatings:[],league:table,
       messages:[{title:`Welcome to ${selectedClub.name}`,body:`Your career begins in ${selection?.league?.name || 'The Crown League'}. The manager wants you to play positively and learn your position.`,new:true},{title:'Academy pathway',body:'Strong training and match ratings will increase your first-team status.',new:true}],
       objectives:[{label:'Average rating 6.8+',value:0,target:5},{label:'Complete 25 progressive passes',value:0,target:25},{label:'Reach 60 manager trust',value:45,target:60}],
       stats:{apps:0,starts:0,subAppearances:0,minutes:0,goals:0,assists:0,wins:0,draws:0,losses:0,shots:0,shotsOnTarget:0,finesseGoals:0,chipGoals:0,longShotGoals:0,weakFootGoals:0,roundedKeeperGoals:0,passes:0,completedPasses:0,keyPasses:0,chancesCreated:0,crosses:0,successfulCrosses:0,dribbles:0,successfulDribbles:0,possessionLost:0,misplacedPasses:0,errorsLeadingToShot:0,errorsLeadingToGoal:0,tackles:0,interceptions:0,blocks:0,cleanSheets:0,saves:0,fouls:0,yellows:0,reds:0,playerOfMatch:0,distance:0},fixtureHistory:[],managerFeedbackHistory:[],honours:{team:[],individual:[]},
-            cups:[],europeanQualification:selectedClub.uefa2026||null,superCupQualified:false,firstMatch:true,
-        finances:{balance:12500,staff:[],ledger:[{week:1,season:1,type:'credit',label:'Career signing balance',amount:12500}]}
+            cups:[],continentalQualification:cxiInitialContinentalQualification(selection,selectedClub),europeanQualification:selectedClub.uefa2026||null,globalCalendar:{version:CXI_GLOBAL_COMPETITION_VERSION,minRecoveryHours:CXI_GLOBAL_CALENDAR.minRecoveryHours},superCupQualified:false,firstMatch:true,
+        finances:{balance:12500,staff:[],ledger:[{week:1,season:1,type:'credit',label:'Career signing balance',amount:12500}]},
+        v76:null
       };
     }
 
@@ -3737,47 +4296,18 @@
     ctx.restore();
   }
 
-  function classicMediaBodyPreset(buildName='Athletic'){
-    const build=String(buildName||'Athletic');
-    // V73: rebalance the Classic Media silhouette around footballer anatomy.
-    // Torso width is deliberately restrained while arm/leg mass is increased,
-    // so no build looks like a wide shirt sitting on stick-thin limbs.
-    if(build==='Lean')return{
-      build:'Lean',shoulders:.84,chest:.83,waist:.82,hips:.72,
-      upperArm:.91,forearm:.86,thigh:.92,calf:.88,hand:.86,
-      head:.98,neckWidth:.87,neckLength:.98,armLength:.83,legLength:1.01,
-      shoulderDrop:1.00,muscle:.18,definition:.24
-    };
-    if(build==='Strong')return{
-      // Strong keeps the most muscle through delts, arms and legs without
-      // inflating the entire torso or pelvis.
-      build:'Strong',shoulders:1.00,chest:.99,waist:.91,hips:.79,
-      upperArm:1.28,forearm:1.18,thigh:1.25,calf:1.17,hand:1.00,
-      head:1.00,neckWidth:1.10,neckLength:.96,armLength:.86,legLength:1.00,
-      shoulderDrop:.98,muscle:.94,definition:.88
-    };
-    // Athletic is visibly trained and balanced: broader than Lean, slimmer than
-    // Strong through the torso, with properly substantial arms and legs.
-    return{
-      build:'Athletic',shoulders:.92,chest:.91,waist:.88,hips:.76,
-      upperArm:1.10,forearm:1.03,thigh:1.12,calf:1.06,hand:.94,
-      head:.99,neckWidth:.99,neckLength:.98,armLength:.85,legLength:1.01,
-      shoulderDrop:.99,muscle:.70,definition:.72
-    };
+  function classicMediaBodyPreset(buildOrPlayer='Athletic'){
+    const source=typeof buildOrPlayer==='object'?buildOrPlayer:{build:buildOrPlayer},physical=calculatePhysicalProfile(source),b=physical.buildName;
+    const muscle={Lean:.18,Slim:.30,Balanced:.48,Athletic:.70,Powerful:.94,Stocky:.78}[b]||.70,definition={Lean:.24,Slim:.40,Balanced:.50,Athletic:.72,Powerful:.88,Stocky:.62}[b]||.72;
+    return {build:b,shoulders:physical.shoulderScale,chest:physical.chestScale,waist:physical.waistScale,hips:clamp(physical.waistScale*.83,.70,1.02),upperArm:physical.limbMass,forearm:physical.limbMass*.94,thigh:physical.limbMass*1.03,calf:physical.limbMass*.96,hand:clamp(physical.limbMass*.94,.82,1.16),head:physical.headScale,neckWidth:clamp(.96+(physical.shoulderScale-1)*.45,.88,1.12),neckLength:.98,armLength:clamp(.85*physical.visualHeightScale,.80,.94),legLength:physical.legLengthScale,shoulderDrop:.99,muscle,definition,heightScale:physical.visualHeightScale,torsoScale:physical.torsoLengthScale,physical};
   }
+
 
   function drawMediaPlayerModel(ctx,p,opts={}){
     const w=opts.width||ctx.canvas.width,h=opts.height||ctx.canvas.height,phase=opts.phase??performance.now()/650;
-    const appearance={
-      build:p.build||p.bodyBuild||'Athletic',
-      skin:p.skinTone||p.skin||'#7b4b2a',
-      hairStyle:p.hair||p.hairStyle||'Short',
-      hairColour:p.hairColour||'#21140d',
-      bootColour:p.bootColour||p.boots||'#f8fafc',
-      shirtNumber:p.shirtNumber||8
-    };
-    const shape=classicMediaBodyPreset(appearance.build),build=shape.build;
-    const skin=appearance.skin,hair=appearance.hairColour,kit=p.primary||'#6d28d9',trim=p.secondary||'#f8fafc',shorts=p.shorts||trim,socks=p.socks||trim,boots=appearance.bootColour;
+    const appearance=visualIdentityForContext(p,{context:opts.context||'MEDIA',weather:opts.weather||''});
+    const shape=classicMediaBodyPreset({...p,build:appearance.bodyBuild,heightCm:appearance.heightCm,weightKg:appearance.weightKg}),build=shape.build;
+    const skin=appearance.skinTone,hair=appearance.hairColour,kit=p.primary||'#6d28d9',trim=p.secondary||'#f8fafc',shorts=p.shorts||trim,socks=p.socks||trim,boots=appearance.bootColour,bootAccent=appearance.bootSecondaryColour||'#f8fafc';
     const cx=w/2,ground=h-10,breathe=Math.sin(phase)*(.24+.18*shape.muscle);
     ctx.save();ctx.clearRect(0,0,w,h);
     if(opts.background!==false){
@@ -3789,10 +4319,10 @@
 
     // The base skeleton is 160 x 240 design units. Compact profile canvases use
     // the same skeleton rather than a stretched torso-only variant.
-    const scale=Math.min(w/160,h/240)*(opts.compact?1.02:1);
-    const topPad=Math.max(2,(h-240*scale)/2);
-    const headY=43*scale,shoulderY=(80*shape.shoulderDrop)*scale+breathe,hipY=142*scale+breathe;
-    const kneeY=(181*shape.legLength)*scale,ankleY=(222*shape.legLength)*scale,footY=232*scale;
+    const scale=Math.min(w/160,h/240)*(opts.compact?1.02:1),vertical=shape.heightScale||1,torsoScale=shape.torsoScale||1;
+    const topPad=Math.max(2,(h-240*scale*vertical)/2);
+    const headY=43*scale,shoulderY=(80*shape.shoulderDrop*lerp(1,torsoScale,.38))*scale+breathe,hipY=(142*lerp(1,torsoScale,.82))*scale+breathe;
+    const kneeY=(181*shape.legLength)*scale,ankleY=(222*shape.legLength)*scale,footY=(232*shape.legLength)*scale;
     ctx.translate(cx,topPad);
 
     const gradientStroke=(a,b,width,col,light=.14)=>{
@@ -3808,11 +4338,15 @@
       const hip={x:side*hipSpread,y:hipY+4*scale},knee={x:side*kneeSpread,y:kneeY},ankle={x:side*ankleSpread,y:ankleY};
       gradientStroke(hip,knee,10.8*shape.thigh*scale,skin,.13);
       ellipse(knee.x,knee.y,4.35*shape.thigh*scale,4.9*shape.thigh*scale,skin);
-      gradientStroke(knee,ankle,9.2*shape.calf*scale,socks,.10);
-      // Boot keeps the player's saved colour and is centred beneath the ankle.
-      const bw=(build==='Strong'?17:build==='Lean'?14.5:15.5)*scale,bh=11*scale;
+      if(appearance.sockHeight==='Low'){const cuff={x:lerp(knee.x,ankle.x,.58),y:lerp(knee.y,ankle.y,.58)};gradientStroke(knee,cuff,9.2*shape.calf*scale,skin,.10);gradientStroke(cuff,ankle,9.2*shape.calf*scale,socks,.10)}
+      else if(appearance.sockHeight==='Standard'){const cuff={x:lerp(knee.x,ankle.x,.25),y:lerp(knee.y,ankle.y,.25)};gradientStroke(knee,cuff,9.2*shape.calf*scale,skin,.10);gradientStroke(cuff,ankle,9.2*shape.calf*scale,socks,.10)}
+      else gradientStroke(knee,ankle,9.2*shape.calf*scale,socks,.10);
+      // Boot model, colour and accent all come from the creator identity.
+      const bootShape={Velocity:[.94,1.08],'Control Pro':[1,1],'Power Strike':[1.08,1.03],'Classic Leather':[1.05,.96]}[appearance.bootModel]||[1,1],bw=(build==='Powerful'?17:build==='Stocky'?16.6:build==='Lean'?14.5:15.5)*scale*bootShape[0],bh=11*scale*bootShape[1];
       const bg=ctx.createLinearGradient(ankle.x-bw/2,footY-bh,ankle.x+bw/2,footY);bg.addColorStop(0,mixColour(boots,'#fff',.22));bg.addColorStop(.52,boots);bg.addColorStop(1,shadeColour(boots,-.30));ctx.fillStyle=bg;ctx.strokeStyle=shadeColour(boots,-.36);ctx.lineWidth=1*scale;ctx.beginPath();ctx.roundRect(ankle.x-bw/2,footY-bh,bw,bh,3.5*scale);ctx.fill();ctx.stroke();
       ctx.strokeStyle='rgba(255,255,255,.34)';ctx.lineWidth=.7*scale;for(let yy=0;yy<3;yy++){ctx.beginPath();ctx.moveTo(ankle.x-bw*.22,footY-bh*.72+yy*2.5*scale);ctx.lineTo(ankle.x+bw*.22,footY-bh*.72+yy*2.5*scale);ctx.stroke();}
+      ctx.strokeStyle=bootAccent;ctx.globalAlpha=.82;ctx.lineWidth=1*scale;ctx.beginPath();ctx.moveTo(ankle.x-bw*.30,footY-bh*.28);ctx.lineTo(ankle.x+bw*.30,footY-bh*.42);ctx.stroke();ctx.globalAlpha=1;
+      if(String(appearance.matchAccessories).includes('Ankle Tape')){ctx.fillStyle='#f8fafc';ctx.globalAlpha=.9;ctx.fillRect(ankle.x-bw*.28,footY-bh*1.04,bw*.56,2.2*scale);ctx.globalAlpha=1}
     });
 
     // Shorts use a flatter waistband/hem to avoid the previous pointed/diamond
@@ -3821,7 +4355,7 @@
     const sg=ctx.createLinearGradient(0,hipY-9*scale,0,hipY+26*scale);sg.addColorStop(0,mixColour(shorts,'#fff',.13));sg.addColorStop(1,shadeColour(shorts,-.22));ctx.fillStyle=sg;ctx.strokeStyle=shadeColour(shorts,-.33);ctx.lineWidth=1.1*scale;
     ctx.beginPath();ctx.moveTo(-shortTop,hipY-9*scale);ctx.lineTo(shortTop,hipY-9*scale);ctx.lineTo(shortLeg,hipY+25*scale);ctx.lineTo(3.5*scale,hipY+24*scale);ctx.lineTo(0,hipY+12*scale);ctx.lineTo(-3.5*scale,hipY+24*scale);ctx.lineTo(-shortLeg,hipY+25*scale);ctx.closePath();ctx.fill();ctx.stroke();
 
-    const shoulder=27.6*shape.shoulders*scale,chest=25.4*shape.chest*scale,waist=23.6*shape.waist*scale,hem=22.8*shape.waist*scale;
+    const fit=appearance.shirtStyle==='Fitted'?.95:appearance.shirtStyle==='Tucked'?.98:1,shoulder=27.6*shape.shoulders*scale,chest=25.4*shape.chest*scale*fit,waist=23.6*shape.waist*scale*fit,hem=22.8*shape.waist*scale*(appearance.shirtStyle==='Untucked'?1.025:fit);
     const collarY=shoulderY-3*scale,torsoBottom=hipY-7*scale;
 
     // Connected neck is drawn behind the shirt so the collar naturally wraps
@@ -3842,9 +4376,9 @@
         ellipse(side*(shoulder-1.0*scale),shoulderY+12*scale,4.6*shape.upperArm*scale,5.0*shape.upperArm*scale,kit,shadeColour(kit,-.27));
         ellipse(side*(shoulder+4.8*scale),shoulderY+27*scale,4.55*shape.upperArm*scale,5.25*shape.upperArm*scale,kit,shadeColour(kit,-.27));
       }
-      gradientStroke(elbow,wrist,8.0*shape.forearm*scale,skin,.14);
+      const longSleeve=appearance.sleeveLength==='Long'||appearance.sleeveLength==='Undershirt',forearmColour=longSleeve?(appearance.sleeveLength==='Undershirt'?shadeColour(kit,-.45):kit):skin;gradientStroke(elbow,wrist,8.0*shape.forearm*scale,forearmColour,.14);
       if(shape.muscle>.55)ellipse(side*(shoulder+5.9*scale),elbow.y+10*scale,3.55*shape.forearm*scale,4.3*shape.forearm*scale,skin,shadeColour(skin,-.27));
-      ellipse(wrist.x,wrist.y+3.0*scale,4.6*shape.hand*scale,5.5*shape.hand*scale,skin);
+      const handColour=String(appearance.matchAccessories).includes('Gloves')?'#111827':skin;ellipse(wrist.x,wrist.y+3.0*scale,4.6*shape.hand*scale,5.5*shape.hand*scale,handColour);const tape=appearance.wristTape;if(tape==='Both'||(side<0&&tape==='Left')||(side>0&&tape==='Right')){ctx.strokeStyle='#f8fafc';ctx.lineWidth=2.2*scale;ctx.beginPath();ctx.moveTo(wrist.x-3*scale,wrist.y);ctx.lineTo(wrist.x+3*scale,wrist.y);ctx.stroke();}
     });
 
     // V73 torso: a straighter football-shirt silhouette with restrained shoulder
@@ -3908,28 +4442,24 @@
     // Shirt number and crest use saved/career data, never placeholder appearance.
     const number=String(appearance.shirtNumber);ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`900 ${24*scale}px system-ui`;ctx.strokeStyle='rgba(0,0,0,.28)';ctx.lineWidth=1.8*scale;ctx.strokeText(number,0,shoulderY+31*scale);ctx.fillStyle=mixColour(trim,'#fff',.28);ctx.fillText(number,0,shoulderY+31*scale);ctx.fillStyle=trim;ctx.beginPath();ctx.arc(shoulder*.55,shoulderY+18*scale,4*scale,0,Math.PI*2);ctx.fill();
 
-    // Head is aligned directly above the connected neck.
-    const headRX=21.5*shape.head*scale,headRY=25.5*shape.head*scale;
-    const hg=ctx.createRadialGradient(-9*scale,headY-6*scale,2,0,headY,29*scale);hg.addColorStop(0,mixColour(skin,'#fff',.27));hg.addColorStop(.62,skin);hg.addColorStop(1,shadeColour(skin,-.18));ctx.fillStyle=hg;ctx.strokeStyle=shadeColour(skin,-.32);ctx.lineWidth=1.2*scale;ctx.beginPath();ctx.ellipse(0,headY,headRX,headRY,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-    ctx.fillStyle=shadeColour(skin,-.10);ctx.beginPath();ctx.ellipse(-headRX,headY,3.8*scale,6.7*scale,0,0,Math.PI*2);ctx.ellipse(headRX,headY,3.8*scale,6.7*scale,0,0,Math.PI*2);ctx.fill();
-    drawPortraitHair(ctx,appearance.hairStyle,0,headY-7*scale,scale*shape.head,hair,phase);
-    ctx.fillStyle='#13201b';ctx.beginPath();ctx.ellipse(-7.2*scale,headY+4*scale,2*scale,1.45*scale,0,0,Math.PI*2);ctx.ellipse(7.2*scale,headY+4*scale,2*scale,1.45*scale,0,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle=shadeColour(skin,-.34);ctx.lineWidth=1.05*scale;ctx.beginPath();ctx.moveTo(-11.5*scale,headY-2*scale);ctx.quadraticCurveTo(-7*scale,headY-5*scale,-2.5*scale,headY-2.5*scale);ctx.moveTo(2.5*scale,headY-2.5*scale);ctx.quadraticCurveTo(7*scale,headY-5*scale,11.5*scale,headY-2*scale);ctx.stroke();
-    ctx.strokeStyle=shadeColour(skin,-.24);ctx.beginPath();ctx.moveTo(0,headY+5*scale);ctx.lineTo(-1.1*scale,headY+12.5*scale);ctx.lineTo(2*scale,headY+13.5*scale);ctx.stroke();ctx.strokeStyle='rgba(70,20,18,.60)';ctx.beginPath();ctx.moveTo(-5.8*scale,headY+19.5*scale);ctx.quadraticCurveTo(0,headY+22*scale,5.8*scale,headY+19.5*scale);ctx.stroke();
+    // V77.6 face identity: the outer silhouette is now driven by head + jaw
+    // choices, while the close-up renderer carries brows, eyes, nose, hairline
+    // and beard shape at a stronger readable scale.
+    const faceShape={Round:[1.055,.975],Square:[1.045,1],Long:[.94,1.08],Diamond:[1.015,1.025],Oval:[1,1]}[appearance.headShape]||[1,1],headRX=21.5*shape.head*scale*faceShape[0],headRY=25.5*shape.head*scale*faceShape[1];
+    const hg=ctx.createRadialGradient(-9*scale,headY-6*scale,2,0,headY,29*scale);hg.addColorStop(0,mixColour(skin,'#fff',.27));hg.addColorStop(.62,skin);hg.addColorStop(1,shadeColour(skin,-.18));ctx.fillStyle=hg;ctx.strokeStyle=shadeColour(skin,-.32);ctx.lineWidth=1.2*scale;traceFaceSilhouetteV776(ctx,0,headY,headRX,headRY,appearance.headShape,appearance.jawStyle);ctx.fill();ctx.stroke();
+    ctx.fillStyle=shadeColour(skin,-.10);ctx.beginPath();ctx.ellipse(-headRX*.97,headY,3.8*scale,6.7*scale,0,0,Math.PI*2);ctx.ellipse(headRX*.97,headY,3.8*scale,6.7*scale,0,0,Math.PI*2);ctx.fill();
+    drawPortraitHair(ctx,appearance.hairStyle,0,headY-7*scale,scale*shape.head,hair,phase,{...appearance,view:'front',headFit:{cx:0,cy:headY,rx:headRX,ry:headRY}});
+    drawFaceFeaturesV776(ctx,appearance,0,headY,headRX,headRY,scale,{media:true,expression:v776MediaExpression(p,opts.context||'MEDIA')});
 
     ctx.restore();
     // Dataset fields are used by regression/runtime tests and guarantee the same
     // creator appearance has reached Home, Profile, Overview and Player ID cards.
-    ctx.canvas.dataset.classicMediaBuild=build;
-    ctx.canvas.dataset.classicMediaVersion='v73';
-    ctx.canvas.dataset.skinTone=skin;
-    ctx.canvas.dataset.hairColour=hair;
-    ctx.canvas.dataset.hairStyle=appearance.hairStyle;
-    ctx.canvas.dataset.bootColour=boots;
-    ctx.canvas.dataset.shirtNumber=number;
+    ctx.canvas.dataset.classicMediaBuild=build;ctx.canvas.dataset.classicMediaVersion='v77.9.1';ctx.canvas.dataset.visualIdentityVersion=V775_VISUAL_IDENTITY_VERSION;
+    ctx.canvas.dataset.heightCm=String(shape.physical?.heightCm||appearance.heightCm);ctx.canvas.dataset.weightKg=String(Math.round(shape.physical?.weightKg||appearance.weightKg));ctx.canvas.dataset.skinTone=skin;ctx.canvas.dataset.hairColour=hair;ctx.canvas.dataset.hairStyle=appearance.hairStyle;ctx.canvas.dataset.bootColour=boots;ctx.canvas.dataset.shirtNumber=number;
+    ctx.canvas.dataset.headShape=appearance.headShape;ctx.canvas.dataset.jawStyle=appearance.jawStyle;ctx.canvas.dataset.hairlineStyle=appearance.hairlineStyle;ctx.canvas.dataset.facialHair=appearance.facialHair;ctx.canvas.dataset.sleeveLength=appearance.sleeveLength;ctx.canvas.dataset.shirtStyle=appearance.shirtStyle;ctx.canvas.dataset.sockHeight=appearance.sockHeight;ctx.canvas.dataset.wristTape=appearance.wristTape;ctx.canvas.dataset.matchAccessories=appearance.matchAccessories;ctx.canvas.dataset.bootModel=appearance.bootModel;ctx.canvas.dataset.runningStyle=appearance.runningStyle;ctx.canvas.dataset.shootingStyle=appearance.shootingStyle;
   }
 
-  window.__CLASSIC_MEDIA_PLAYER_VERSION='v73-balanced-torso-substantial-limbs';
+  window.__CLASSIC_MEDIA_PLAYER_VERSION='v77.9.1-hairstyle-graphics';window.__PLAYER_VISUAL_RENDERER_VERSION='v77.9.1-hairstyle-graphics';window.__circleVisualIdentity.drawMedia=(canvas,player,options={})=>drawMediaPlayerModel(canvas.getContext('2d'),player,{width:canvas.width,height:canvas.height,...options});
 
   function renderMediaMiniPlayer(){
     const canvas=$('#mediaMiniPlayer');if(!canvas||!career?.player)return;const p=career.player,club=career.club||clubs[0];
@@ -3949,10 +4479,10 @@
             kp = ctry.elementKitPattern || 'solid';
         }
     }
-    const p={skin:$('#skinTone').value,hair:$('#hair').value,hairColour:$('#hairColour')?.value||'#21140d',boots:$('#bootColour').value,build:$('#build').value,position:$('#position').value,shirtNumber:+($('#shirtNumber').value||8),primary:pr,secondary:se,shorts:sh,socks:so,kitPattern:kp};
+    const p={skinTone:$('#skinTone').value,hairStyle:$('#hair').value,hairColour:$('#hairColour')?.value||'#21140d',bootColour:$('#bootColour').value,build:$('#build').value,heightCm:+($('#heightCm')?.value||180),weightKg:+($('#weightKg')?.value||76),position:$('#position').value,shirtNumber:+($('#shirtNumber').value||8),headShape:$('#headShape')?.value||'Oval',jawStyle:$('#jawStyle')?.value||'Balanced',noseStyle:$('#noseStyle')?.value||'Balanced',eyeStyle:$('#eyeStyle')?.value||'Balanced',browStyle:$('#browStyle')?.value||'Natural',hairlineStyle:$('#hairlineStyle')?.value||'Rounded',facialHair:$('#facialHair')?.value||'Clean Shaven',complexion:$('#complexion')?.value||'Clear',bootModel:$('#bootModel')?.value||'Control Pro',bootSecondaryColour:$('#bootSecondaryColour')?.value||'#f8fafc',sleeveLength:$('#sleeveLength')?.value||'Short',shirtStyle:$('#shirtStyle')?.value||'Untucked',sockHeight:$('#sockHeight')?.value||'Standard',wristTape:$('#wristTape')?.value||'None',matchAccessories:$('#matchAccessories')?.value||'None',runningStyle:$('#runningStyle')?.value||'Balanced',shootingStyle:$('#shootingStyle')?.value||'Compact',goalCelebration:$('#goalCelebration')?.value||'Arms Out',freeKickStance:$('#freeKickStance')?.value||'Balanced',penaltyRunUp:$('#penaltyRunUp')?.value||'Standard',primary:pr,secondary:se,shorts:sh,socks:so,kitPattern:kp};
     drawMediaPlayerModel(ctx,p,{width:c.width,height:c.height});
     ctx.fillStyle='rgba(221,214,254,.92)';ctx.font='900 9px system-ui';ctx.textAlign='left';ctx.fillText('\ud83d\udcfa CLASSIC MEDIA PLAYER',18,22);
-    ctx.fillStyle='rgba(5,8,15,.8)';ctx.beginPath();ctx.roundRect(35,c.height-47,c.width-70,28,12);ctx.fill();ctx.fillStyle='rgba(255,255,255,.82)';ctx.font='700 9px system-ui';ctx.textAlign='center';ctx.fillText(`${p.hair.toUpperCase()}  \u2022  ${p.build.toUpperCase()}  \u2022  ${p.position}`,c.width/2,c.height-29);
+    ctx.fillStyle='rgba(5,8,15,.8)';ctx.beginPath();ctx.roundRect(35,c.height-47,c.width-70,28,12);ctx.fill();ctx.fillStyle='rgba(255,255,255,.82)';ctx.font='700 9px system-ui';ctx.textAlign='center';ctx.fillText(`${p.hairStyle.toUpperCase()}  \u2022  ${p.build.toUpperCase()}  \u2022  ${p.position}`,c.width/2,c.height-29);
   }
 
   function clubSelectionSnapshot(choice){
@@ -3969,19 +4499,37 @@
     const snap=clubSelectionSnapshot(choice),countryDb=loadCircleXIManagerCountry(choice.country.id),leagueStrength=Math.round(choice.league.clubs.reduce((sum,c)=>sum+(c.reputation||60),0)/Math.max(1,choice.league.clubs.length));
     root.innerHTML=`<section class="world-identity-card"><div class="world-icon">${choice.country.icon||'\ud83c\udf0d'}</div><div><small>COUNTRY & LEAGUE</small><h4>${choice.country.name}</h4><p>${choice.continent} \u00b7 ${choice.league.name} \u00b7 Division ${choice.league.level||1}</p></div><div class="world-mini-stats"><span>\ud83c\udfdf\ufe0f ${choice.league.clubs.length} clubs</span><span>\ud83c\udfc6 ${leagueStrength} reputation</span><span>\ud83d\uddfa\ufe0f ${countryDb?.leagues?.length||1} leagues</span></div></section><section class="club-selection-card"><div class="club-selection-head">${crestMarkup(choice.club,'medium')}<div><small>SELECTED CLUB</small><h4>${choice.club.name}</h4><p>\ud83d\udccd ${choice.club.city||choice.country.name} \u00b7 \ud83c\udfdf\ufe0f ${choice.club.stadium||'Club stadium'}</p></div><b class="selection-overall ${ratingTone(snap.overall)}">${snap.overall}<small>OVR</small></b></div><div class="club-rating-grid">${[['\u26a1','Attack',snap.attack],['\ud83e\udde0','Midfield',snap.midfield],['\ud83d\udee1\ufe0f','Defence',snap.defence],['\ud83e\udde4','Goalkeeper',snap.goalkeeper]].map(([icon,label,value])=>`<div class="${ratingTone(value)}"><span>${icon}</span><b>${value}</b><small>${label}</small><i><em style="width:${value}%"></em></i></div>`).join('')}</div><div class="club-facts"><span>\ud83d\udcca Expected ${snap.expected}${snap.expected===1?'st':snap.expected===2?'nd':snap.expected===3?'rd':'th'}</span><span>\ud83d\udc65 ${snap.squadSize} players</span><span>\ud83c\udf82 ${snap.averageAge} avg age</span><span>\u2b50 ${choice.club.reputation||snap.overall} reputation</span></div></section>`;
   }
+  const V76_CREATOR_BACKGROUNDS={
+    'Local Academy Graduate':{icon:'🏠',text:'Strong supporter connection and an easier route into the dressing room.',effects:'Supporters +6 · Team mates +3'},
+    'Academy Wonderkid':{icon:'💎',text:'Arrive with extra hype, potential and immediate pressure to justify it.',effects:'Potential +2 · Reputation +3'},
+    'Late Bloomer':{icon:'🌱',text:'Lower initial hype, but development momentum accelerates when form is strong.',effects:'Training momentum +5 · Reputation -2'},
+    'Lower-League Prospect':{icon:'🪜',text:'A hungry pathway built on trust, work rate and earning every senior minute.',effects:'Manager trust +4 · Team mates +2'},
+    'Overseas Prospect':{icon:'✈️',text:'A new-country challenge with extra media interest and adaptation pressure.',effects:'Reputation +2 · Team mates -2 initially'},
+    'Street Footballer':{icon:'🪄',text:'A fearless expressive identity that rewards attacking confidence.',effects:'Morale +5 · Supporters +3'}
+  };
+  const V76_CREATOR_PERSONALITIES={
+    Professional:{icon:'🎓',text:'Coaches trust your preparation. Training and recovery choices carry extra weight.',effects:'Manager +4 · Board +3'},
+    Ambitious:{icon:'🚀',text:'Big targets accelerate reputation, but squad-role progress matters more to morale.',effects:'Reputation +3 · Higher role expectations'},
+    Loyal:{icon:'🤝',text:'Supporters and team mates value commitment, especially during transfer periods.',effects:'Supporters +5 · Team mates +4'},
+    Confident:{icon:'🔥',text:'Starts with stronger morale and handles high-pressure objectives better.',effects:'Morale +7'},
+    Quiet:{icon:'🧊',text:'Keeps a lower media profile and builds relationships through performances.',effects:'Team mates +2 · Lower media profile'},
+    Leader:{icon:'©️',text:'Leadership relationships grow faster and the captaincy pathway opens earlier.',effects:'Captain +6 · Team mates +3'}
+  };
+  function renderCreatorOriginPreview(){const root=$('#careerOriginPreview');if(!root)return;const bv=$('#careerBackground')?.value||'Local Academy Graduate',pv=$('#careerPersonality')?.value||'Professional',b=V76_CREATOR_BACKGROUNDS[bv]||V76_CREATOR_BACKGROUNDS['Local Academy Graduate'],p=V76_CREATOR_PERSONALITIES[pv]||V76_CREATOR_PERSONALITIES.Professional;root.innerHTML=`<article><span>${b.icon}</span><div><small>BACKGROUND IMPACT</small><b>${escapeMarkup(bv)}</b><p>${escapeMarkup(b.text)}</p><em>${escapeMarkup(b.effects)}</em></div></article><article><span>${p.icon}</span><div><small>PERSONALITY IMPACT</small><b>${escapeMarkup(pv)}</b><p>${escapeMarkup(p.text)}</p><em>${escapeMarkup(p.effects)}</em></div></article>`}
+
   function renderCreatorFinalReview(choice,attrs){
     const root=$('#creatorFinalReview');if(!root)return;syncCreatorName();
-    const pos=$('#position').value,style=$('#hair').value,country=selectedNationalityCountry(),fullName=$('#playerName').value.trim()||'John Smith';
-    root.innerHTML=`<div class="review-player-card"><span class="review-icon">\ud83d\udc64</span><div><small>PLAYER</small><b>${escapeMarkup(fullName)}</b><p>${escapeMarkup(country?.name||'Nationality not selected')} \u00b7 ${escapeMarkup(pos)} \u00b7 ${escapeMarkup($('#archetype').value)}</p></div><em>${calcOverall(attrs,pos)} OVR</em></div><div class="review-icon-grid"><div><span>\ud83d\udccd</span><b>${pos}</b><small>Position</small></div><div><span>\ud83e\udde0</span><b>${$('#archetype').value}</b><small>Playstyle</small></div><div><span>\ud83d\udc87</span><b>${style}</b><small>Hair</small></div><div><span>\ud83d\udc55</span><b>#${$('#shirtNumber').value||8}</b><small>Shirt</small></div><div><span>\ud83c\udfdf\ufe0f</span><b>${choice?.club?.abbr||'XI'}</b><small>${choice?.league?.name||'League'}</small></div><div><span>\ud83c\udf10</span><b>${country?.elementId||country?.continent||'World'}</b><small>${country?.name||'Country'}</small></div><div><span>\ud83c\udfae</span><b>${$('#createDifficulty').value}</b><small>Difficulty</small></div><div><span>\ud83d\udcbe</span><b>${$('#careerMode')?.value||'Standard Career'}</b><small>Save type</small></div></div>`;
+    const pos=$('#position').value,style=$('#hair').value,country=selectedNationalityCountry(),fullName=$('#playerName').value.trim()||'John Smith',background=$('#careerBackground')?.value||'Local Academy Graduate',personality=$('#careerPersonality')?.value||'Professional';
+    root.innerHTML=`<div class="review-player-card"><span class="review-icon">👤</span><div><small>PLAYER</small><b>${escapeMarkup(fullName)}</b><p>${escapeMarkup(country?.name||'Nationality not selected')} · ${escapeMarkup(pos)} · ${escapeMarkup($('#archetype').value)}</p></div><em>${calcOverall(attrs,pos)} OVR</em></div><div class="review-icon-grid"><div><span>📍</span><b>${pos}</b><small>Position</small></div><div><span>🧠</span><b>${$('#archetype').value}</b><small>Playstyle</small></div><div><span>🧬</span><b>${escapeMarkup(background)}</b><small>Background</small></div><div><span>🗣️</span><b>${escapeMarkup(personality)}</b><small>Personality</small></div><div><span>💇</span><b>${style}</b><small>Hair</small></div><div><span>👕</span><b>#${$('#shirtNumber').value||8}</b><small>Shirt</small></div><div><span>🏟️</span><b>${choice?.club?.abbr||'XI'}</b><small>${choice?.league?.name||'League'}</small></div><div><span>🌐</span><b>${country?.elementId||country?.continent||'World'}</b><small>${country?.name||'Country'}</small></div><div><span>🎮</span><b>${$('#createDifficulty').value}</b><small>Difficulty</small></div><div><span>💾</span><b>${$('#careerMode')?.value||'Standard Career'}</b><small>Save type</small></div></div>`;
   }
 
   function updateCreationPreview() {
-    syncCreatorName();drawSpritePreview();
+    syncCreatorName();drawSpritePreview();renderCreatorOriginPreview();
     const pos = $('#position')?.value || 'CM', arch = $('#archetype')?.value || 'Playmaker', attrs = initialiseCreatorAttributes();
     const worldChoice = selectedCircleXIWorld(), country = selectedNationalityCountry(), careerLine = worldChoice ? `${worldChoice.continent} \u00b7 ${worldChoice.country.name}<br><b>${worldChoice.club.name}</b> \u00b7 ${worldChoice.league.name}` : 'Choose a club pathway';
     
     if ($('#creationSummary')) {
-      $('#creationSummary').innerHTML = `<div class="panel-title"><h3>${escapeMarkup($('#playerName')?.value || 'John Smith')}</h3><span>Projected OVR ${calcOverall(attrs, pos)}</span></div><p class="creation-world-choice">${careerLine}</p><div class="creation-icon-summary"><span>\ud83c\udf10 ${escapeMarkup(country?.name || 'Country')}</span><span>\ud83d\udcaa ${$('#build')?.value || 'Athletic'}</span><span>\ud83d\udc87 ${$('#hair')?.value || 'Short'}</span><span>\ud83d\udc55 #${$('#shirtNumber')?.value || 8}</span></div>`;
+      $('#creationSummary').innerHTML = `<div class="panel-title"><h3>${escapeMarkup($('#playerName')?.value || 'John Smith')}</h3><span>Projected OVR ${calcOverall(attrs, pos)}</span></div><p class="creation-world-choice">${careerLine}</p><div class="creation-icon-summary"><span>🌐 ${escapeMarkup(country?.name || 'Country')}</span><span>💪 ${$('#build')?.value || 'Athletic'}</span><span>🧬 ${escapeMarkup($('#careerBackground')?.value||'Local Academy Graduate')}</span><span>🗣️ ${escapeMarkup($('#careerPersonality')?.value||'Professional')}</span><span>💇 ${$('#hair')?.value || 'Short'}</span><span>👕 #${$('#shirtNumber')?.value || 8}</span></div>`;
     }
 
     const keyByPosition = {
@@ -4749,7 +5297,7 @@
       const now=performance.now(),profile=gymBenchProfile(career.player,s.load),targetRate=.72;s.anim.rate=lerp(s.anim.rate||targetRate,targetRate,clamp(dt*5,0,1));s.anim.cycle=(s.anim.cycle+dt*s.anim.rate*Math.PI*2)%(Math.PI*2);
       if(s.phase==='ready'&&now>=Number(s.benchNextPhaseAt||0)){s.phase='lowering';s.lowerStart=now;s.barProgress=0;s.pressPower=0;s.pressVelocity=0;s.benchPressTimes=[];s.currentRepPressSamples=[];s.benchCombo=0;s.attempts++;s.lastRepLabel='DESCENT';gymFeedback('CONTROLLED DESCENT · GET READY','info',520)}
       if(s.phase==='lowering'){
-        s.barProgress=clamp((now-s.lowerStart)/profile.descentMs,0,1);if(s.barProgress>=1){s.phase='push';s.repPressStart=now;s.pressPower=.12;s.pressVelocity=.02;s.benchPressTimes=[];s.lastBenchKey=null;s.lastBenchTime=0;s.lastRepLabel='PRESS!';gymFeedback('DRIVE! · J ↔ L RAPIDLY','objective',620)}
+        s.barProgress=clamp((now-s.lowerStart)/profile.descentMs,0,1);if(s.barProgress>=1){s.phase='push';s.barProgress=0;s.repPressStart=now;s.pressPower=.12;s.pressVelocity=.02;s.benchPressTimes=[];s.lastBenchKey=null;s.lastBenchTime=0;s.lastRepLabel='PRESS!';gymFeedback('DRIVE! · J ↔ L RAPIDLY','objective',620)}
       }else if(s.phase==='push'){
         s.pressPower=Number(s.pressPower||0)*Math.exp(-dt*(1.2+profile.loadFactor*.35));s.pressVelocity=Number(s.pressVelocity||0)*Math.exp(-dt*(0.9+profile.loadFactor*.25));const bp=clamp(Number(s.barProgress||0),0,1),stIn=clamp((bp-.34)/.11,0,1),stOut=clamp((bp-.60)/.12,0,1),sticking=(stIn*stIn*(3-2*stIn))*(1-stOut*stOut*(3-2*stOut)),required=profile.baseRequired+sticking*profile.stickingBonus,drive=Math.max(-.15,s.pressPower-required),strengthAssist=clamp((profile.strengthNorm-.45)*.14,0,.08);s.pressVelocity=clamp(s.pressVelocity+(drive*.75+strengthAssist)*dt,0,1.1);s.barProgress=clamp(bp+s.pressVelocity*dt,0,1);
         const activeTimes=(s.benchPressTimes||[]).filter(t=>now-t<=1000);s.benchPressTimes=activeTimes;if(activeTimes.length>1){const span=Math.max(.28,(now-activeTimes[0])/1000);s.benchPressRate=lerp(Number(s.benchPressRate||0),(activeTimes.length-1)/span,.18)}else s.benchPressRate=lerp(Number(s.benchPressRate||0),0,.08);
@@ -4775,10 +5323,10 @@
   const TRAINING_DRILLS = {
     finishing:{label:'Target Finishing',icon:'🎯',focus:'finishing',category:'Finishing',mechanic:'finishing',desc:'Receive from changing positions around the box and hit moving or shrinking goal zones with the correct finish.',keys:['finishing','composure','technique']},
     onevone:{label:'1v1 Finishing',icon:'🥅',focus:'finishing',category:'Finishing',mechanic:'finishing',desc:'Receive clean through, create an angle before the keeper or recovering defender arrives, then finish.',keys:['finishing','dribbling','composure']},
-    pressurefinish:{label:'Pressure Finishing',icon:'🔥',focus:'finishing',category:'Finishing',mechanic:'finishing',desc:'Make an off-ball run, receive under tight marking, create half a yard and finish before the block or tackle.',keys:['finishing','composure','offBall']},
+    pressurefinish:{label:'Pressure Finishing',icon:'🔥',focus:'finishing',category:'Finishing',mechanic:'finishing',desc:'Make an off-ball run, receive under tight marking, create half a yard and finish before the block or tackle.',keys:['finishing','composure','positioning']},
     firsttime:{label:'First Time Finishing',icon:'⚡',focus:'finishing',category:'Finishing',mechanic:'finishing',desc:'Read crosses, cut-backs and through balls and finish the service first time without taking a touch.',keys:['finishing','anticipation','technique']},
     longrange:{label:'Long Range Shooting',icon:'🚀',focus:'finishing',category:'Finishing',mechanic:'finishing',desc:'Receive 20–30+ yards out and balance power, placement and technique before the shooting lane closes.',keys:['longShots','technique','composure']},
-    aerial:{label:'Aerial Finishing',icon:'🪽',focus:'finishing',category:'Finishing',mechanic:'setpieces',desc:'Time the run and attack whipped, lofted and driven crosses with power, glancing or directed headers.',keys:['heading','finishing','anticipation']},
+    aerial:{label:'Aerial Finishing',icon:'🪽',focus:'finishing',category:'Finishing',mechanic:'setpieces',desc:'Time the run and attack whipped, lofted and driven crosses with power, glancing or directed headers.',keys:['finishing','anticipation','strength']},
     passing:{label:'Passing Gates',icon:'⚽',focus:'technical',category:'Passing',mechanic:'passing',desc:'Scan before receiving, recognise changing safe/progressive/line-breaking gates and pass through the correct lane under pressure.',keys:['passing','vision','firstTouch']},
     onetouch:{label:'One Touch Combinations',icon:'🔁',focus:'technical',category:'Passing',mechanic:'passing',desc:'Play rondo-style one-touch combinations, move after every pass and escape active pressure.',keys:['passing','firstTouch','decisions']},
     throughballs:{label:'Through Ball Timing',icon:'🧵',focus:'mental',category:'Passing',mechanic:'passing',desc:'Slide runners through the gap between defenders with realistic ground or lifted through balls, using Passing, Vision and Composure.',keys:['passing','vision','decisions']},
@@ -4802,19 +5350,19 @@
     pressing:{label:'Pressing Triggers',icon:'📣',focus:'mental',category:'Tactical',mechanic:'defending',desc:'Recognise bad touches and passing traps before pressing.',keys:['decisions','workRate','anticipation']},
     transition:{label:'Transition Game',icon:'🔀',focus:'mental',category:'Tactical',mechanic:'balanced',desc:'Switch instantly between attacking and defensive actions.',keys:['decisions','anticipation','teamwork']},
     position:{label:'Position Role Session',icon:'📍',focus:'position',category:'Position',mechanic:'position',desc:'Train movement and actions that matter most for your current role.',keys:['positioning','decisions','stamina']},
-    setpieces:{label:'Free Kick Technique',icon:'🎯',focus:'setpieces',category:'Set Pieces',mechanic:'setpieces',desc:'Master Curl, Top-Spin Dip and Knuckleball using the same player, goal, keeper and ball physics as matches.',keys:['freeKicks','technique','curve']},
+    setpieces:{label:'Free Kick Technique',icon:'🎯',focus:'setpieces',category:'Set Pieces',mechanic:'setpieces',desc:'Master Curl, Top-Spin Dip and Knuckleball using the same player, goal, keeper and ball physics as matches.',keys:['freeKicks','technique','composure']},
     freeKickTargets:{label:'Fixed Target Free Kicks',icon:'⭕',focus:'setpieces',category:'Set Pieces',mechanic:'setpieces',desc:'Hit hanging hoops and corner targets. Accuracy matters more than raw power.',keys:['freeKicks','technique','composure']},
-    freeKickWall:{label:'Wall Simulation',icon:'🧱',focus:'setpieces',category:'Set Pieces',mechanic:'setpieces',desc:'Beat a match-style four-player wall by curling around it, dipping over it or striking a knuckleball.',keys:['freeKicks','curve','technique']},
-    penalties:{label:'Penalty Practice',icon:'🥅',focus:'setpieces',category:'Set Pieces',mechanic:'setpieces',desc:'Ten-kick penalty challenge with aim, timing, technique choice, adaptive goalkeeper behaviour and pressure.',keys:['penalties','composure','finishing','shotPower']},
+    freeKickWall:{label:'Wall Simulation',icon:'🧱',focus:'setpieces',category:'Set Pieces',mechanic:'setpieces',desc:'Beat a match-style four-player wall by curling around it, dipping over it or striking a knuckleball.',keys:['freeKicks','composure','technique']},
+    penalties:{label:'Penalty Practice',icon:'🥅',focus:'setpieces',category:'Set Pieces',mechanic:'setpieces',desc:'Ten-kick penalty challenge with aim, timing, technique choice, adaptive goalkeeper behaviour and pressure.',keys:['penalties','composure','finishing','longShots']},
     corners:{label:'Corner Training',icon:'🚩',focus:'setpieces',category:'Set Pieces',mechanic:'setpieces',desc:'Choose to take the corner or attack the delivery with headers, volleys, half volleys and bicycle kicks.',keys:['corners','crossing','technique']},
     weakfoot:{label:'Weak Foot Development',icon:'🦶',focus:'weakfoot',category:'Technical',mechanic:'weakfoot',desc:'Pass, cross and finish using only the weaker foot.',keys:['passing','crossing','finishing']},
     recovery:{label:'Recovery Swim',icon:'🏊',focus:'recovery',category:'Recovery',mechanic:'swimming',desc:'Complete a colourful 60-second active-recovery swim. Alternate J and L, manage energy, and slow down when you need to recover.',keys:['stamina']},
     swimEndurance:{label:'Endurance Swim',icon:'🌊',focus:'recovery',category:'Recovery',mechanic:'swimming',desc:'A 60-second endurance swim that rewards steady rhythm, repeated lengths and intelligent energy management.',keys:['stamina']},
     swimSprint:{label:'Sprint Swim',icon:'⚡',focus:'recovery',category:'Recovery',mechanic:'swimming',desc:'A 60-second pool sprint where Sprint Speed determines maximum pace while Stamina decides how long you can sustain it.',keys:['pace','stamina']},
-    gkReaction:{label:'Reaction Saves',icon:'🧤',focus:'position',category:'Goalkeeping',mechanic:'position',goalkeeper:true,desc:'React to shots across the goal with directional goalkeeper controls.',keys:['reflexes','handling','positioning']},
-    gkOnevOne:{label:'1v1 Goalkeeping',icon:'🧤',focus:'position',category:'Goalkeeping',mechanic:'position',goalkeeper:true,desc:'Read the attacker and react late in one on one situations.',keys:['oneOnOnes','reflexes','positioning']},
-    gkCrosses:{label:'Cross Claiming',icon:'🙌',focus:'position',category:'Goalkeeping',mechanic:'position',goalkeeper:true,desc:'Read crosses and decide whether to catch, parry or hold.',keys:['handling','positioning','decisions']},
-    gkDistribution:{label:'Goalkeeper Distribution',icon:'🎯',focus:'technical',category:'Goalkeeping',mechanic:'passing',goalkeeper:true,desc:'Start attacks with accurate short, driven and lofted distribution.',keys:['distribution','passing','decisions']}
+    gkReaction:{label:'Reaction Saves',icon:'🧤',focus:'position',category:'Goalkeeping',mechanic:'position',goalkeeper:true,desc:'React to shots across the goal with directional goalkeeper controls.',keys:['agility','firstTouch','positioning']},
+    gkOnevOne:{label:'1v1 Goalkeeping',icon:'🧤',focus:'position',category:'Goalkeeping',mechanic:'position',goalkeeper:true,desc:'Read the attacker and react late in one on one situations.',keys:['anticipation','agility','positioning']},
+    gkCrosses:{label:'Cross Claiming',icon:'🙌',focus:'position',category:'Goalkeeping',mechanic:'position',goalkeeper:true,desc:'Read crosses and decide whether to catch, parry or hold.',keys:['firstTouch','positioning','decisions']},
+    gkDistribution:{label:'Goalkeeper Distribution',icon:'🎯',focus:'technical',category:'Goalkeeping',mechanic:'passing',goalkeeper:true,desc:'Start attacks with accurate short, driven and lofted distribution.',keys:['passing','decisions','vision']}
   };
   const PASSING_ACADEMY_DRILLS=new Set(['passing','onetouch','throughballs','switchplay','crossing']);
   function isPassingAcademyDrill(id=activeTrainingDrill){return PASSING_ACADEMY_DRILLS.has(id)}
@@ -4888,10 +5436,12 @@
     updateAgilityHud(s);
   }
   function completeAgilityTarget(s){
-    const a=s?.agility;if(!a)return;
+    const a=s?.agility;if(!a||a.completed)return;
     if(a.finishSprint){
       if(Math.hypot(s.player.x-93,s.player.y-50)>8)return;
-      a.completed=true;a.finishTime=(s.duration||45)-(s.time||0);const profile=agilityMovementProfile(career?.player),speedRatio=clamp((a.topSpeed||0)/Math.max(1,profile.maxSpeed),0,1),timeBase=s.duration||45,timeBonus=Math.round(clamp((timeBase-a.finishTime)/Math.max(12,timeBase*.68),0,1)*1900),cleanBonus=a.cleanPoles*165+a.perfectPoles*105,speedBonus=Math.round(speedRatio*900);s.score+=timeBonus+cleanBonus+speedBonus;s.successes++;s.hits++;agilityFeedback(`FINISH · ${((a.topSpeed||0)*1.05).toFixed(1)} KM/H · +${timeBonus+cleanBonus+speedBonus}`,'success',1000);updateAgilityHud(s);setTimeout(()=>{if(trainingGameState===s)finishControlledTraining()},700);return;
+      // The finish target stays on the pitch until the session ends, so without
+      // this latch the movement check re-awards the finish bonus every frame.
+      a.completed=true;s.target=null;a.finishTime=(s.duration||45)-(s.time||0);const profile=agilityMovementProfile(career?.player),speedRatio=clamp((a.topSpeed||0)/Math.max(1,profile.maxSpeed),0,1),timeBase=s.duration||45,timeBonus=Math.round(clamp((timeBase-a.finishTime)/Math.max(12,timeBase*.68),0,1)*1900),cleanBonus=a.cleanPoles*165+a.perfectPoles*105,speedBonus=Math.round(speedRatio*900);s.score+=timeBonus+cleanBonus+speedBonus;s.successes++;s.hits++;agilityFeedback(`FINISH · ${((a.topSpeed||0)*1.05).toFixed(1)} KM/H · +${timeBonus+cleanBonus+speedBonus}`,'success',1000);updateAgilityHud(s);setTimeout(()=>{if(trainingGameState===s)finishControlledTraining()},700);return;
     }
     const pole=a.poles[a.current];if(!pole)return;const touched=pole.playerContactRegistered,close=pole.minDistance<4.9&&!touched,clean=!touched,profile=agilityMovementProfile(career?.player),speedRatio=clamp((s.player.moveSpeed||0)/Math.max(1,profile.maxSpeed),0,1),quality=clamp((clean?.55:.28)+speedRatio*.29+(close?.16:0),0,1),perfect=clean&&close&&speedRatio>=.68;
     s.attempts++;s.accuracySamples.push(Math.round(quality*100));s.reactions.push(performance.now()-(s.target?.born||performance.now()));const segment=Math.min(4,Math.floor(a.current/Math.max(1,a.poles.length/5)));s.segments[segment].attempts++;a.turnSpeedSamples.push(Number(s.player.moveSpeed||0));
@@ -4934,7 +5484,7 @@
   function isDefensivePitchDrill(drillId=activeTrainingDrill){return DEFENSIVE_PITCH_DRILLS.has(drillId)}
   function trainingDrillDefinition(drillId){
     const base=TRAINING_DRILLS[drillId];if(!base)return null;
-    if(drillId==='position'&&career?.player?.position==='GK')return {...base,label:'Goalkeeper Reaction Lab',icon:'\ud83e\udde4',desc:'Read shots across nine goal zones and make the correct directional save.',keys:['reflexes','handling','positioning'],help:'J right \u00b7 L left \u00b7 K low middle \u00b7 I high middle. Combine side and height keys for the corners.'};
+    if(drillId==='position'&&career?.player?.position==='GK')return {...base,label:'Goalkeeper Reaction Lab',icon:'\ud83e\udde4',desc:'Read shots across nine goal zones and make the correct directional save.',keys:['positioning','agility','firstTouch'],help:'J right \u00b7 L left \u00b7 K low middle \u00b7 I high middle. Combine side and height keys for the corners.'};
     return base;
   }
   function setCareerTab(tab){
@@ -5044,7 +5594,7 @@
       if(drillId==='penalties')items=`${detailedTrainingGoalMarkup('penalty-training-goal')}<span class="training-penalty-spot"></span><span class="training-box-line"></span><span class="penalty-corner-zone pen-tl"></span><span class="penalty-corner-zone pen-tr"></span><span class="penalty-corner-zone pen-bl"></span><span class="penalty-corner-zone pen-br"></span>`;
       else if(drillId==='corners')items=`${detailedTrainingGoalMarkup('corner-training-goal')}<span class="training-corner-flag"></span><span class="training-corner-arc"></span><span class="corner-box-zone cz-near">NEAR</span><span class="corner-box-zone cz-centre">CENTRE</span><span class="corner-box-zone cz-far">FAR</span><span class="corner-box-zone cz-edge">EDGE</span>`;
       else if(drillId==='crossing')items=`${detailedTrainingGoalMarkup('crossing-training-goal')}<span class="goal-target-strap strap-left"></span><span class="goal-target-strap strap-centre"></span><span class="goal-target-strap strap-right"></span>${dummy(43,34)}${dummy(52,31)}${dummy(61,35)}${cone(15,72,'blue')}${cone(85,72,'blue')}<span class="training-cross-lane"></span>`;
-      else if(isFreeKickTrainingDrill(drillId)){const targetDecor=drillId==='freeKickTargets'?'<span class="fixed-goal-hoop hoop-left"></span><span class="fixed-goal-hoop hoop-right"></span><span class="fixed-goal-vest vest-left"></span><span class="fixed-goal-vest vest-right"></span>':'';const mannequinWall=['setpieces','freeKickTargets'].includes(drillId)?`${dummy(43.5,46,.55)}${dummy(48,46,.55)}${dummy(52.5,46,.55)}${dummy(57,46,.55)}`:'<span class="match-wall-line"></span>';items=`${detailedTrainingGoalMarkup('free-kick-match-goal')}${targetDecor}${mannequinWall}<span class="free-kick-arc"></span><span class="training-free-kick-spot"></span><span class="free-kick-distance-label">MATCH FREE KICK</span>${cone(28,72)}${cone(72,72)}`;}
+      else if(isFreeKickTrainingDrill(drillId)){const targetDecor=drillId==='freeKickTargets'?'<span class="fixed-goal-hoop hoop-left"></span><span class="fixed-goal-hoop hoop-right"></span><span class="fixed-goal-vest vest-left"></span><span class="fixed-goal-vest vest-right"></span>':'';/* Prefer match-wall line only; live session draws wall from shared canvas models */const mannequinWall='<span class="match-wall-line"></span>';items=`<canvas id="trainingSharedEngineCanvas" class="training-shared-engine-canvas" aria-label="Match-style free kick"></canvas>${detailedTrainingGoalMarkup('free-kick-match-goal')}${targetDecor}${mannequinWall}<span class="free-kick-arc"></span><span class="training-free-kick-spot"></span><span class="free-kick-distance-label">MATCH FREE KICK</span>${cone(28,72)}${cone(72,72)}`;}
       else items=`${detailedTrainingGoalMarkup('set-piece-general-goal')}${dummy(42,45)}${dummy(48,45)}${dummy(54,45)}${dummy(60,45)}<span class="free-kick-arc"></span><span class="training-free-kick-spot"></span>${cone(28,72)}${cone(72,72)}`;
     }
     else if(envId==='weakfoot')items=`${detailedTrainingGoalMarkup('technical-weak-foot-goal')}<div class="weak-foot-circuit-lanes"><span>1 · PASS</span><span>2 · CROSS</span><span>3 · FINISH</span></div>${mini(18,33)}${mini(82,33)}${cone(14,66,'blue')}${cone(86,66,'blue')}<span class="weak-foot-lane"></span><span class="weak-foot-badge">WEAKER FOOT ONLY · STRONG FOOT LOCKED</span>`;
@@ -5106,6 +5656,13 @@
     if(drillId==='threevthreeDef')return ['Team interceptions','Team shape','Transitions','Decision making','Agility'];
     if(drillId==='repeatSprints')return ['Race efficiency','Top speed','Acceleration','Cadence rhythm','Finish position'];
     if(drillId==='agility')return ['Clean poles','Momentum','Agility cuts','Perfect cuts','Top speed'];
+    if(drillId==='setpieces')return ['Technique accuracy','Goals scored','Strike quality','Power window','Consistency'];
+    if(drillId==='freeKickTargets')return ['Target hits','Placement','Goals scored','Power window','Consistency'];
+    if(drillId==='freeKickWall')return ['Beat the wall','Goals scored','Strike quality','Wall avoidance','Consistency'];
+    if(drillId==='penalties')return ['Conversion','Placement','Contact timing','Technique range','Composure'];
+    if(drillId==='corners')return selectedCornerTrainingMode==='attack'
+      ?['Goals scored','Contact quality','Attacking runs','Technique range','Consistency']
+      :['Delivery accuracy','Chances created','Cross weight','Delivery range','Consistency'];
     if(isGoalkeeperReactionDrill(drillId))return ['Direction accuracy','Reaction speed','Save quality','Handling','Rebound control'];
     const mechanic=trainingMechanicId(drillId);
     return {
@@ -5614,6 +6171,10 @@
     if(drillId==='recoveryrun')drillId='threevthreeDef';
     if(!career || career.injury || !TRAINING_DRILLS[drillId]) return;
     activeTrainingDrill=drillId;const d=trainingDrillDefinition(drillId),t=ensureDevelopmentSystem(career.player),tacticalUi=isAdvancedTacticalTrainingDrill(drillId);
+    const trainingFamily={Finishing:'finishing',Passing:'passing',Technical:'technical',Defending:'defending',Physical:'physical',Tactical:'tactical',Position:'position','Set Pieces':'setpieces',Individual:'individual',Recovery:'recovery',Goalkeeping:'goalkeeping'}[d.category]||d.focus||'balanced',trainingInitials=d.label.split(/\s+/).map(word=>word[0]).join('').slice(0,2).toUpperCase();
+    const trainingModal=$('#trainingGameModal'),identityStage=$('#trainingGameStage');if(trainingModal){trainingModal.dataset.trainingFamily=trainingFamily;trainingModal.dataset.trainingDrill=drillId}if(identityStage)identityStage.dataset.trainingFamily=trainingFamily;
+    const modeBadge=$('#trainingModeBadge'),difficultyBadge=$('#trainingDifficultyBadge'),modeMark=$('#trainingModeMark'),modeCategory=$('#trainingModeCategory'),modeObjective=$('#trainingModeObjective'),modeAttributes=$('#trainingModeAttributes');
+    if(modeBadge)modeBadge.textContent=String(d.category||d.focus||'Training').toUpperCase();if(difficultyBadge)difficultyBadge.textContent=String(t.trainingDifficulty||'Standard').toUpperCase();if(modeMark)modeMark.textContent=trainingInitials;if(modeCategory)modeCategory.textContent=`${String(d.category||'Training').toUpperCase()} DEPARTMENT`;if(modeObjective)modeObjective.textContent=d.desc;if(modeAttributes)modeAttributes.innerHTML=(d.keys||[]).slice(0,4).map(key=>`<span>${pretty(key)}</span>`).join('');
     const rival=TRAINING_RIVALS[(career.week+Object.keys(TRAINING_DRILLS).indexOf(drillId))%TRAINING_RIVALS.length];
     $('#trainingGameTitle').textContent=`${d.icon} ${d.label}`;$('#trainingGameHelp').textContent=trainingInstruction(drillId);$('#trainingGameScore').textContent='0';$('#trainingGameTime').textContent='45';$('#trainingGameStreak').textContent='0';$('#trainingGameMultiplier').textContent='×1';$('#trainingGameStars').textContent='☆☆☆';$('#trainingGameChallenge').textContent='Session objective: 0/10 successful actions';
     const scoreLabels=[...document.querySelectorAll('#trainingGameModal .training-game-score small')];if(scoreLabels[0])scoreLabels[0].textContent='SCORE';if(scoreLabels[1])scoreLabels[1].textContent='TIME';if(scoreLabels[2])scoreLabels[2].textContent='STREAK';if(scoreLabels[3])scoreLabels[3].textContent='COMBO';
@@ -5640,12 +6201,12 @@
     }else $('#trainingGameLeaderboard').innerHTML=`<b>Club leaderboard</b><span>1. ${rival} ${(7600+career.week*37).toLocaleString()}</span><span>2. You ${(t.minigameBest?.[drillId]||0).toLocaleString()}</span><span>3. A. Mensah 6,420</span>`;
     const env=trainingEnvironmentMarkup(drillId);activeTrainingObstacles=env.obstacles;$('#trainingGamePitch').innerHTML=env.html+trainingPlayerMarkup();
     $('#trainingGameStage').dataset.drill=drillId;$('#trainingGameStage').dataset.weather=(trainingMechanicId(drillId)==='swimming'||drillId==='agility')?'indoor':['clear','rain','wind'][(career.week+drillId.length)%3];
-    const practiceOnly=!trainingCareerRewardAvailable(career.player);const swimming=trainingMechanicId(drillId)==='swimming',gymUi=isPerformanceGymDrill(drillId),agilityUi=drillId==='agility',raceUi=drillId==='repeatSprints',defensiveUi=isDefensivePitchDrill(drillId),passingAcademyUi=isPassingAcademyDrill(drillId),technicalUi=isTechnicalZoneDrill(drillId),freeKickUi=isFreeKickTrainingDrill(),penaltyUi=drillId==='penalties',cornerUi=drillId==='corners';if(technicalUi){$('#trainingGameTime').textContent='60';$('#trainingGameChallenge').textContent=d.desc;$('#trainingGameLeaderboard').innerHTML=`<b>TECHNICAL ZONE</b><span>${d.keys.map(pretty).join(' · ')}</span><span>60 second live-ball session · match player renderer</span>`;}if(agilityUi){$('#trainingGameTime').textContent='45';$('#trainingGameChallenge').textContent='Run the tight moving slalom cleanly, then hit maximum speed through the finish';$('#trainingGameLeaderboard').innerHTML=`<b>AGILITY COURSE</b><span>Tight moving poles bend and wobble on player contact</span><span>Agility · Acceleration · Pace · Balance</span>`;if(scoreLabels[0])scoreLabels[0].textContent='SCORE';if(scoreLabels[1])scoreLabels[1].textContent='TIME';if(scoreLabels[2])scoreLabels[2].textContent='CLEAN';if(scoreLabels[3])scoreLabels[3].textContent='STREAK';}if(gymUi){$('#trainingGameTime').textContent='60';$('#trainingGameChallenge').textContent=drillId==='gymBike'?'Hold target RPM through changing resistance':drillId==='gymBench'?'Complete 6 reps with rapid alternating J / L press power':'Match target speed through changing intervals';$('#trainingGameLeaderboard').innerHTML=`<b>PERFORMANCE GYM</b><span>${d.desc}</span><span>${d.keys.map(pretty).join(' · ')}</span>`;if(scoreLabels[0])scoreLabels[0].textContent=drillId==='gymBench'?'REPS':'SCORE';if(scoreLabels[1])scoreLabels[1].textContent='TIME';if(scoreLabels[2])scoreLabels[2].textContent=drillId==='gymBike'?'RHYTHM':'STREAK';if(scoreLabels[3])scoreLabels[3].textContent='ENERGY';}if(penaltyUi){selectedPenaltyTechnique='shot';$('#trainingGameTime').textContent='10';$('#trainingGameChallenge').textContent=`${penaltyModeLabel(selectedPenaltyTrainingMode)} · ${penaltyObjectiveText()}`;$('#trainingGameLeaderboard').innerHTML=`<b>SESSION SETUP</b><span>10 penalties · goalkeeper adapts to placement</span><span>Penalties ${Math.round(career?.player?.attrs?.penalties||55)} · Composure ${Math.round(career?.player?.attrs?.composure||55)}</span>`;if(scoreLabels[0])scoreLabels[0].textContent='GOALS';if(scoreLabels[1])scoreLabels[1].textContent='KICKS';if(scoreLabels[2])scoreLabels[2].textContent='STREAK';if(scoreLabels[3])scoreLabels[3].textContent='QUALITY';}if(cornerUi){$('#trainingGameTime').textContent='10';$('#trainingGameChallenge').textContent=`${cornerModeLabel()} · ${selectedCornerTrainingMode==='delivery'?'Hit 8/10 delivery zones':'Score from 6/10 attacking corners'}`;$('#trainingGameLeaderboard').innerHTML=`<b>CORNER SESSION</b><span>${selectedCornerTrainingMode==='delivery'?'Corners · Crossing · Technique · Vision':'Finishing · Heading · Technique · Off the Ball'}</span><span>Choose your role before starting</span>`;if(scoreLabels[0])scoreLabels[0].textContent=selectedCornerTrainingMode==='delivery'?'ACCURATE':'GOALS';if(scoreLabels[1])scoreLabels[1].textContent='ATTEMPTS';if(scoreLabels[2])scoreLabels[2].textContent='STREAK';if(scoreLabels[3])scoreLabels[3].textContent='QUALITY';}$('#trainingGameModal').classList.toggle('free-kick-ui',freeKickUi);$('#trainingGameModal').classList.toggle('penalty-ui',penaltyUi);$('#trainingGameModal').classList.toggle('corner-ui',cornerUi);$('#trainingGameModal').classList.toggle('swim-ui',swimming);$('#trainingGameModal').classList.toggle('agility-ui',agilityUi);$('#trainingGameModal').classList.toggle('race-ui',raceUi);$('#trainingGameModal').classList.toggle('defensive-ui',defensiveUi);$('#trainingGameModal').classList.toggle('passing-academy-ui',passingAcademyUi);$('#trainingGameModal').classList.toggle('technical-zone-ui',technicalUi);$('#trainingGameModal').classList.toggle('finishing-pitch-ui',isFinishingPitchDrill(drillId));$('#trainingGameModal').classList.toggle('gym-ui',gymUi);$('#trainingGameModal').classList.toggle('gym-bike-ui',gymUi&&drillId==='gymBike');$('#trainingGameModal').classList.toggle('gym-bench-ui',gymUi&&drillId==='gymBench');$('#trainingGameModal').classList.toggle('gym-tread-ui',gymUi&&drillId==='gymTreadmill');$('#trainingGameModal').classList.remove('swim-live-session','penalty-live-session','corner-live-session','defensive-live-session','passing-academy-live','gym-live-session','fk-live-session','technical-zone-live','finishing-pitch-live');$('#trainingGameStage')?.classList.toggle('defensive-ready',defensiveUi);$('#trainingGamePrompt').textContent=(penaltyUi||cornerUi||gymUi||agilityUi||raceUi||defensiveUi)?'':freeKickUi?(practiceOnly?'PRACTICE MODE':'READY'):(practiceOnly?(swimming?'Practice swim · J/L controls remain available':'Practice mode — match controls remain fully available'):(swimming?'Press Start · timed pool recovery':'Press Start · Match controls enabled'));$('#startTrainingGame').textContent=practiceOnly?'\u25b6 Start practice':'\u25b6 Start drill';$('#startTrainingGame').disabled=false;$('#simulateTrainingGame').disabled=practiceOnly;$('#trainingGameModal').classList.remove('hidden');
+    const practiceOnly=!trainingCareerRewardAvailable(career.player);const swimming=trainingMechanicId(drillId)==='swimming',gymUi=isPerformanceGymDrill(drillId),agilityUi=drillId==='agility',raceUi=drillId==='repeatSprints',defensiveUi=isDefensivePitchDrill(drillId),passingAcademyUi=isPassingAcademyDrill(drillId),technicalUi=isTechnicalZoneDrill(drillId),freeKickUi=isFreeKickTrainingDrill(),penaltyUi=drillId==='penalties',cornerUi=drillId==='corners';if(technicalUi){$('#trainingGameTime').textContent='60';$('#trainingGameChallenge').textContent=d.desc;$('#trainingGameLeaderboard').innerHTML=`<b>TECHNICAL ZONE</b><span>${d.keys.map(pretty).join(' · ')}</span><span>60 second live-ball session · match player renderer</span>`;}if(agilityUi){$('#trainingGameTime').textContent='45';$('#trainingGameChallenge').textContent='Run the tight moving slalom cleanly, then hit maximum speed through the finish';$('#trainingGameLeaderboard').innerHTML=`<b>AGILITY COURSE</b><span>Tight moving poles bend and wobble on player contact</span><span>Agility · Acceleration · Pace · Balance</span>`;if(scoreLabels[0])scoreLabels[0].textContent='SCORE';if(scoreLabels[1])scoreLabels[1].textContent='TIME';if(scoreLabels[2])scoreLabels[2].textContent='CLEAN';if(scoreLabels[3])scoreLabels[3].textContent='STREAK';}if(gymUi){$('#trainingGameTime').textContent='60';$('#trainingGameChallenge').textContent=drillId==='gymBike'?'Hold target RPM through changing resistance':drillId==='gymBench'?'Complete 6 reps with rapid alternating J / L press power':'Match target speed through changing intervals';$('#trainingGameLeaderboard').innerHTML=`<b>PERFORMANCE GYM</b><span>${d.desc}</span><span>${d.keys.map(pretty).join(' · ')}</span>`;if(scoreLabels[0])scoreLabels[0].textContent=drillId==='gymBench'?'REPS':'SCORE';if(scoreLabels[1])scoreLabels[1].textContent='TIME';if(scoreLabels[2])scoreLabels[2].textContent=drillId==='gymBike'?'RHYTHM':'STREAK';if(scoreLabels[3])scoreLabels[3].textContent='ENERGY';}if(penaltyUi){selectedPenaltyTechnique='shot';$('#trainingGameTime').textContent='10';$('#trainingGameChallenge').textContent=`${penaltyModeLabel(selectedPenaltyTrainingMode)} · ${penaltyObjectiveText()}`;$('#trainingGameLeaderboard').innerHTML=`<b>SESSION SETUP</b><span>10 penalties · goalkeeper adapts to placement</span><span>Penalties ${Math.round(career?.player?.attrs?.penalties||55)} · Composure ${Math.round(career?.player?.attrs?.composure||55)}</span>`;if(scoreLabels[0])scoreLabels[0].textContent='GOALS';if(scoreLabels[1])scoreLabels[1].textContent='KICKS';if(scoreLabels[2])scoreLabels[2].textContent='STREAK';if(scoreLabels[3])scoreLabels[3].textContent='QUALITY';}if(cornerUi){$('#trainingGameTime').textContent='10';$('#trainingGameChallenge').textContent=`${cornerModeLabel()} · ${selectedCornerTrainingMode==='delivery'?'Hit 8/10 delivery zones':'Score from 6/10 attacking corners'}`;$('#trainingGameLeaderboard').innerHTML=`<b>CORNER SESSION</b><span>${selectedCornerTrainingMode==='delivery'?'Corners · Crossing · Technique · Vision':'Finishing · Heading · Technique · Off the Ball'}</span><span>Choose your role before starting</span>`;if(scoreLabels[0])scoreLabels[0].textContent=selectedCornerTrainingMode==='delivery'?'ACCURATE':'GOALS';if(scoreLabels[1])scoreLabels[1].textContent='ATTEMPTS';if(scoreLabels[2])scoreLabels[2].textContent='STREAK';if(scoreLabels[3])scoreLabels[3].textContent='QUALITY';}$('#trainingGameModal').classList.toggle('free-kick-ui',freeKickUi);$('#trainingGameModal').classList.toggle('penalty-ui',penaltyUi);$('#trainingGameModal').classList.toggle('corner-ui',cornerUi);$('#trainingGameModal').classList.toggle('swim-ui',swimming);$('#trainingGameModal').classList.toggle('agility-ui',agilityUi);$('#trainingGameModal').classList.toggle('race-ui',raceUi);$('#trainingGameModal').classList.toggle('defensive-ui',defensiveUi);$('#trainingGameModal').classList.toggle('passing-academy-ui',passingAcademyUi);$('#trainingGameModal').classList.toggle('technical-zone-ui',technicalUi);$('#trainingGameModal').classList.toggle('finishing-pitch-ui',isFinishingPitchDrill(drillId));$('#trainingGameModal').classList.toggle('gym-ui',gymUi);$('#trainingGameModal').classList.toggle('gym-bike-ui',gymUi&&drillId==='gymBike');$('#trainingGameModal').classList.toggle('gym-bench-ui',gymUi&&drillId==='gymBench');$('#trainingGameModal').classList.toggle('gym-tread-ui',gymUi&&drillId==='gymTreadmill');$('#trainingGameModal').classList.remove('swim-live-session','penalty-live-session','corner-live-session','defensive-live-session','passing-academy-live','gym-live-session','fk-live-session','technical-zone-live','finishing-pitch-live','agility-live','race-live-session');$('#trainingGameStage')?.classList.toggle('defensive-ready',defensiveUi);$('#trainingGamePrompt').textContent=(penaltyUi||cornerUi||gymUi||agilityUi||raceUi||defensiveUi)?'':freeKickUi?(practiceOnly?'PRACTICE MODE':'READY'):(practiceOnly?(swimming?'Practice swim · J/L controls remain available':'Practice mode — match controls remain fully available'):(swimming?'Press Start · timed pool recovery':'Press Start · Match controls enabled'));$('#startTrainingGame').textContent=practiceOnly?'\u25b6 Start practice':'\u25b6 Start drill';$('#startTrainingGame').disabled=false;$('#simulateTrainingGame').disabled=practiceOnly;$('#trainingGameModal').classList.remove('hidden');
     const stage=$('#trainingGameStage');stage?.focus();stage.classList.toggle('agility-ready',agilityUi);if(swimming)initialiseSwimmingGui(stage);if(gymUi)initialisePerformanceGymGui(stage);if(penaltyUi)initialisePenaltyGui(stage);if(cornerUi)initialiseCornerGui(stage);if(freeKickUi){initialiseFreeKickGui(stage);const mode=$('#fkModeBadge');if(mode)mode.textContent=practiceOnly?'PRACTICE':'CAREER TRAINING';}stage.querySelectorAll('[data-race-distance]').forEach(btn=>{btn.onclick=e=>{e.stopPropagation();if(trainingGameState)return;selectedRaceDistance=Number(btn.dataset.raceDistance)||100;openTrainingDrill('repeatSprints')}});stage.querySelectorAll('[data-corner-mode]').forEach(btn=>{btn.onclick=e=>{e.stopPropagation();if(trainingGameState)return;selectedCornerTrainingMode=btn.dataset.cornerMode;openTrainingDrill('corners')}});stage.querySelectorAll('[data-corner-delivery]').forEach(btn=>{btn.onclick=e=>{e.stopPropagation();selectedCornerDelivery=btn.dataset.cornerDelivery;stage.querySelectorAll('[data-corner-delivery]').forEach(x=>x.classList.toggle('active',x===btn));updateCornerHud();cornerFeedback(`${cornerDeliveryLabel()} selected`,'info',600)}});stage.querySelectorAll('[data-corner-finish]').forEach(btn=>{btn.onclick=e=>{e.stopPropagation();selectedCornerFinish=btn.dataset.cornerFinish;stage.querySelectorAll('[data-corner-finish]').forEach(x=>x.classList.toggle('active',x===btn));updateCornerHud();cornerFeedback(`${cornerFinishLabel()} selected`,'info',600)}});stage.querySelectorAll('[data-penalty-technique]').forEach(btn=>{btn.onclick=e=>{e.stopPropagation();selectedPenaltyTechnique=btn.dataset.penaltyTechnique;stage.querySelectorAll('[data-penalty-technique]').forEach(x=>x.classList.toggle('active',x===btn));setPenaltyPowerWindow(selectedPenaltyTechnique);const name=$('#trainingActionName');if(name)name.textContent=penaltyTechniqueLabel(selectedPenaltyTechnique);const guide=$('#trainingActionGuide');if(guide)guide.textContent=`${penaltyTechniqueKeys(selectedPenaltyTechnique)} · aim, hold, release inside PERFECT`;updatePenaltyHud();penaltyFeedback(`${penaltyTechniqueLabel(selectedPenaltyTechnique)} selected`,'info',650);}});stage.querySelectorAll('[data-penalty-mode]').forEach(btn=>{btn.onclick=e=>{e.stopPropagation();if(trainingGameState)return;selectedPenaltyTrainingMode=btn.dataset.penaltyMode;stage.querySelectorAll('[data-penalty-mode]').forEach(x=>x.classList.toggle('active',x===btn));const ch=$('#trainingGameChallenge');if(ch)ch.textContent=`${penaltyModeLabel(selectedPenaltyTrainingMode)} · ${penaltyObjectiveText()}`;updatePenaltyHud();}});stage.querySelectorAll('[data-fk-technique]').forEach(btn=>{btn.onclick=e=>{e.stopPropagation();selectedFreeKickTechnique=btn.dataset.fkTechnique;stage.querySelectorAll('[data-fk-technique]').forEach(x=>x.classList.toggle('active',x===btn));setFreeKickIdealPower(selectedFreeKickTechnique);const name=$('#trainingActionName');if(name)name.textContent=freeKickTechniqueLabel(selectedFreeKickTechnique);const guide=$('#trainingActionGuide');if(guide)guide.textContent=`${freeKickControlKeys(selectedFreeKickTechnique)} · release inside PERFECT for clean contact`;updateFreeKickHud();setFreeKickToast(`${freeKickTechniqueLabel(selectedFreeKickTechnique)} selected`,'info',720);}});stage.onpointerdown=e=>{if(!trainingGameState)return;if(e.target.closest('button'))return;const r=stage.getBoundingClientRect(),px=(e.clientX-r.left)/r.width*100,py=(e.clientY-r.top)/r.height*100;if(activeTrainingDrill==='penalties'){const g=trainingGoalGeometry(),half=g?.halfWidthPct||13,top=g?.topPct||7,bottom=g?.bottomPct||27;trainingGameState.penaltyAim={x:clamp(px,50-half+1,50+half-1),y:clamp(py,top+1,bottom-1)};updatePenaltyAimCursor();penaltyFeedback('AIM UPDATED','info',420);return;}trainingGameState.moveTarget={x:px,y:py}};stage.querySelectorAll('[data-train-key]').forEach(btn=>{btn.onpointerdown=e=>{e.stopPropagation();if(trainingGameState)beginTrainingKick(btn.dataset.trainKey)};btn.onpointerup=e=>{e.stopPropagation();if(trainingGameState)releaseTrainingKick(btn.dataset.trainKey)}});const defend=stage.querySelector('[data-train-defend]');if(defend)defend.onpointerdown=e=>{e.stopPropagation();performTrainingDefence()};stage.querySelectorAll('[data-def-action]').forEach(btn=>{btn.onpointerdown=e=>{e.stopPropagation();if(!trainingGameState)return;const a=btn.dataset.defAction;if(a==='standing')performDefensiveTackle('standing');else if(a==='slide')performDefensiveTackle('slide');else if(a==='pass')performDefensivePass();else if(a==='jockey')trainingGameState.keys.add('i')};btn.onpointerup=e=>{if(btn.dataset.defAction==='jockey')trainingGameState?.keys?.delete('i')}});
     $('#trainingGameModal').classList.toggle('tactical-training-ui',tacticalUi);$('#trainingGameModal').classList.toggle('tactical-setup',tacticalUi);$('#trainingGameModal').classList.remove('tactical-live-session');if(tacticalUi){$('#trainingGamePrompt').textContent='';stage.querySelectorAll('[data-tactical-mode]').forEach(btn=>btn.onclick=e=>{e.stopPropagation();if(trainingGameState)return;selectedTacticalSessionMode=btn.dataset.tacticalMode;openTrainingDrill(drillId)});const tacticalDifficulty=$('#tacticalDifficultySelect');if(tacticalDifficulty)tacticalDifficulty.onchange=()=>{const map={Normal:'Standard',Hard:'Advanced'};ensureTrainingProgramme(career.player).trainingDifficulty=map[tacticalDifficulty.value]||tacticalDifficulty.value;saveCareer();openTrainingDrill(drillId)}}
   }
   function clearTrainingControls(){trainingRuntimeClearWatchdog();if(trainingGameState?.raf)cancelAnimationFrame(trainingGameState.raf);if(trainingGameState?.timer)clearInterval(trainingGameState.timer);if(trainingGameState?.keyDown)window.removeEventListener('keydown',trainingGameState.keyDown);if(trainingGameState?.keyUp)window.removeEventListener('keyup',trainingGameState.keyUp);trainingGameState?.keys?.clear?.();trainingGameState?.heldKickKeys?.clear?.()}
-  function closeTrainingDrill(){clearTrainingControls();trainingGameState=null;window.__circleTraining=null;trainingRuntimeSetStatus('idle',null,null);$('#trainingGameModal').classList.remove('free-kick-ui','fk-live-session','penalty-ui','penalty-live-session','corner-ui','corner-live-session','swim-ui','swim-live-session','gym-ui','gym-live-session','gym-bike-ui','gym-bench-ui','gym-tread-ui','agility-ui','race-ui','defensive-ui','defensive-live-session','passing-academy-ui','passing-academy-live','tactical-training-ui','tactical-setup','tactical-live-session','finishing-pitch-live','finishing-pitch-ui','technical-zone-ui','technical-zone-live');$('#trainingGameStage')?.classList.remove('defensive-ready','defensive-counting','fk-striking','fk-charging','fk-help-open','swim-help-open','swim-low-energy','swim-three-stars','penalty-help-open','penalty-counting','penalty-striking','penalty-minimal','penalty-corners-mode','corner-help-open','corner-minimal','corner-attack-mode','corner-delivery-mode','agility-ready','agility-live');const meta=$('#fkHeaderMeta');if(meta&&!isFreeKickTrainingDrill())meta.innerHTML='';$('#trainingGameModal').classList.add('hidden')}
+  function closeTrainingDrill(){clearTrainingControls();trainingGameState=null;window.__circleTraining=null;trainingRuntimeSetStatus('idle',null,null);$('#trainingGameModal').classList.remove('free-kick-ui','fk-live-session','penalty-ui','penalty-live-session','corner-ui','corner-live-session','swim-ui','swim-live-session','gym-ui','gym-live-session','gym-bike-ui','gym-bench-ui','gym-tread-ui','agility-ui','agility-live','race-ui','race-live-session','defensive-ui','defensive-live-session','passing-academy-ui','passing-academy-live','tactical-training-ui','tactical-setup','tactical-live-session','finishing-pitch-live','finishing-pitch-ui','technical-zone-ui','technical-zone-live');$('#trainingGameStage')?.classList.remove('defensive-ready','defensive-counting','fk-striking','fk-charging','fk-help-open','swim-help-open','swim-low-energy','swim-three-stars','penalty-help-open','penalty-counting','penalty-striking','penalty-minimal','penalty-corners-mode','corner-help-open','corner-minimal','corner-attack-mode','corner-delivery-mode','agility-ready','agility-live');const meta=$('#fkHeaderMeta');if(meta&&!isFreeKickTrainingDrill())meta.innerHTML='';$('#trainingGameModal').classList.add('hidden')}
   function trainingTargetType(id){if(isGoalkeeperReactionDrill(id))return'save';const m=trainingMechanicId(id);return ['finishing','passing','setpieces','weakfoot'].includes(m)?'action':['defending','mental','position','balanced'].includes(m)?'decision':'movement'}
   function trainingRequiredAction(id,index){
     const specific={
@@ -5725,10 +6286,10 @@
       : {primary:'#171b2d',secondary:accent,shorts:'#0b1020',socks:'#f1f5f9',accent};
   }
   function careerPlayerForTraining(){
-    const source=career?.player||{},club=career?.club||{},kit=trainingKitPalette(source,club);
+    const source=career?.player||{},club=career?.club||{},kit=trainingKitPalette(source,club);ensureVisualIdentity(source);
     const modelAuditSource=sharedPlayerIdentityFingerprint(source);
     const result={
-      ...source,
+      ...source,visualIdentity:{...resolvedVisualIdentity(source)},
       x:0,y:0,vx:0,vy:0,anim:0,dir:-Math.PI/2,upperDir:-Math.PI/2,
       action:'idle',actionTimer:0,actionLength:.45,actionVariant:'mid',actionFoot:source.preferredFoot||source.foot||'Right',
       // The body, face, hair, build and animation renderer are identical to matches;
@@ -5754,13 +6315,13 @@
       primary:bib,secondary:'#0f172a',shorts:club.shorts||'#111827',socks:club.socks||'#111827',
       skin:row?.skin||row?.skinTone||skins[seed%skins.length],hair:row?.hair||row?.hairStyle||hairs[(seed>>3)%hairs.length],hairColour:row?.hairColour||hairColours[(seed>>6)%hairColours.length],
       boots:row?.boots||row?.bootColour||['#111827','#f8fafc','#ef4444','#38bdf8'][seed%4],shirtNumber:row?.shirtNumber||2+index*3,position:row?.position||'CM',team:0,isUser:false,hasBall:false,
-      build:row?.build||['Athletic','Lean','Strong'][seed%3],heightScale:Number(row?.heightScale||lerp(.96,1.06,(seed%97)/96)),legScale:Number(row?.legScale||lerp(.96,1.05,((seed>>5)%97)/96)),shoulderScale:Number(row?.shoulderScale||lerp(.96,1.06,((seed>>8)%97)/96)),headScale:Number(row?.headScale||1),attrs
+      ...(()=>{const v=canonicalMatchDayVisualProfile(row||{id:`training-${index}`,name},0,index,false,row?.position||'CM');return{...v,visualIdentity:{...v.visualIdentity},build:v.build,heightCm:v.heightCm,weightKg:v.weightKg,heightScale:v.heightScale,legScale:v.legScale,shoulderScale:v.shoulderScale,headScale:v.headScale,physicalProfile:v.physical}})(),attrs
     };
   }
   function trainingUsesTeammates(drillId){return trainingMechanicId(drillId)==='defending'||isFinishingPitchDrill(drillId)}
   function trainingUsesGoalkeeper(drillId){return ['finishing','onevone','pressurefinish','firsttime','longrange','aerial','setpieces','freeKickTargets','freeKickWall','penalties','corners','crossing','weakfoot'].includes(drillId)}
   function trainingUsesFreeKickWall(drillId){return ['freeKickWall'].includes(drillId)}
-  function createFreeKickWall(){return [0,1,2,3].map(i=>{const w=createTrainingTeammate(i);w.name=['Wall 1','Wall 2','Wall 3','Wall 4'][i];w.team=1;w.primary='#e2e8f0';w.secondary='#0f172a';w.shorts='#0f172a';w.socks='#e2e8f0';w.action='setPieceReady';w.actionTimer=0;w.hasBall=false;return w;})}
+  function createFreeKickWall(){return [0,1,2,3].map(i=>{const w=createTrainingTeammate(i);w.name=['Wall 1','Wall 2','Wall 3','Wall 4'][i];w.team=1;/* Match-style opposition kit so wall models match pitch look */w.primary='#dc2626';w.secondary='#f8fafc';w.shorts='#7f1d1d';w.socks='#f8fafc';w.skin=w.skin||'#c47a4a';w.action='setPieceReady';w.actionTimer=0;w.hasBall=false;w.wall=true;return w;})}
   function createTrainingGoalkeeper(){
     const g=createTrainingTeammate(4);g.name='GK Coach';g.position='GK';g.primary='#f59e0b';g.secondary='#111827';g.shorts='#111827';g.socks='#f8fafc';g.x=50;g.y=20.5;g.dir=Math.PI/2;g.upperDir=Math.PI/2;g.action='setPieceReady';g.attrs={...g.attrs,reflexes:76,handling:75,positioning:78};return g;
   }
@@ -6839,7 +7400,7 @@
     if(forcedOutcome==='missOver')vz*=1.28;
     if(s.wallPlayers?.length)triggerFreeKickWallJump(s);
     const perfectGoalZ={fkCurl:46,fkDip:42,fkKnuckle:48,fkLowDriven:9,shot:40}[techniqueAction]||40;
-    s.ball={free:true,x:s.player.x,y:s.player.y,z:0,vx,vy,vz,spin:0,curve,topspin,backspin,dip,airDrag,knuckle,knucklePhase:Math.random()*Math.PI*2,knuckleKick:0,knuckleNext:.18+Math.random()*.14,dipDelay:techniqueAction==='fkDip'?.24:0,lateDipBoost:techniqueAction==='fkDip'?1.42:1,curlTurnY,curlFinalX:targetX,curlSteer:guaranteedGoal?1:assist,life:0,maxLife:3.5,action:techniqueAction,power:effectivePower,targetX,targetY,targetRadius,quality,correctAction,eliteFreeKick:(eliteAllModes||eliteWallAssist),reliabilityAssist:assist,reaction:performance.now()-target.born,deflected:false,netHit:false,bounceCount:0,closest:999,timingPerfect:timing.perfect,guaranteedGoal,forcedOutcome,perfectGoalX:safeX,perfectGoalY:safeY,perfectGoalZ};
+    s.ball={free:true,x:s.player.x,y:s.player.y,z:0,vx,vy,vz,spin:0,curve,topspin,backspin,dip,airDrag,knuckle,knucklePhase:Math.random()*Math.PI*2,knuckleKick:0,knuckleNext:.18+Math.random()*.14,dipDelay:techniqueAction==='fkDip'?.24:0,lateDipBoost:techniqueAction==='fkDip'?1.42:1,curlTurnY,curlFinalX:targetX,curlSteer:guaranteedGoal?1:assist,life:0,maxLife:3.5,action:techniqueAction,power:effectivePower,targetX,targetY,targetRadius,quality,correctAction,eliteFreeKick:(eliteAllModes||eliteWallAssist),reliabilityAssist:assist,reaction:performance.now()-target.born,deflected:false,netHit:false,bounceCount:0,closest:999,placementMiss:Math.hypot(targetX-target.x,targetY-target.y),timingPerfect:timing.perfect,guaranteedGoal,forcedOutcome,perfectGoalX:safeX,perfectGoalY:safeY,perfectGoalZ};
     if(s.goalkeeper){const trueSide=Math.sign(targetX-50)||1,trueHeight=vz>130?'high':vz<42?'low':'mid';if(guaranteedGoal){s.goalkeeper.gkDiveSide=trueSide;s.goalkeeper.gkDiveHeight=trueHeight;s.goalkeeper.action='dive';s.goalkeeper.actionVariant=trueHeight==='high'?'top-corner':trueHeight==='low'?'low-reach-catch':'two-hand-dive';s.goalkeeper.actionTimer=.88;s.goalkeeper.actionLength=.88;s.goalkeeper.x=clamp(50+trueSide*.8,46,54);}else if(forcedOutcome==='save'){s.goalkeeper.gkDiveSide=trueSide;s.goalkeeper.gkDiveHeight=trueHeight;s.goalkeeper.action='dive';s.goalkeeper.actionVariant=trueHeight==='high'?'top-corner':trueHeight==='low'?'low-reach-catch':'two-hand-dive';s.goalkeeper.actionTimer=.92;s.goalkeeper.actionLength=.92;s.goalkeeper.x=clamp(targetX,46,54);}else{const misreadChance=clamp((assist-.70)*.58+(techniqueAction==='fkKnuckle'?.18:techniqueAction==='fkDip'?.10:techniqueAction==='fkCurl'?.05:0),0,.48),readSide=Math.random()<misreadChance?(Math.random()<.55?0:-trueSide):trueSide,readHeight=Math.random()<misreadChance*.55?(trueHeight==='high'?'mid':trueHeight==='low'?'mid':'high'):trueHeight;s.goalkeeper.gkDiveSide=readSide;s.goalkeeper.gkDiveHeight=readHeight;s.goalkeeper.action=readSide?'dive':'catch';s.goalkeeper.actionVariant=readSide?(readHeight==='high'?'top-corner':readHeight==='low'?'low-reach-catch':'two-hand-dive'):'body-behind';s.goalkeeper.actionTimer=lerp(.80,.60,assist);s.goalkeeper.actionLength=.80;s.goalkeeper.x=clamp(50+readSide*lerp(2.8,1.25,assist),43,57);}}
     s.kickTypes[techniqueAction]=(s.kickTypes[techniqueAction]||0)+1;s.player.dir=Math.atan2(target.y-s.player.y,target.x-s.player.x);setTrainingVisualAction(techniqueAction);setFreeKickIdealPower(techniqueAction);
     const name=$('#trainingActionName');if(name)name.textContent=`${freeKickTechniqueLabel(techniqueAction)} · ${Math.round(power*100)}%`;const timingLabel=timing.perfect?(eliteAllModes?'PERFECT CONTACT · GREEN ZONE':'GREEN CONTACT'):(timing.early?'EARLY RELEASE':'LATE RELEASE');setFreeKickToast(`${timingLabel} · ${freeKickTechniqueLabel(techniqueAction)}`,timing.perfect?'success':'strike',980);updateFreeKickHud();
@@ -6997,7 +7558,7 @@
     if(!b.deflected&&!b.guaranteedGoal&&!b.forcedOutcome&&s.obstacles?.length){for(const o of s.obstacles){if(o.flexible)continue;if(s.target&&Math.hypot(o.x-s.target.x,o.y-s.target.y)<3)continue;const jump=o.wall&&o.player?freeKickWallJumpAmount(o.player):0,lowerGap=o.wall?jump*15:0,upperHeight=(Number.isFinite(o.height)?o.height:(isFreeKickTrainingDrill()?48:28))+(o.wall?jump*(Number.isFinite(o.jumpHeight)?o.jumpHeight:19):0),ballHeight=b.z||0;if(ballHeight<lowerGap||ballHeight>upperHeight)continue;const dx=b.x-o.x,dy=b.y-o.y,d=Math.hypot(dx,dy),min=o.r+1;if(d>=min||d<.001)continue;const nx=dx/d,ny=dy/d;b.x=o.x+nx*min;b.y=o.y+ny*min;const dot=b.vx*nx+b.vy*ny;b.vx=(b.vx-2*dot*nx)*.5;b.vy=(b.vy-2*dot*ny)*.5;b.vz=Math.max(12,(b.vz||0)*.55);b.deflected=true;if(isFreeKickTrainingDrill()){s.wallHits=(s.wallHits||0)+1;setFreeKickToast(o.wall&&jump>.25?'WALL BLOCK · low shots can pass beneath the jump':'WALL HIT · adjust height, power or bend','miss',1100);}triggerTrainingImpact(b.x,b.y,'obstacle');break;}}
     const miss=Math.hypot(b.x-b.targetX,b.y-b.targetY);b.closest=Math.min(b.closest??999,miss);
     const settled=(Math.hypot(b.vx,b.vy)<3&&(b.z||0)<=0)||b.life>Math.max(2.1,b.maxLife||3.2)||b.netHit&&b.life>.25;
-    if(settled){const kicked={...b},closest=(kicked.closest||miss),radius=kicked.targetRadius||14;let quality=clamp(kicked.quality*(1-closest/Math.max(18,radius*3.5)),0,1);let success=!kicked.deflected&&kicked.correctAction&&closest<radius;if(activeTrainingDrill==='corners'&&kicked.aiCornerService&&!kicked.cornerFinishAttempt){success=false;quality=clamp(kicked.quality*.45,0,1);}if(activeTrainingDrill==='corners'&&s.cornerMode==='delivery'&&kicked.cornerAiFinishAttempt){const created=!!kicked.cornerDeliveryContact;success=created&&(!!kicked.netHit||Number(kicked.quality||0)>.55);quality=clamp(Number(kicked.deliveryQuality||kicked.quality||.5)*.58+Number(kicked.quality||.5)*.22+(created?.12:0)+(kicked.netHit?.08:0),0,1);}else if(activeTrainingDrill==='corners'&&kicked.cornerFinishAttempt){success=!!kicked.netHit&&!kicked.deflected;quality=clamp(Number(kicked.quality||.5)*.75+(success?.25:0),0,1);}if(activeTrainingDrill==='penalties'){success=!!kicked.netHit&&!kicked.deflected;quality=clamp(Number(kicked.quality||.5)*.72+Number(kicked.placementQuality||0)*.28,0,1);}if(isFreeKickTrainingDrill()){if(activeTrainingDrill==='freeKickTargets'){success=success&&kicked.netHit;if(success)s.targetHits=(s.targetHits||0)+1;}else if(activeTrainingDrill==='freeKickWall')success=!kicked.deflected&&kicked.correctAction&&kicked.netHit;else success=!kicked.deflected&&kicked.correctAction&&(kicked.netHit||closest<radius);if(!success&&!kicked.deflected){const timingMiss=kicked.forcedOutcome==='missOver'?'LATE RELEASE · OVER THE BAR':kicked.forcedOutcome==='missWide'?'EARLY RELEASE · WIDE':closest<8?'JUST WIDE · excellent technique':'ADJUST POWER, CONTACT OR AIM';setFreeKickToast(timingMiss,'miss',1150);}}s.ball={free:false,x:s.player.x,y:s.player.y,z:0,vx:0,vy:0,vz:0,spin:0};recordTrainingAction(success,quality,kicked.reaction||700,kicked.action||'kick')}
+    if(settled){const kicked={...b},closest=(kicked.closest||miss),radius=kicked.targetRadius||14;const accuracyMiss=activeTrainingDrill==='freeKickTargets'&&Number.isFinite(kicked.placementMiss)?kicked.placementMiss:closest;if(isFreeKickTrainingDrill()&&kicked.timingPerfect)s.perfectTiming=(s.perfectTiming||0)+1;let quality=clamp(kicked.quality*(1-accuracyMiss/Math.max(18,radius*3.5)),0,1);let success=!kicked.deflected&&kicked.correctAction&&accuracyMiss<radius;if(activeTrainingDrill==='corners'&&kicked.aiCornerService&&!kicked.cornerFinishAttempt){success=false;quality=clamp(kicked.quality*.45,0,1);}if(activeTrainingDrill==='corners'&&s.cornerMode==='delivery'&&kicked.cornerAiFinishAttempt){const created=!!kicked.cornerDeliveryContact;success=created&&(!!kicked.netHit||Number(kicked.quality||0)>.55);quality=clamp(Number(kicked.deliveryQuality||kicked.quality||.5)*.58+Number(kicked.quality||.5)*.22+(created?.12:0)+(kicked.netHit?.08:0),0,1);}else if(activeTrainingDrill==='corners'&&kicked.cornerFinishAttempt){success=!!kicked.netHit&&!kicked.deflected;quality=clamp(Number(kicked.quality||.5)*.75+(success?.25:0),0,1);}if(activeTrainingDrill==='penalties'){success=!!kicked.netHit&&!kicked.deflected;quality=clamp(Number(kicked.quality||.5)*.72+Number(kicked.placementQuality||0)*.28,0,1);}if(isFreeKickTrainingDrill()){if(activeTrainingDrill==='freeKickTargets'){success=success&&kicked.netHit;if(success)s.targetHits=(s.targetHits||0)+1;}else if(activeTrainingDrill==='freeKickWall')success=!kicked.deflected&&kicked.correctAction&&kicked.netHit;else success=!kicked.deflected&&kicked.correctAction&&(kicked.netHit||closest<radius);if(!success&&!kicked.deflected){const timingMiss=kicked.forcedOutcome==='missOver'?'LATE RELEASE · OVER THE BAR':kicked.forcedOutcome==='missWide'?'EARLY RELEASE · WIDE':closest<8?'JUST WIDE · excellent technique':'ADJUST POWER, CONTACT OR AIM';setFreeKickToast(timingMiss,'miss',1150);}}s.ball={free:false,x:s.player.x,y:s.player.y,z:0,vx:0,vy:0,vz:0,spin:0};recordTrainingAction(success,quality,kicked.reaction||700,kicked.action||'kick')}
   }
   function resolveTrainingObstacleCollision(x,y,radius,obstacles){
     if(!obstacles||!obstacles.length)return {x,y};
@@ -7127,7 +7688,7 @@
   function startTrainingDrillCore(){
     if(!activeTrainingDrill||!career||career.injury)return;if(isTechnicalZoneDrill()){startTechnicalZoneTraining();return;}if(isPassingAcademyDrill()){startPassingAcademyTraining();return;}if(isAdvancedTacticalTrainingDrill()){startTacticalTraining();return;}if(activeTrainingDrill==='repeatSprints'){startRaceTraining();return;}if(trainingMechanicId(activeTrainingDrill)==='swimming'){startSwimmingTraining();return;}if(isPerformanceGymDrill()){startPerformanceGymTraining();return;}clearTrainingControls();if(isFreeKickTrainingDrill())$('#trainingGameModal').classList.add('fk-live-session');if(activeTrainingDrill==='penalties')$('#trainingGameModal').classList.add('penalty-live-session');if(activeTrainingDrill==='corners')$('#trainingGameModal').classList.add('corner-live-session');const rewardEligible=trainingCareerRewardAvailable(career.player),duration=isFinishingPitchDrill()?60:(demoMode?(activeTrainingDrill==='agility'?20:12):45);
     const fkStart=isFreeKickTrainingDrill()?freeKickSpotFor(activeTrainingDrill,0):null,setStart=activeTrainingDrill==='penalties'?{x:50,y:78,dir:-Math.PI/2}:activeTrainingDrill==='corners'?(selectedCornerTrainingMode==='attack'?{x:50,y:55,dir:-Math.PI/2}:{x:10,y:84,dir:-.72}):activeTrainingDrill==='crossing'?{x:12,y:68,dir:-.45}:activeTrainingDrill==='agility'?{x:8,y:50,dir:0}:isDefensivePitchDrill()?defensiveStartPositions(activeTrainingDrill):fkStart?{x:fkStart.x,y:fkStart.y,dir:Math.atan2(17-fkStart.y,50-fkStart.x)}:null,start=setStart||{x:50,y:isGoalkeeperReactionDrill()?27:82,dir:-Math.PI/2};
-    trainingGameState={sharedEngine:true,score:0,streak:0,bestStreak:0,time:duration,duration,hits:0,multiplier:1,rewardEligible,player:{x:start.x,y:start.y,dir:start.dir,moveSpeed:0},ball:{free:false,x:start.x,y:start.y,z:0,vx:0,vy:0,vz:0,spin:0},keys:new Set(),heldKickKeys:new Set(),kickStart:0,pendingAction:null,kickTypes:{},actionCounts:{},energy:100,targetIndex:0,attempts:0,successes:0,mistakes:0,accuracySamples:[],reactions:[],segments:Array.from({length:5},()=>({attempts:0,success:0})),distance:0,assistSeconds:0,demoAuto:!!demoMode&&!['setpieces','penalties','corners','crossing'].includes(activeTrainingDrill),lastAutoAction:0,gkAnimationCycle:0,obstacles:activeTrainingObstacles,impacts:[],teammates:activeTrainingDrill==='corners'?(selectedCornerTrainingMode==='attack'?createCornerAttackSquad():createCornerDeliverySquad()):isDefensivePitchDrill()?[]:trainingUsesTeammates(activeTrainingDrill)?spawnTrainingTeammates():null,wallPlayers:trainingUsesFreeKickWall(activeTrainingDrill)?createFreeKickWall():null,goalkeeper:trainingUsesGoalkeeper(activeTrainingDrill)?createTrainingGoalkeeper():null,goals:0,wallHits:0,targetHits:0,freeKickSpot:fkStart,penaltyAim:activeTrainingDrill==='penalties'?{x:50,y:17}:null,penaltyBallSpot:activeTrainingDrill==='penalties'?{x:50,y:70}:null,penaltyHistory:[],penaltyTimingSamples:[],penaltyPlacementSamples:[],penaltyTechniqueGoals:{},penaltyPressure:0,cornerMode:activeTrainingDrill==='corners'?selectedCornerTrainingMode:null,cornerFinishCounts:{},cornerDeliveryCounts:{},cornerServicePending:false,cornerSingleBall:true,cornerAiPossession:selectedCornerTrainingMode==='attack',cornerPendingFinish:null,cornerVisibleContact:false};window.__circleTraining=trainingGameState;if(isDefensivePitchDrill()){$('#trainingGameModal').classList.add('defensive-live-session');$('#trainingGameStage')?.classList.remove('defensive-ready');$('#trainingGameStage')?.classList.add('defensive-counting');initialiseDefensivePitchState(trainingGameState);trainingGameState.defensive.countdownUntil=performance.now()+3000;const count=$('#defensiveCountdown');if(count){count.classList.add('show');count.querySelector('b').textContent='3';count.querySelector('small').textContent='GET READY'}}if(activeTrainingDrill==='agility'){initialiseAgilityState(trainingGameState);$('#trainingGameModal').classList.add('agility-live');$('#trainingGameStage')?.classList.remove('agility-ready');}if(isFreeKickTrainingDrill())applyFreeKickSpot(trainingGameState,fkStart||FREE_KICK_SPOTS[0]);if(isFinishingPitchDrill())initialiseFinishingPitchState(trainingGameState);
+    trainingGameState={sharedEngine:true,score:0,streak:0,bestStreak:0,time:duration,duration,hits:0,multiplier:1,rewardEligible,player:{x:start.x,y:start.y,dir:start.dir,moveSpeed:0},ball:{free:false,x:start.x,y:start.y,z:0,vx:0,vy:0,vz:0,spin:0},keys:new Set(),heldKickKeys:new Set(),kickStart:0,pendingAction:null,kickTypes:{},actionCounts:{},energy:100,targetIndex:0,attempts:0,successes:0,mistakes:0,accuracySamples:[],reactions:[],segments:Array.from({length:5},()=>({attempts:0,success:0})),distance:0,assistSeconds:0,demoAuto:!!demoMode&&!['setpieces','penalties','corners','crossing'].includes(activeTrainingDrill),lastAutoAction:0,gkAnimationCycle:0,obstacles:activeTrainingObstacles,impacts:[],teammates:activeTrainingDrill==='corners'?(selectedCornerTrainingMode==='attack'?createCornerAttackSquad():createCornerDeliverySquad()):isDefensivePitchDrill()?[]:trainingUsesTeammates(activeTrainingDrill)?spawnTrainingTeammates():null,sharedEngine:isFreeKickTrainingDrill()||undefined,wallPlayers:trainingUsesFreeKickWall(activeTrainingDrill)?createFreeKickWall():null,goalkeeper:trainingUsesGoalkeeper(activeTrainingDrill)?createTrainingGoalkeeper():null,goals:0,wallHits:0,targetHits:0,freeKickSpot:fkStart,penaltyAim:activeTrainingDrill==='penalties'?{x:50,y:17}:null,penaltyBallSpot:activeTrainingDrill==='penalties'?{x:50,y:70}:null,penaltyHistory:[],penaltyTimingSamples:[],penaltyPlacementSamples:[],penaltyTechniqueGoals:{},penaltyPressure:0,cornerMode:activeTrainingDrill==='corners'?selectedCornerTrainingMode:null,cornerFinishCounts:{},cornerDeliveryCounts:{},cornerServicePending:false,cornerSingleBall:true,cornerAiPossession:selectedCornerTrainingMode==='attack',cornerPendingFinish:null,cornerVisibleContact:false};window.__circleTraining=trainingGameState;if(isDefensivePitchDrill()){$('#trainingGameModal').classList.add('defensive-live-session');$('#trainingGameStage')?.classList.remove('defensive-ready');$('#trainingGameStage')?.classList.add('defensive-counting');initialiseDefensivePitchState(trainingGameState);trainingGameState.defensive.countdownUntil=performance.now()+3000;const count=$('#defensiveCountdown');if(count){count.classList.add('show');count.querySelector('b').textContent='3';count.querySelector('small').textContent='GET READY'}}if(activeTrainingDrill==='agility'){initialiseAgilityState(trainingGameState);$('#trainingGameModal').classList.add('agility-live');$('#trainingGameStage')?.classList.remove('agility-ready');}if(isFreeKickTrainingDrill())applyFreeKickSpot(trainingGameState,fkStart||FREE_KICK_SPOTS[0]);if(isFinishingPitchDrill())initialiseFinishingPitchState(trainingGameState);
     const s=trainingGameState;s.penaltyReady=activeTrainingDrill!=='penalties';s.keyDown=e=>{const k=e.key.toLowerCase();if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright','shift','m',' ','j','k','l','i'].includes(k))e.preventDefault();if(activeTrainingDrill==='penalties'&&!s.penaltyReady)return;s.keys.add(k);if(isDefensivePitchDrill()){if(!e.repeat&&activeTrainingDrill==='onevoneDef'&&k==='k')performDefensiveTackle('standing');else if(!e.repeat&&activeTrainingDrill==='onevoneDef'&&k==='l')performDefensiveTackle('slide');else if(!e.repeat&&activeTrainingDrill==='threevthreeDef'&&k==='j')performDefensivePass();else if(!e.repeat&&k===' ')activeTrainingDrill==='onevoneDef'?performDefensiveTackle('standing'):performTrainingDefence();return}if(activeTrainingDrill!=='agility'&&['j','k','l','i'].includes(k)&&!e.repeat)beginTrainingKick(k);if(activeTrainingDrill!=='agility'&&k===' '&&!e.repeat)performTrainingDefence()};s.keyUp=e=>{const k=e.key.toLowerCase();s.keys.delete(k);if(activeTrainingDrill==='penalties'&&!s.penaltyReady)return;if(!isDefensivePitchDrill()&&activeTrainingDrill!=='agility'&&['j','k','l','i'].includes(k))releaseTrainingKick(k)};window.addEventListener('keydown',s.keyDown,{passive:false});window.addEventListener('keyup',s.keyUp);
     if(isFreeKickTrainingDrill())setFreeKickToast('READY · choose your technique','objective',1000);else if(activeTrainingDrill==='corners'){cornerFeedback(selectedCornerTrainingMode==='delivery'?`READY · ${cornerDeliveryLabel()}`:'READY · POSITION AND ATTACK','objective',900);updateCornerHud();}else if(activeTrainingDrill==='penalties'){const stage=$('#trainingGameStage'),count=$('#penaltyCountdown');stage?.classList.add('penalty-counting');let n=3;if(count){count.classList.add('show');count.querySelector('b').textContent='3';count.querySelector('small').textContent='GET SET'}const tick=setInterval(()=>{if(!trainingGameState){clearInterval(tick);return}n--;if(n>0){if(count)count.querySelector('b').textContent=String(n)}else{clearInterval(tick);if(count){count.querySelector('b').textContent='SHOOT!';count.querySelector('small').textContent='AIM · CHARGE · RELEASE'}setTimeout(()=>{if(trainingGameState===s){trainingGameState.penaltyReady=true;stage?.classList.remove('penalty-counting');count?.classList.remove('show');penaltyFeedback('YOUR PENALTY','objective',650);updatePenaltyHud()}},480)}},520);updatePenaltyHud();}else if(activeTrainingDrill==='agility'){agilityFeedback('GO · QUICK FEET · ATTACK THE GAPS','objective',1100);updateAgilityHud(s);}else if(isDefensivePitchDrill()){defensiveFeedback(activeTrainingDrill==='defending'?'READY · READ THE PASS':activeTrainingDrill==='onevoneDef'?'READY · STAY GOAL-SIDE':'READY · PRESS · COVER · SHIFT','objective',650);defensiveHud(s);}else $('#trainingGamePrompt').textContent='GO! Match controls enabled';updateTrainingFunHud();if(isFreeKickTrainingDrill()){const ch=$('#trainingGameChallenge');if(ch)ch.textContent='A+ / 3★ earns +1 Free Kick once this week';updateFreeKickHud();}if(!isDefensivePitchDrill()&&!isFinishingPitchDrill())spawnControlledTarget();positionTrainingElements();drawTrainingSharedEngine();s.raf=requestAnimationFrame(updateControlledTraining);s.timer=setInterval(()=>{if(!trainingGameState)return;if(activeTrainingDrill==='penalties'){const left=Math.max(0,10-trainingGameState.attempts);$('#trainingGameTime').textContent=left;updatePenaltyHud();return;}if(activeTrainingDrill==='corners'){const left=Math.max(0,10-trainingGameState.attempts);$('#trainingGameTime').textContent=left;updateCornerHud();return;}if(isDefensivePitchDrill()&&trainingGameState.defensive?.countdownUntil&&performance.now()<trainingGameState.defensive.countdownUntil){defensiveHud(trainingGameState);return}trainingGameState.time--;$('#trainingGameTime').textContent=trainingGameState.time;if(activeTrainingDrill==='agility')updateAgilityHud(trainingGameState);if(isDefensivePitchDrill())defensiveHud(trainingGameState);if(isFreeKickTrainingDrill())updateFreeKickHud();if(trainingGameState.time<=0)finishControlledTraining()},1000);$('#trainingGameStage').focus();
   }
@@ -7145,6 +7706,29 @@
       const timing=fp.timingSamples?.length?Math.round(fp.timingSamples.reduce((x,y)=>x+y,0)/fp.timingSamples.length*100):Math.round(fAvg*.9),powerCtl=fp.powerSamples?.length?Math.round(fp.powerSamples.reduce((x,y)=>x+y,0)/fp.powerSamples.length*100):0,speed=118-Math.round(fReact/24),cons=58+s.bestStreak*8-s.mistakes*4,comp=Math.round(fAvg*.55+clamp(cons,0,100)*.45),ant=Math.round(Number(career?.player?.attrs?.anticipation||55)),carry=Math.round((s.distance||0)/att*2.2);
       const fValues={finishing:[fAcc,techRate,comp,targetRate,cons],onevone:[goalRate,speed,beaten,carry,comp],pressurefinish:[goalRate,speed,receiveRate,space,comp],firsttime:[contactRate,ant,techRate,targetRate,timing],longrange:[fAcc,powerCtl,techRate,targetRate,comp],aerial:[timing,contactRate,techRate,ant,cons]}[drillId]||[fAcc,fAvg,speed,targetRate,cons];
       return {accuracy:fAcc,avg:fAvg,reaction:fReact,values:fValues.map(v=>clamp(Math.round(Number(v)||0),0,100)),labels:drillMetricLabels(drillId)};
+    }
+    if(isFreeKickTrainingDrill(drillId)||drillId==='penalties'||drillId==='corners'){
+      const att=Math.max(1,s.attempts||0),mean=list=>list?.length?list.reduce((a,b)=>a+b,0)/list.length:0;
+      const spAcc=s.attempts?Math.round(s.successes/s.attempts*100):0,spAvg=Math.round(mean(s.accuracySamples)),
+        spReact=Math.round(mean(s.reactions)),goalRate=Math.round(clamp((s.goals||0)/att,0,1)*100),
+        powerWindow=Math.round(clamp((s.perfectTiming||0)/att,0,1)*100),
+        cons=clamp(Math.round(58+(s.bestStreak||0)*8-(s.mistakes||0)*6),10,100);
+      let vals;
+      if(drillId==='freeKickTargets')vals=[Math.round(clamp((s.targetHits||0)/att,0,1)*100),spAvg,goalRate,powerWindow,cons];
+      else if(drillId==='freeKickWall')vals=[spAcc,goalRate,spAvg,Math.round(clamp(1-(s.wallHits||0)/att,0,1)*100),cons];
+      else if(drillId==='setpieces')vals=[spAcc,goalRate,spAvg,powerWindow,cons];
+      else if(drillId==='penalties'){
+        const timing=Math.round(mean(s.penaltyTimingSamples)*100),place=Math.round(mean(s.penaltyPlacementSamples)*100),
+          range=Math.round(clamp(Object.keys(s.penaltyTechniqueGoals||{}).length/4,0,1)*100);
+        vals=[goalRate,place||spAvg,timing||spAvg,range,clamp(Math.round(55+(s.bestStreak||0)*7-(s.mistakes||0)*8),10,100)];
+      }else{
+        const counts=s.cornerMode==='attack'?(s.cornerFinishCounts||{}):(s.kickTypes||{}),
+          range=Math.round(clamp(Object.keys(counts).length/4,0,1)*100);
+        vals=s.cornerMode==='attack'
+          ?[goalRate,spAvg,Math.round(clamp((s.successes||0)/att,0,1)*100),range,cons]
+          :[spAcc,Math.round(clamp((s.successes||0)/att,0,1)*100),spAvg,range,cons];
+      }
+      return {accuracy:spAcc,avg:spAvg,reaction:spReact,values:vals.map(v=>clamp(Math.round(Number(v)||0),0,100)),labels:drillMetricLabels(drillId)};
     }
     const acc=s.attempts?Math.round(s.successes/s.attempts*100):0,avg=s.accuracySamples.length?Math.round(s.accuracySamples.reduce((a,b)=>a+b,0)/s.accuracySamples.length):0,react=s.reactions.length?Math.round(s.reactions.reduce((a,b)=>a+b,0)/s.reactions.length):0;
     const base=[acc,avg,clamp(Math.round(100-react/18),20,100),clamp(Math.round(65+s.streak*4-s.mistakes*5),15,100),clamp(Math.round(s.energy),10,100)];
@@ -7300,27 +7884,23 @@
     if(s.startsWith('uecl'))return{key:'uecl',competitionId:'conference-league',stage:s.includes('league')?'league-phase':'qualifying'};
     return null;
   }
-  function makeEuropeanCompetition(save,qualification){
-    const q=normalizeEuropeanQualification(qualification);if(!q)return null;const def=CXI_UEFA_DEFS[q.competitionId];if(!def)return null;
-    const qualifying=q.stage==='qualifying',leaguePhaseMatches=def.leaguePhaseMatches;
-    return{...def,icon:def.icon,format:qualifying?'qualifying-to-league-phase':'league-phase',qualificationStage:q.stage,roundIndex:0,leaguePhasePlayed:0,leaguePhasePoints:0,leaguePhaseGF:0,leaguePhaseGA:0,leaguePhaseMatches,nextWeek:qualifying?2:5,eliminated:false,winner:false,history:[],continental:true,participantPoolKey:q.key};
+  function makeEuropeanCompetition(save,qualification){return makeContinentalCompetition(save,cxiQualificationFromLegacy(qualification))}
+  function makeContinentalCompetition(save,qualification){
+    if(!qualification)return null;const q=typeof qualification==='string'?cxiQualificationFromLegacy(qualification):qualification,def=cxiCompetitionDefById(q?.competitionId);if(!q||!def)return null;
+    const qualifying=q.stage==='qualifying',leagueMatches=Number(def.leaguePhaseMatches)||0,format=qualifying?'qualifying-to-league-phase':leagueMatches?'league-phase':'knockout';
+    return{...def,format,qualificationStage:q.stage||'league-phase',roundIndex:0,leaguePhasePlayed:0,leaguePhasePoints:0,leaguePhaseGF:0,leaguePhaseGA:0,leaguePhaseMatches:leagueMatches,nextWeek:cxiCompetitionStartSlot(def.confederationId,def.tier),eliminated:false,winner:false,history:[],continental:true,confederationId:def.confederationId,tier:def.tier,participantPoolKey:def.id,stageLabel:def.stageLabel||'League phase'};
   }
   function ensureCupCompetitions(save=career){
-    if(!save)return[];const domestic=domesticCompetitionDefs(save),existing=Array.isArray(save.cups)?save.cups:[];
-    const staleEurope=new Set(['champions-league','europa-league','conference-league']);
-    const kept=existing.filter(c=>!staleEurope.has(c.id));
-    domestic.forEach(def=>{if(!kept.some(c=>c.id===def.id))kept.push(def);});
-    const q=save.europeanQualification||save.club?.uefa2026||null,euro=makeEuropeanCompetition(save,q);
-    if(euro){const old=existing.find(c=>c.id===euro.id);kept.push(old?{...euro,...old,format:old.format||euro.format,leaguePhaseMatches:euro.leaguePhaseMatches,participantPoolKey:euro.participantPoolKey}:euro);}
-    save.cups=kept;
-    save.cups.forEach(c=>{c.history=Array.isArray(c.history)?c.history:[];c.roundIndex=Math.max(0,Number(c.roundIndex)||0);c.nextWeek=Math.max(Number(c.nextWeek)||4,save.week||1);if(typeof c.eliminated!=='boolean')c.eliminated=false;if(c.continental){c.leaguePhasePlayed=Number(c.leaguePhasePlayed)||0;c.leaguePhasePoints=Number(c.leaguePhasePoints)||0;c.leaguePhaseGF=Number(c.leaguePhaseGF)||0;c.leaguePhaseGA=Number(c.leaguePhaseGA)||0;}});
-    return save.cups;
+    if(!save)return[];const domestic=domesticCompetitionDefs(save),existing=Array.isArray(save.cups)?save.cups:[],kept=existing.filter(c=>!c.continental&&!CXI_ALL_CONTINENTAL_COMP_IDS.has(c.id));
+    domestic.forEach(def=>{const old=existing.find(c=>c.id===def.id);if(!kept.some(c=>c.id===def.id))kept.push(old?{...def,...old}:def)});
+    if(save.world){save.world.confederationId=cxiClubConfederation(save).id;if(!save.continentalQualification){save.continentalQualification=cxiQualificationFromLegacy(save.europeanQualification);if(!save.continentalQualification&&Number(save.season||1)===1){const ranked=[...(save.league||[])].sort((a,b)=>(b.reputation||60)-(a.reputation||60)),pos=Math.max(1,ranked.findIndex(c=>(save.club?.id&&c.id===save.club.id)||c.name===save.club?.name)+1);save.continentalQualification=cxiQualificationForPosition(save.world.countryId,pos,ranked.length)}}}
+    const continental=makeContinentalCompetition(save,save.continentalQualification);if(continental){const old=existing.find(c=>c.id===continental.id);kept.push(old?{...continental,...old,leaguePhaseMatches:continental.leaguePhaseMatches,confederationId:continental.confederationId,tier:continental.tier,knockoutRounds:continental.knockoutRounds,stageLabel:continental.stageLabel}:continental)}
+    save.cups=kept;save.cups.forEach(c=>{c.history=Array.isArray(c.history)?c.history:[];c.roundIndex=Math.max(0,Number(c.roundIndex)||0);c.nextWeek=cxiNextCupSlot(save,Math.max(Number(c.nextWeek)||4,save.week||1));if(typeof c.eliminated!=='boolean')c.eliminated=false;if(c.continental){c.leaguePhasePlayed=Number(c.leaguePhasePlayed)||0;c.leaguePhasePoints=Number(c.leaguePhasePoints)||0;c.leaguePhaseGF=Number(c.leaguePhaseGF)||0;c.leaguePhaseGA=Number(c.leaguePhaseGA)||0}});return save.cups;
   }
   function competitionRoundLabel(cup){
-    if(!cup)return'';
-    if(cup.format==='qualifying-to-league-phase')return'Qualifying play-off';
-    if(cup.format==='league-phase'&&cup.leaguePhasePlayed<(cup.leaguePhaseMatches||8))return`League phase · Match ${cup.leaguePhasePlayed+1} of ${cup.leaguePhaseMatches||8}`;
-    if(cup.continental)return UEFA_KNOCKOUT_ROUNDS[Math.min(cup.roundIndex,UEFA_KNOCKOUT_ROUNDS.length-1)];
+    if(!cup)return'';if(cup.format==='qualifying-to-league-phase')return'Qualifying play-off';
+    if(cup.format==='league-phase'&&cup.leaguePhasePlayed<(cup.leaguePhaseMatches||8))return`${cup.stageLabel||'League phase'} · Match ${cup.leaguePhasePlayed+1} of ${cup.leaguePhaseMatches||8}`;
+    if(cup.continental){const rounds=cxiContinentalKnockoutRounds(cup);return rounds[Math.min(cup.roundIndex,rounds.length-1)]||'Final'}
     return CUP_ROUNDS[Math.min(cup.roundIndex,CUP_ROUNDS.length-1)];
   }
   const FALLBACK_NATIONAL_RATINGS={Ghana:67,England:84,Scotland:72,Wales:71,Ireland:70,'Northern Ireland':68,France:86,Spain:86,Germany:84,Italy:83,Portugal:84,Brazil:87,Argentina:88,Nigeria:74,Senegal:77};
@@ -7331,14 +7911,13 @@
   }
   function ensureInternationalCareer(save=career){
     if(!save)return null;const country=careerCountry(save),name=country?.name||save.player?.nationality||save.world?.countryName||'Circle XI';
-    const fallback=FALLBACK_NATIONAL_RATINGS[name]??clamp(64+(String(name).split('').reduce((n,ch)=>n+ch.charCodeAt(0),0)%18),60,84),teamRating=clamp(Math.round(country?.reputation||fallback),50,95);
-    if(!save.international||typeof save.international!=='object')save.international={countryId:country?.id||String(name).toLowerCase().replace(/\W+/g,'-'),countryName:name,teamRating,selected:false,status:'Not assessed',selectionScore:0,averageForm:0,caps:0,goals:0,assists:0,tournament:null,lastAssessmentSeason:0};
-    Object.assign(save.international,{countryId:country?.id||save.international.countryId,countryName:name,teamRating});
-    save.international.caps=Number(save.international.caps)||0;save.international.goals=Number(save.international.goals)||0;save.international.assists=Number(save.international.assists)||0;return save.international;
+    const fallback=FALLBACK_NATIONAL_RATINGS[name]??clamp(64+(String(name).split('').reduce((n,ch)=>n+ch.charCodeAt(0),0)%18),60,84),teamRating=country?cxiNationalOverall(country):clamp(Math.round(fallback),50,95),confed=cxiConfederationForCountry(country||name);
+    if(!save.international||typeof save.international!=='object')save.international={countryId:country?.id||String(name).toLowerCase().replace(/\W+/g,'-'),countryName:name,confederationId:confed.id,teamRating,selected:false,status:'Not assessed',selectionScore:0,averageForm:0,caps:0,goals:0,assists:0,tournament:null,windowSchedule:null,lastAssessmentSeason:0,lastWindowAssessmentSeason:0};
+    Object.assign(save.international,{countryId:country?.id||save.international.countryId,countryName:name,confederationId:confed.id,teamRating});save.international.caps=Number(save.international.caps)||0;save.international.goals=Number(save.international.goals)||0;save.international.assists=Number(save.international.assists)||0;return save.international;
   }
   function nationalTeamClub(countryOrName,rating=null){
     const country=typeof countryOrName==='object'?countryOrName:(circleXIManagerCore?.COUNTRIES||[]).find(c=>c.name===countryOrName||c.id===countryOrName),name=country?.name||String(countryOrName||'Circle XI'),national=CXI_NATIONAL_KITS_2026[country?.id],palette=national?[national[0][0],national[0][1]]:(country?.elementPalette||['#1d4ed8','#f8fafc']),base={primary:palette[0]||'#1d4ed8',secondary:palette[1]||'#f8fafc',pattern:national?.[0]?.[2]||'solid'};
-    return{id:`national-${country?.id||name.toLowerCase().replace(/\W+/g,'-')}`,name,shortName:name,abbr:country?.code||name.slice(0,3).toUpperCase(),primary:base.primary,secondary:base.secondary,kitPattern:base.pattern,kits:national?{home:{key:'home',name:'Home',primary:national[0][0],secondary:national[0][1],shorts:national[0][1],socks:national[0][1],pattern:national[0][2]},away:{key:'away',name:'Away',primary:national[1][0],secondary:national[1][1],shorts:national[1][1],socks:national[1][1],pattern:national[1][2]},third:{key:'third',name:'Third',primary:'#111827',secondary:'#f8fafc',shorts:'#111827',socks:'#111827',pattern:'solid'},goalkeeper:{key:'goalkeeper',name:'Goalkeeper',primary:'#22c55e',secondary:'#111827',shorts:'#22c55e',socks:'#22c55e',pattern:'solid'}}:cxiExplicitKits(base),logoMark:country?.elementIcon||'🌐',branding:{icon:country?.elementIcon||'🌐',elementId:country?.elementId||''},reputation:rating||country?.reputation||70,stadium:'International Tournament Stadium',isNationalTeam:true};
+    return{id:`national-${country?.id||name.toLowerCase().replace(/\W+/g,'-')}`,name,shortName:name,abbr:country?.code||name.slice(0,3).toUpperCase(),primary:base.primary,secondary:base.secondary,kitPattern:base.pattern,kits:national?{home:{key:'home',name:'Home',primary:national[0][0],secondary:national[0][1],shorts:national[0][3]||national[0][1],socks:national[0][4]||national[0][0],pattern:national[0][2]},away:{key:'away',name:'Away',primary:national[1][0],secondary:national[1][1],shorts:national[1][3]||national[1][1],socks:national[1][4]||national[1][0],pattern:national[1][2]},third:{key:'third',name:'Third',primary:'#111827',secondary:'#f8fafc',shorts:'#111827',socks:'#111827',pattern:'solid'},goalkeeper:{key:'goalkeeper',name:'Goalkeeper',primary:'#22c55e',secondary:'#111827',shorts:'#22c55e',socks:'#22c55e',pattern:'solid'}}:cxiExplicitKits(base),logoMark:country?.elementIcon||'🌐',branding:{icon:country?.elementIcon||'🌐',elementId:country?.elementId||''},reputation:rating||(country?cxiNationalOverall(country):70),stadium:'International Tournament Stadium',isNationalTeam:true};
   }
   function internationalAverageForm(save=career){const ratings=(save?.recentRatings||[]).filter(Number.isFinite).slice(-5);return ratings.length?ratings.reduce((a,b)=>a+b,0)/ratings.length:6.5;}
   function evaluateInternationalCallup(save=career,force=false){
@@ -7351,23 +7930,25 @@
     Object.assign(intl,{selected,automatic,status:selected?'Called up':'Not selected',selectionScore:automatic?100:Math.round(chance*100),averageForm:+form.toFixed(2),reason,lastAssessmentSeason:save.season||1});return intl;
   }
   function buildInternationalTournament(save=career){
-    const intl=ensureInternationalCareer(save),homeCountry=careerCountry(save),pool=(circleXIManagerCore?.COUNTRIES||[]).filter(c=>c.id!==homeCountry?.id),fallback=['Aurelia','Bravora','Ilyrion','Valoria','Highmere','Ravelin'];
-    const seed=(save.season||1)*7+String(intl.countryName).length,opponents=INTERNATIONAL_ROUNDS.map((_,i)=>pool.length?nationalTeamClub(pool[(seed+i*5)%pool.length]):nationalTeamClub(fallback[i],68+i*2));
-    const startWeek=Math.max(49,(save.week||1)+1);return{id:`international-${save.season||1}`,name:`${homeCountry?.elementId||save.world?.continent||'World'} Nations Championship`,icon:'\ud83c\udf10',starts:'Summer',ends:'Summer',matchIndex:0,totalMatches:INTERNATIONAL_ROUNDS.length,eliminated:false,completed:false,winner:false,fixtures:INTERNATIONAL_ROUNDS.map((round,i)=>({week:startWeek+i,round,opponent:opponents[i],status:'scheduled'})),history:[]};
+    const intl=ensureInternationalCareer(save),homeCountry=careerCountry(save),plan=cxiInternationalCompetitionPlan(save),confed=cxiNationalConfederation(save),pool=cxiNationalPool(confed.id,homeCountry?.id,plan.world),fallback=['Aurelia','Bravora','Ilyrion','Valoria','Highmere','Ravelin'];
+    const rounds=plan.championship?INTERNATIONAL_ROUNDS:['Qualifying · Match 1','Qualifying · Match 2','Qualifying · Match 3','Qualifying · Match 4'],seed=(save.season||1)*17+String(intl.countryName).length,opponents=rounds.map((_,i)=>pool.length?nationalTeamClub(pool[(seed+i*7)%pool.length]):nationalTeamClub(fallback[i%fallback.length],68+i*2));
+    const startWeek=Math.max(CXI_GLOBAL_CALENDAR.summerStartSlot,(save.week||1)+1);return{id:`${plan.id}-${save.season||1}`,competitionId:plan.id,name:plan.name,shortName:plan.shortName,icon:plan.world?'🌐':confed.icon,confederationId:plan.confederationId,championship:plan.championship,world:plan.world,year:plan.year,starts:'International period',ends:'International period',matchIndex:0,totalMatches:rounds.length,eliminated:false,completed:false,winner:false,fixtures:rounds.map((round,i)=>({week:startWeek+i,round,opponent:opponents[i],status:'scheduled',window:false})),history:[]};
   }
-  function currentInternationalFixture(save=career){const tournament=ensureInternationalCareer(save)?.tournament;return tournament&&!tournament.completed?tournament.fixtures[tournament.matchIndex]||null:null;}
+  function currentInternationalFixture(save=career){const windowFixture=cxiInternationalWindowFixture(save,save?.week);if(windowFixture&&ensureInternationalCareer(save)?.selected)return windowFixture;const tournament=ensureInternationalCareer(save)?.tournament;return tournament&&!tournament.completed?tournament.fixtures[tournament.matchIndex]||null:null}
   function careerLeagueMatchTotal(save=career){
     const size=Math.max(2,Number(save?.league?.length)||Number(save?.world?.expectedLeagueSize)||20);
     return Math.max(2,(size-1)*2);
   }
   function currentCareerCompetition(save=career){
-    if(save?.phase==='international'){const intl=ensureInternationalCareer(save),t=intl?.tournament,fixture=currentInternationalFixture(save);if(t&&fixture)return{type:'international',id:t.id,name:t.name,icon:t.icon||'\ud83c\udf10',round:fixture.round,tournament:t,fixture};}
-    const cup=ensureCupCompetitions(save).find(c=>!c.eliminated&&(save.week||1)>=c.nextWeek);
-    if(cup)return{type:'cup',id:cup.id,name:cup.name,icon:cup.icon||'\ud83c\udfc6',round:competitionRoundLabel(cup),cup};
-    const total=careerLeagueMatchTotal(save);return{type:'league',id:save?.world?.leagueId||'league',name:save?.world?.leagueName||'The Crown League',icon:save?.world?.leagueBranding?.icon||'\u25c6',round:`Matchweek ${Math.min(total,(save?.leagueMatchesPlayed||0)+1)} of ${total}`};
+    if(!save)return{type:'league',id:'league',name:'League',icon:'◆',round:'Match'};
+    if(save.phase==='international'){const intl=ensureInternationalCareer(save),t=intl?.tournament,fixture=t&&!t.completed?t.fixtures[t.matchIndex]||null:null;if(t&&fixture)return{type:'international',id:t.id,name:t.name,icon:t.icon||'🌐',round:fixture.round,tournament:t,fixture,window:false,confederationId:t.confederationId}}
+    if(cxiIsInternationalWindowSlot(save.week)){const intl=ensureInternationalCareer(save);if(intl.lastWindowAssessmentSeason!==(save.season||1)){evaluateInternationalCallup(save,true);intl.lastWindowAssessmentSeason=save.season||1;cxiEnsureInternationalWindowSchedule(save)}const fixture=cxiInternationalWindowFixture(save,save.week);if(intl.selected&&fixture)return{type:'international',id:`window-${intl.confederationId}-${save.season}`,name:fixture.competitionName,icon:cxiNationalConfederation(save).icon,round:fixture.round,fixture,window:true,confederationId:intl.confederationId};cxiAdvancePastUnusedInternationalWindow(save)}
+    const cup=ensureCupCompetitions(save).find(c=>!c.eliminated&&(save.week||1)>=c.nextWeek);if(cup)return{type:'cup',id:cup.id,name:cup.name,icon:cup.icon||'🏆',round:competitionRoundLabel(cup),cup,confederationId:cup.confederationId};
+    const total=careerLeagueMatchTotal(save);if((save.leagueMatchesPlayed||0)>=total){const pending=ensureCupCompetitions(save).filter(c=>!c.eliminated&&!c.winner&&!c.superCup).sort((a,b)=>a.nextWeek-b.nextWeek)[0];if(pending){save.week=cxiNextClubSlot(Math.max(save.week||1,pending.nextWeek));return{type:'cup',id:pending.id,name:pending.name,icon:pending.icon||'🏆',round:competitionRoundLabel(pending),cup:pending,confederationId:pending.confederationId}}}
+    return{type:'league',id:save?.world?.leagueId||'league',name:save?.world?.leagueName||'The Crown League',icon:save?.world?.leagueBranding?.icon||'◆',round:`Matchweek ${Math.min(total,(save?.leagueMatchesPlayed||0)+1)} of ${total}`};
   }
   const CAREER_SEASON_START={year:2026,month:7};
-  function careerDateForWeek(week,season=career?.season||1){const y=CAREER_SEASON_START.year+Math.max(0,(season||1)-1),slot=Math.max(1,Number(week)||1);return slot>=49?new Date(y+1,5,1+(slot-49)*7):new Date(y,CAREER_SEASON_START.month,1+(slot-1)*6)}
+  function careerDateForWeek(week,season=career?.season||1){const base=cxiCalendarBaseDate(season),slot=Math.max(1,Number(week)||1);return new Date(base.getFullYear(),base.getMonth(),base.getDate()+(slot-1)*CXI_GLOBAL_CALENDAR.slotDays)}
   function careerMonthIndex(date){return date.getFullYear()*12+date.getMonth()}
   function careerDateFromMonth(index){return new Date(Math.floor(index/12),index%12,1)}
   function escapeMarkup(value){return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
@@ -7410,10 +7991,11 @@
     root.innerHTML=`<div class="career-mailbox">
       <div class="mailbox-toolbar"><div class="mailbox-filters">${filters.map(filter=>`<button class="${activeInboxFilter===filter?'active':''}" data-inbox-filter="${filter}">${filter}${filter==='Unread'?` <b>${careerUnreadCount(career)}</b>`:''}</button>`).join('')}</div><button class="mailbox-mark-all" data-inbox-mark-all>\u2713 Mark all read</button></div>
       <div class="mailbox-layout"><section class="mailbox-message-list">${visible.map(m=>`<button class="mailbox-message ${!m.read?'unread':''} ${selected?.id===m.id?'selected':''}" data-inbox-message="${m.id}"><span class="mailbox-category">${categoryIcon[m.category]||'\ud83d\udce8'}</span><span><small>${escapeMarkup(m.sender)} \u00b7 ${escapeMarkup(m.category)}</small><b>${m.important?'\u2605 ':''}${escapeMarkup(m.title)}</b><em>${escapeMarkup(m.body).slice(0,105)}</em></span><time>${new Date(m.receivedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</time>${!m.read?'<i aria-label="Unread"></i>':''}</button>`).join('')||'<div class="mailbox-empty"><span>\ud83d\udced</span><b>No messages here</b><small>Choose another filter or wait for a new career update.</small></div>'}</section>
-      <section class="mailbox-reader ${selected?'open':''}">${selected?`<header><div><small>${escapeMarkup(selected.sender)} \u00b7 ${new Date(selected.receivedAt).toLocaleString('en-GB',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'})}</small><h4>${escapeMarkup(selected.title)}</h4><span class="mail-category-pill">${categoryIcon[selected.category]||'\ud83d\udce8'} ${escapeMarkup(selected.category)}</span></div><button data-inbox-close aria-label="Close message">\u00d7</button></header><div class="mailbox-reader-body"><p>${escapeMarkup(selected.body)}</p></div><footer><button data-inbox-toggle-read>${selected.read?'Mark unread':'Mark read'}</button><button data-inbox-important>${selected.important?'\u2605 Important':'\u2606 Mark important'}</button><button data-inbox-archive>${selected.archived?'\u21a9 Restore':'Archive'}</button><button class="danger" data-inbox-delete>Delete</button></footer>`:'<div class="mailbox-reader-placeholder"><span>\u2709\ufe0f</span><b>Select a message</b><small>Open an email to read it, close it, mark it unread or archive it.</small></div>'}</section></div>
+      <section class="mailbox-reader ${selected?'open':''}">${selected?`<header><div><small>${escapeMarkup(selected.sender)} \u00b7 ${new Date(selected.receivedAt).toLocaleString('en-GB',{day:'numeric',month:'long',hour:'2-digit',minute:'2-digit'})}</small><h4>${escapeMarkup(selected.title)}</h4><span class="mail-category-pill">${categoryIcon[selected.category]||'\ud83d\udce8'} ${escapeMarkup(selected.category)}</span></div><button data-inbox-close aria-label="Close message">\u00d7</button></header><div class="mailbox-reader-body"><p>${escapeMarkup(selected.body).replace(/\n/g,'<br>')}</p>${selected.choices?.length&&!selected.v76Answered?`<div class="v76-mail-choices">${selected.choices.map(c=>`<button data-v76-mail-choice="${c.id}">${escapeMarkup(c.label)}</button>`).join('')}</div>`:''}</div><footer><button data-inbox-toggle-read>${selected.read?'Mark unread':'Mark read'}</button><button data-inbox-important>${selected.important?'\u2605 Important':'\u2606 Mark important'}</button><button data-inbox-archive>${selected.archived?'\u21a9 Restore':'Archive'}</button><button class="danger" data-inbox-delete>Delete</button></footer>`:'<div class="mailbox-reader-placeholder"><span>\u2709\ufe0f</span><b>Select a message</b><small>Open an email to read it, close it, mark it unread or archive it.</small></div>'}</section></div>
     </div>`;
     root.querySelectorAll('[data-inbox-filter]').forEach(btn=>btn.onclick=()=>{activeInboxFilter=btn.dataset.inboxFilter;selectedInboxMessageId=null;renderCareerInbox()});
     root.querySelectorAll('[data-inbox-message]').forEach(btn=>btn.onclick=()=>{const m=career.messages.find(x=>x.id===btn.dataset.inboxMessage);if(!m)return;m.read=true;m.new=false;selectedInboxMessageId=m.id;saveCareer();syncInboxBadges();renderCareerInbox()});
+    root.querySelectorAll('[data-v76-mail-choice]').forEach(btn=>btn.onclick=()=>{const m=career.messages.find(x=>x.id===selectedInboxMessageId);v76HandleInboxChoice(m,btn.dataset.v76MailChoice)});
     root.querySelector('[data-inbox-close]')?.addEventListener('click',()=>{selectedInboxMessageId=null;renderCareerInbox()});
     root.querySelector('[data-inbox-toggle-read]')?.addEventListener('click',()=>{const m=career.messages.find(x=>x.id===selectedInboxMessageId);if(!m)return;m.read=!m.read;m.new=!m.read;saveCareer();syncInboxBadges();renderCareerInbox()});
     root.querySelector('[data-inbox-important]')?.addEventListener('click',()=>{const m=career.messages.find(x=>x.id===selectedInboxMessageId);if(!m)return;m.important=!m.important;saveCareer();renderCareerInbox()});
@@ -7631,25 +8213,10 @@
     </div>`;root.insertAdjacentHTML('beforeend',careerStatisticsMarkup(career));$('#formAverage').textContent=`${recentAvg.toFixed(2)} avg`;
   }
   function ensureCareerRecords(save=career){
-    if(!save)return save;
-    save.fixtureHistory=Array.isArray(save.fixtureHistory)?save.fixtureHistory:[];ensureCareerStatFields(save);ensureWeakFootProfile(save.player);
-    save.honours=save.honours&&typeof save.honours==='object'?save.honours:{team:[],individual:[]};
-    save.honours.team=Array.isArray(save.honours.team)?save.honours.team:[];save.honours.individual=Array.isArray(save.honours.individual)?save.honours.individual:[];
-    if(!Number.isFinite(save.leagueMatchesPlayed))save.leagueMatchesPlayed=clamp(save.fixtureHistory.filter(item=>(item.season||1)===(save.season||1)&&item.competition?.type!=='cup').length,0,38);
-    save.leagueMatchesPlayed=clamp(Math.round(save.leagueMatchesPlayed),0,38);
-    if(!save.injury||!Number.isFinite(save.injury.remainingMatches)||save.injury.remainingMatches<=0)save.injury=null;
-    save.retired=!!save.retired;
-    save.phase=save.phase==='international'?'international':'club';ensureInternationalCareer(save);normaliseCareerStatHistory(save);ensureInternationalStatFields(save);
-    normaliseCareerMessages(save);
-    save.savedReplays=Array.isArray(save.savedReplays)?save.savedReplays:[];
-    save.savedReplays.forEach((clip,index)=>{clip.id=clip.id||`replay-${index}-${hashText(clip.title||'clip')}`;clip.version=Number(clip.version)||1;clip.frameInterval=Number(clip.frameInterval)||REPLAY_FRAME_INTERVAL*3;clip.tags=Array.isArray(clip.tags)?clip.tags:[String(clip.event||'Highlight')];clip.corrupt=replayClipFrameCount(clip)<2});
-    save.transferMarket=save.transferMarket&&typeof save.transferMarket==='object'?save.transferMarket:{windowKey:null,offers:[],interest:[],history:[]};
-    save.profileView=save.profileView||'attributes';
-    ensureCupCompetitions(save).filter(c=>c.winner).forEach(c=>{
-      const id=`team-${c.id}-season-${save.season||1}`;
-      if(!save.honours.team.some(h=>h.id===id))save.honours.team.push({id,title:c.name,subtitle:'Cup winners',season:save.season||1,week:c.history?.[0]?.week||save.week,tier:'gold'});
-    });
-    return save;
+    if(!save)return save;save.fixtureHistory=Array.isArray(save.fixtureHistory)?save.fixtureHistory:[];ensureCareerStatFields(save);ensureWeakFootProfile(save.player);save.honours=save.honours&&typeof save.honours==='object'?save.honours:{team:[],individual:[]};save.honours.team=Array.isArray(save.honours.team)?save.honours.team:[];save.honours.individual=Array.isArray(save.honours.individual)?save.honours.individual:[];
+    if(!Number.isFinite(save.leagueMatchesPlayed))save.leagueMatchesPlayed=clamp(save.fixtureHistory.filter(item=>(item.season||1)===(save.season||1)&&item.competition?.type==='league').length,0,careerLeagueMatchTotal(save));save.leagueMatchesPlayed=clamp(Math.round(save.leagueMatchesPlayed),0,careerLeagueMatchTotal(save));if(!save.injury||!Number.isFinite(save.injury.remainingMatches)||save.injury.remainingMatches<=0)save.injury=null;save.retired=!!save.retired;save.phase=save.phase==='international'?'international':'club';
+    if(save.world){save.world.confederationId=cxiClubConfederation(save).id;save.globalCalendar={...(save.globalCalendar||{}),version:CXI_GLOBAL_COMPETITION_VERSION,minRecoveryHours:CXI_GLOBAL_CALENDAR.minRecoveryHours};}
+    ensureInternationalCareer(save);cxiEnsureInternationalWindowSchedule(save);normaliseCareerStatHistory(save);ensureInternationalStatFields(save);normaliseCareerMessages(save);save.savedReplays=Array.isArray(save.savedReplays)?save.savedReplays:[];save.savedReplays.forEach((clip,index)=>{clip.id=clip.id||`replay-${index}-${hashText(clip.title||'clip')}`;clip.version=Number(clip.version)||1;clip.frameInterval=Number(clip.frameInterval)||REPLAY_FRAME_INTERVAL*3;clip.tags=Array.isArray(clip.tags)?clip.tags:[String(clip.event||'Highlight')];clip.corrupt=replayClipFrameCount(clip)<2});save.transferMarket=save.transferMarket&&typeof save.transferMarket==='object'?save.transferMarket:{windowKey:null,offers:[],interest:[],history:[]};save.profileView=save.profileView||'attributes';ensureCupCompetitions(save).filter(c=>c.winner).forEach(c=>{const id=`team-${c.id}-season-${save.season||1}`;if(!save.honours.team.some(h=>h.id===id))save.honours.team.push({id,title:c.name,subtitle:'Cup winners',season:save.season||1,week:c.history?.[0]?.week||save.week,tier:'gold'})});return save;
   }
   function addCareerHonour(type,title,subtitle,week,tier='gold',id=null){
     ensureCareerRecords(career);const list=career.honours[type]||career.honours.individual,key=id||`${type}-${title}-${career.season||1}-${week}`;
@@ -7657,29 +8224,16 @@
     list.push({id:key,title,subtitle,season:career.season||1,week,tier});return true;
   }
   function scheduledCompetitionForWeek(save,week){
-    if(week===(save.week||1))return currentCareerCompetition(save);
-    const intl=ensureInternationalCareer(save),internationalFixture=intl?.tournament?.fixtures?.find(f=>f.week===week);
-    if(internationalFixture)return{type:'international',id:intl.tournament.id,name:intl.tournament.name,icon:'\ud83c\udf10',round:internationalFixture.round,fixture:internationalFixture};
-    const cup=ensureCupCompetitions(save).find(c=>!c.eliminated&&c.nextWeek===week);
-    if(cup)return{type:'cup',id:cup.id,name:cup.name,icon:cup.icon||'\ud83c\udfc6',round:competitionRoundLabel(cup)};
-    const cupsBefore=ensureCupCompetitions(save).filter(c=>!c.eliminated&&c.nextWeek>=save.week&&c.nextWeek<=week).length;
-    const total=careerLeagueMatchTotal(save),round=Math.min(total,(save.leagueMatchesPlayed||0)+Math.max(1,week-(save.week||1)+1-cupsBefore));
-    return{type:'league',id:save.world?.leagueId||'league',name:save.world?.leagueName||'The Crown League',icon:save.world?.leagueBranding?.icon||'\u25c6',round:`Matchweek ${round} of ${total}`};
+    if(week===(save.week||1))return currentCareerCompetition(save);const intl=ensureInternationalCareer(save),windowFixture=cxiEnsureInternationalWindowSchedule(save)?.fixtures?.find(f=>f.week===week);if(windowFixture)return{type:'international',id:`window-${intl.confederationId}-${save.season}`,name:windowFixture.competitionName,icon:cxiNationalConfederation(save).icon,round:windowFixture.round,fixture:windowFixture,window:true,selectionPending:intl.lastWindowAssessmentSeason!==(save.season||1)};
+    const internationalFixture=intl?.tournament?.fixtures?.find(f=>f.week===week);if(internationalFixture)return{type:'international',id:intl.tournament.id,name:intl.tournament.name,icon:intl.tournament.icon||'🌐',round:internationalFixture.round,fixture:internationalFixture,window:false};
+    const cup=ensureCupCompetitions(save).find(c=>!c.eliminated&&c.nextWeek===week);if(cup)return{type:'cup',id:cup.id,name:cup.name,icon:cup.icon||'🏆',round:competitionRoundLabel(cup),cup,confederationId:cup.confederationId};
+    const cupsBefore=ensureCupCompetitions(save).filter(c=>!c.eliminated&&c.nextWeek>=save.week&&c.nextWeek<=week).length,windowsBefore=CXI_GLOBAL_CALENDAR.internationalWindowSlots.filter(w=>w>=save.week&&w<=week).length,total=careerLeagueMatchTotal(save),round=Math.min(total,(save.leagueMatchesPlayed||0)+Math.max(1,week-(save.week||1)+1-cupsBefore-windowsBefore));return{type:'league',id:save.world?.leagueId||'league',name:save.world?.leagueName||'The Crown League',icon:save.world?.leagueBranding?.icon||'◆',round:`Matchweek ${round} of ${total}`};
   }
   function careerCalendarEvents(home){
-    ensureCareerRecords(career);const events=new Map(),historyWeeks=new Set();
-    career.fixtureHistory.filter(item=>(item.season||1)===(career.season||1)).forEach(item=>{historyWeeks.add(item.week);events.set(item.week,{...item,status:'played',date:careerDateForWeek(item.week,item.season),club:item.opponent,type:item.competition?.type||'league'})});
-    const opponents=career.league.filter(c=>(home.id&&c.id!==home.id)||(!home.id&&c.abbr!==home.abbr));
-    let leagueCount=career.leagueMatchesPlayed||0,totalLeagueMatches=careerLeagueMatchTotal(career);
-    for(let week=Math.max(1,career.week);week<=Math.max(55,totalLeagueMatches+18)&&leagueCount<totalLeagueMatches;week++){
-      if(historyWeeks.has(week))continue;
-      const competition=scheduledCompetitionForWeek(career,week),club=week===career.week?(career.league[career.nextOpponent%career.league.length]||opponents[0]):opponents[(week-1)%Math.max(1,opponents.length)];
-      if(!club)continue;if(competition.type==='league')leagueCount++;events.set(week,{week,status:week===career.week?'next':'scheduled',date:careerDateForWeek(week),club,type:competition.type,competition});
-    }
-    const intl=ensureInternationalCareer(career),preview=intl.tournament||buildInternationalTournament(career);
-    if((career.phase==='international'||career.phase==='club')&&preview)preview.fixtures.forEach(f=>{if(historyWeeks.has(f.week)||events.has(f.week))return;events.set(f.week,{week:f.week,status:f.week===career.week?'next':'scheduled',date:careerDateForWeek(f.week),club:f.opponent,type:'international',selectionPending:!intl.tournament,competition:{type:'international',id:preview.id,name:preview.name,icon:'\ud83c\udf10',round:f.round,fixture:f}});});
-    if(career.injury){let remaining=career.injury.remainingMatches;[...events.values()].filter(e=>e.status!=='played').sort((a,b)=>a.week-b.week).forEach(e=>{if(remaining-->0)e.injury=true;});}
-    return events;
+    ensureCareerRecords(career);const events=new Map(),historyWeeks=new Set();career.fixtureHistory.filter(item=>(item.season||1)===(career.season||1)).forEach(item=>{historyWeeks.add(item.week);events.set(item.week,{...item,status:'played',date:careerDateForWeek(item.week,item.season),club:item.opponent,type:item.competition?.type||'league'})});
+    const opponents=career.league.filter(c=>(home.id&&c.id!==home.id)||(!home.id&&c.abbr!==home.abbr));let leagueCount=career.leagueMatchesPlayed||0,totalLeagueMatches=careerLeagueMatchTotal(career);
+    for(let slot=Math.max(1,career.week);slot<=CXI_GLOBAL_CALENDAR.clubSeasonSlots&&leagueCount<totalLeagueMatches;slot++){if(historyWeeks.has(slot))continue;const competition=scheduledCompetitionForWeek(career,slot);let club=competition.type==='international'?competition.fixture?.opponent:(slot===career.week?(career.league[career.nextOpponent%career.league.length]||opponents[0]):opponents[(slot-1)%Math.max(1,opponents.length)]);if(!club)continue;if(competition.type==='league')leagueCount++;events.set(slot,{week:slot,status:slot===career.week?'next':'scheduled',date:careerDateForWeek(slot),club,type:competition.type,selectionPending:competition.selectionPending,competition})}
+    const intl=ensureInternationalCareer(career),preview=intl.tournament||buildInternationalTournament(career);if(preview)preview.fixtures.forEach(f=>{if(historyWeeks.has(f.week)||events.has(f.week))return;events.set(f.week,{week:f.week,status:f.week===career.week?'next':'scheduled',date:careerDateForWeek(f.week),club:f.opponent,type:'international',selectionPending:!intl.tournament,competition:{type:'international',id:preview.id,name:preview.name,icon:preview.icon||'🌐',round:f.round,fixture:f,window:false}})});if(career.injury){let remaining=career.injury.remainingMatches;[...events.values()].filter(e=>e.status!=='played').sort((a,b)=>a.week-b.week).forEach(e=>{if(remaining-->0)e.injury=true})}return events;
   }
   function resultTone(score,decision=null){if(Number.isInteger(decision?.winner))return decision.winner===0?'win':'loss';return score[0]>score[1]?'win':score[0]===score[1]?'draw':'loss'}
   function fixtureCalendarMarkup(home){
@@ -7694,7 +8248,7 @@
     }
     while(cells.length%7)cells.push('<button class="calendar-day calendar-blank" disabled></button>');
     const monthName=first.toLocaleDateString('en-GB',{month:'long',year:'numeric'}),minMonth=(CAREER_SEASON_START.year+(career.season||1)-1)*12+CAREER_SEASON_START.month,maxMonth=minMonth+12;
-    return `<div class="fixture-calendar"><div class="calendar-head"><button data-calendar-shift="-1" ${activeCalendarMonth<=minMonth?'disabled':''} aria-label="Previous month">\u2039</button><div><small>CLUB AUG\u2013MAY \u00b7 INTERNATIONAL JUN\u2013JUL \u00b7 ${career.leagueMatchesPlayed}/38</small><b>${monthName}</b></div><button data-calendar-shift="1" ${activeCalendarMonth>=maxMonth?'disabled':''} aria-label="Next month">\u203a</button></div><div class="calendar-legend"><span><i class="league-dot"></i> League</span><span><i class="cup-dot"></i> Cup</span><span><i class="international-dot"></i> International</span>${career.injury?'<span>\ud83e\ude79 Injured</span>':''}<span>\u2713 Results</span></div><div class="calendar-week"><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span><span>SUN</span></div><div class="calendar-grid">${cells.join('')}</div><div class="calendar-view-note">Club competitions run August\u2013May. International tournaments run June\u2013July.</div></div>`;
+    return `<div class="fixture-calendar"><div class="calendar-head"><button data-calendar-shift="-1" ${activeCalendarMonth<=minMonth?'disabled':''} aria-label="Previous month">\u2039</button><div><small>SEASON CALENDAR \u00b7 ${career.leagueMatchesPlayed}/${careerLeagueMatchTotal(career)} LEAGUE</small><b>${monthName}</b></div><button data-calendar-shift="1" ${activeCalendarMonth>=maxMonth?'disabled':''} aria-label="Next month">\u203a</button></div><div class="calendar-legend"><span><i class="league-dot"></i> League</span><span><i class="cup-dot"></i> Cup</span><span><i class="international-dot"></i> International</span>${career.injury?'<span>\ud83e\ude79 Injured</span>':''}<span>\u2713 Results</span></div><div class="calendar-week"><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span><span>SUN</span></div><div class="calendar-grid">${cells.join('')}</div><div class="calendar-view-note">Club, cup and international fixtures are coordinated automatically throughout the season.</div></div>`;
   }
   function trophyDesign(honour){
     if(!honour)return'cup';const text=`${honour.title||''} ${honour.subtitle||''}`.toLowerCase();
@@ -7786,36 +8340,25 @@
         </aside>
       </section>
       <section class="profile-vital-icons">${[['\u2764\ufe0f',Math.round(p.fitness)+'%','Fitness'],['\u26a1',Math.round(tProfile.sharpness||70)+'%','Sharpness'],['\ud83d\udd0b',Math.round(100-(tProfile.fatigue||0))+'%','Energy'],['\ud83d\ude0a',Math.round(p.morale)+'%','Morale'],['\ud83d\udcc8',lastGains?lastGains.total.toFixed(2):'0.00','Last gain'],['\ud83c\udfc1',retirementAge,'Retirement']].map(([i,v,l])=>`<div><span>${i}</span><b>${v}</b><small>${l}</small></div>`).join('')}</section>
+      <section class="v773-profile-physical">${(()=>{const ph=calculatePhysicalProfile(p),sum=physicalProfileSummary(ph);return `<header><span>🧍</span><div><small>PHYSICAL PROFILE</small><b>${escapeMarkup(ph.buildName)} · ${ph.heightCm} cm · ${Math.round(ph.weightKg)} kg</b></div></header><div><span><small>CENTRE OF GRAVITY</small><b>${sum.cog}</b></span><span><small>STRIDE</small><b>${sum.stride}</b></span><span><small>PHYSICAL PRESENCE</small><b>${sum.presence}</b></span><span><small>AERIAL REACH</small><b>${sum.aerial}</b></span></div><p>The same physical identity is used in Match Day, Classic Media, training, collisions and aerial duels.</p>`})()}</section>
+      <section class="v775-profile-visual">${(()=>{const v=resolvedVisualIdentity(p);return `<header><span>🎨</span><div><small>VISUAL IDENTITY</small><b>${escapeMarkup(v.hairStyle)} · ${escapeMarkup(v.headShape)} face · ${escapeMarkup(v.bootModel)}</b></div></header><div><span><small>FACE</small><b>${escapeMarkup(v.jawStyle)} · ${escapeMarkup(v.hairlineStyle)} hairline · ${escapeMarkup(v.facialHair)}</b></span><span><small>KIT STYLE</small><b>${escapeMarkup(v.sleeveLength)} · ${escapeMarkup(v.shirtStyle)}</b></span><span><small>DETAILS</small><b>${escapeMarkup(v.wristTape)} tape · ${escapeMarkup(v.sockHeight)} socks</b></span><span><small>MOVEMENT</small><b>${escapeMarkup(v.runningStyle)} run · ${escapeMarkup(v.shootingStyle)} shot</b></span></div><p>One saved appearance drives Career Media, Match Day, training and generated player visuals.</p><button type="button" class="v775-style-locker-btn" data-v775-style-locker>EDIT CAREER APPEARANCE</button>`})()}</section>
       <section class="profile-category-grid">${Object.entries(PROFILE_GROUPS).map(([group,keys])=>{const visibleKeys=keys.filter(k=>k in p.attrs),categoryAverage=Math.round(visibleKeys.reduce((s,k)=>s+(p.attrs[k]||50),0)/Math.max(1,visibleKeys.length));return `<article class="profile-attribute-category ${group.toLowerCase()}"><header><span>${group==='Technical'?'\u26bd':group==='Physical'?'\u26a1':'\ud83e\udde0'}</span><div><small>${group.toUpperCase()} · ${visibleKeys.length} ATTRIBUTES</small><b>${categoryAverage}</b></div></header><div class="profile-attribute-rows">${visibleKeys.map(k=>{const v=p.attrs[k]||50,d=profileAttributeDelta(p,k),raw=Number(tProfile.attributeProgress?.[k]??v),progress=Math.round((raw-Math.floor(raw))*100),isKey=keyAttrs.includes(k);return `<div class="profile-attribute-row ${attributeColour(v)} ${isKey?'important':''}"><span class="attr-icon">${ATTRIBUTE_ICONS[k]||'\u25c6'}</span><div><b>${pretty(k)}${isKey?'<em class="profile-key-badge">KEY</em>':''}</b><i><em style="width:${Math.max(4,v)}%"></em><strong style="left:${progress}%"></strong></i><small>${progress}% towards ${Math.min(99,v+1)}</small></div><output>${v}</output><mark class="${d>0?'up':d<0?'down':'flat'}">${d>0?'\u2191 +'+d.toFixed(2):d<0?'\u2193 '+Math.abs(d).toFixed(2):'\u2022'}</mark></div>`}).join('')}</div></article>`}).join('')}</section>
       <section class="profile-development-ribbon"><span>\ud83d\udcc8</span><div><small>RECENT DEVELOPMENT</small><b>${lastGains?.label||'Keep training and performing'}</b><p>${lastGains?.items?.length?lastGains.items.slice(0,5).map(x=>`${pretty(x.key)} +${x.points.toFixed(2)}`).join(' \u00b7 '):'Attribute progress and full increases will appear with coloured arrows.'}</p></div></section>
     </div>`;
   }
   function renderProfileHeroPlayer(){const canvas=$('#profileHeroPlayer');if(!canvas||!career?.player)return;const club=clubs.find(c=>c.id===career.club?.id)||career.club||clubs[0],p=career.player;drawMediaPlayerModel(canvas.getContext('2d'),{...p,skin:p.skinTone,hairColour:p.hairColour,boots:p.bootColour,primary:club.primary,secondary:club.secondary,shorts:club.shorts||club.secondary,socks:club.socks||club.secondary,kitPattern:club.pattern||club.kitPattern||club.branding?.kitPattern},{width:canvas.width,height:canvas.height,compact:true,background:false})}
   function leagueRules(save=career){
-    const n=save.league?.length||12,level=Number(save.world?.leagueLevel||1),cid=save.world?.countryId;
-    if(level===1){const ucl=cid==='france'?3:4,relegCount=cid==='germany'||cid==='france'?2:3;return{champion:[1],promotion:[],playoff:[],continental:Array.from({length:ucl},(_,i)=>i+1).filter(x=>x<=n),secondary:[ucl+1].filter(x=>x<=n),conference:[ucl+2].filter(x=>x<=n),relegation:Array.from({length:relegCount},(_,i)=>n-relegCount+1+i),relegationPlayoff:cid==='germany'||cid==='france'?[n-2]:[]};}
-    let promotion=[1,2],playoff=[3,4,5,6],relegCount=3,relegationPlayoff=[];
-    if(cid==='england'){relegCount=level===2?3:4;}
-    if(cid==='spain'){if(level===2){relegCount=4;}else{promotion=[1];playoff=[2,3,4,5];relegCount=5;}}
-    if(cid==='germany'){promotion=[1,2];playoff=[3];relegCount=level===2?2:4;relegationPlayoff=level===2?[n-2]:[];}
-    if(cid==='italy'){if(level===2){promotion=[1,2];playoff=[3,4,5,6,7,8];relegCount=3;relegationPlayoff=[n-3];}else{promotion=[1];playoff=[2,3,4,5,6,7,8,9,10].filter(x=>x<=n);relegCount=4;}}
-    if(cid==='france'){if(level===2){promotion=[1,2];playoff=[3,4,5];relegCount=2;relegationPlayoff=[n-2];}else{promotion=[1,2];playoff=[3,4,5,6];relegCount=3;}}
-    return{champion:[1],promotion:promotion.filter(x=>x<=n),playoff:playoff.filter(x=>x<=n),continental:[],secondary:[],conference:[],relegation:Array.from({length:relegCount},(_,i)=>n-relegCount+1+i),relegationPlayoff};
+    const n=save.league?.length||12,level=Number(save.world?.leagueLevel||1),cid=save.world?.countryId;if(level===1){const confed=cxiClubConfederation(save),primary=[],secondary=[],conference=[];for(let pos=1;pos<=n;pos++){const q=cxiQualificationForPosition(cid,pos,n);if(!q)continue;if(q.tier===1)primary.push(pos);else if(q.tier===2)secondary.push(pos);else conference.push(pos)}const relegCount=cid==='germany'||cid==='france'?2:Math.min(3,Math.max(2,Math.floor(n*.15)));return{champion:[1],promotion:[],playoff:[],continental:primary,secondary,conference,relegation:Array.from({length:relegCount},(_,i)=>n-relegCount+1+i),relegationPlayoff:cid==='germany'||cid==='france'?[n-2]:[],confederationId:confed.id}}
+    let promotion=[1,2],playoff=[3,4,5,6],relegCount=3,relegationPlayoff=[];if(cid==='england'){relegCount=level===2?3:4}if(cid==='spain'){if(level===2)relegCount=4;else{promotion=[1];playoff=[2,3,4,5];relegCount=5}}if(cid==='germany'){promotion=[1,2];playoff=[3];relegCount=level===2?2:4;relegationPlayoff=level===2?[n-2]:[]}if(cid==='italy'){if(level===2){promotion=[1,2];playoff=[3,4,5,6,7,8];relegCount=3;relegationPlayoff=[n-3]}else{promotion=[1];playoff=[2,3,4,5,6,7,8,9,10].filter(x=>x<=n);relegCount=4}}if(cid==='france'){if(level===2){promotion=[1,2];playoff=[3,4,5];relegCount=2;relegationPlayoff=[n-2]}else{promotion=[1,2];playoff=[3,4,5,6];relegCount=3}}return{champion:[1],promotion:promotion.filter(x=>x<=n),playoff:playoff.filter(x=>x<=n),continental:[],secondary:[],conference:[],relegation:Array.from({length:relegCount},(_,i)=>n-relegCount+1+i),relegationPlayoff};
   }
   function leagueZoneFor(position,rules){
-    if(rules.champion.includes(position))return{key:'champion',icon:'🏆',label:'Champions / top seed'};
-    if(rules.promotion.includes(position))return{key:'promotion',icon:'⬆️',label:'Automatic promotion'};
-    if(rules.playoff.includes(position))return{key:'playoff',icon:'🎟️',label:'Promotion play-off'};
-    if(rules.continental.includes(position))return{key:'continental',icon:'◆',label:'UEFA Champions League'};
-    if(rules.secondary.includes(position))return{key:'secondary',icon:'◇',label:'UEFA Europa League'};
-    if((rules.conference||[]).includes(position))return{key:'conference',icon:'○',label:'UEFA Conference League'};
-    if(rules.relegation.includes(position))return{key:'relegation',icon:'⬇️',label:'Relegation zone'};
-    return{key:'safe',icon:'•',label:'Safe position'};
+    if(rules.champion.includes(position))return{key:'champion',icon:'🏆',label:'Champions / top seed'};if(rules.promotion.includes(position))return{key:'promotion',icon:'⬆️',label:'Automatic promotion'};if(rules.playoff.includes(position))return{key:'playoff',icon:'🎟️',label:'Promotion play-off'};
+    const confed=CXI_CONFEDERATIONS[rules.confederationId||cxiClubConfederation(career).id]||CXI_CONFEDERATIONS.UEFA,cid=career?.world?.countryId;if(rules.continental.includes(position)){const d=cxiConfedClubDef(confed.id,1,cid);return{key:'continental',icon:'◆',label:d?.shortName||d?.name||'Continental championship'}}if(rules.secondary.includes(position)){const d=cxiConfedClubDef(confed.id,2,cid);return{key:'secondary',icon:'◇',label:d?.shortName||d?.name||'Continental cup'}}if((rules.conference||[]).includes(position)){const d=cxiConfedClubDef(confed.id,3,cid);return{key:'conference',icon:'○',label:d?.shortName||d?.name||'Continental cup'}}if(rules.relegation.includes(position))return{key:'relegation',icon:'⬇️',label:'Relegation zone'};return{key:'safe',icon:'•',label:'Safe position'};
   }
   function completedLeagueRow(row,index){const p=Number(row.p||0),pts=Number(row.pts||0),w=Number.isFinite(row.w)?row.w:Math.min(p,Math.floor(pts/3)),d=Number.isFinite(row.d)?row.d:Math.min(p-w,Math.max(0,pts-w*3)),l=Math.max(0,p-w-d),gd=Number(row.gd||0),gf=Number.isFinite(row.gf)?row.gf:Math.max(0,Math.round(p*1.35+gd/2)),ga=Math.max(0,gf-gd);return{...row,p,w,d,l,gf,ga,gd,pts,index}}
   function leagueSituation(save=career){const rows=[...save.league].map(completedLeagueRow).sort((a,b)=>b.pts-a.pts||b.gd-a.gd||b.seed-a.seed),home=save.club||save.league[save.clubIndex||0],idx=Math.max(0,rows.findIndex(r=>(home?.id&&r.id===home.id)||(home?.name&&r.name===home.name))),position=idx+1,rules=leagueRules(save),zone=leagueZoneFor(position,rules),bottomSafe=Math.max(1,(rules.relegation[0]||rows.length+1)-1),safety=rows[bottomSafe-1],pointsFromSafety=zone.key==='relegation'?Math.max(0,(safety?.pts||0)-(rows[idx]?.pts||0)):Math.max(0,(rows[idx]?.pts||0)-(rows[rules.relegation[0]-1]?.pts||0)),nextTarget=position>1?rows[position-2]:null;return{rows,home,idx,position,rules,zone,pointsFromSafety,nextTarget}}
   function renderFullLeague(){const root=$('#fullLeaguePanel');if(!root||!career)return;const s=leagueSituation(),played=career.leagueMatchesPlayed||0,totalMatches=careerLeagueMatchTotal(career),gamesLeft=Math.max(0,totalMatches-played),danger=s.zone.key==='relegation'||(s.rules.relegation[0]&&s.position>=s.rules.relegation[0]-2),status=s.zone.key==='relegation'?`${s.pointsFromSafety} points from safety`:danger?`${s.pointsFromSafety} points above relegation`:s.zone.key==='promotion'||s.zone.key==='playoff'||s.zone.key==='champion'?s.zone.label:['continental','secondary','conference'].includes(s.zone.key)?s.zone.label:`${s.position}${s.position===1?'st':s.position===2?'nd':s.position===3?'rd':'th'} \u00b7 currently safe`;
-    const legend=[['champion','🏆','Champion'],['continental','◆','Champions League'],['secondary','◇','Europa League'],['conference','○','Conference League'],['promotion','⬆️','Promotion'],['playoff','🎟️','Play-off'],['relegation','⬇️','Relegation']].filter(([k])=>Object.values(s.rules).some(v=>Array.isArray(v)&&v.length&&k!=='champion'?true:k==='champion'));
+    const confed=CXI_CONFEDERATIONS[s.rules.confederationId||cxiClubConfederation(career).id]||CXI_CONFEDERATIONS.UEFA,countryId=career.world?.countryId,tier1=cxiConfedClubDef(confed.id,1,countryId),tier2=cxiConfedClubDef(confed.id,2,countryId),tier3=cxiConfedClubDef(confed.id,3,countryId),legend=[['champion','🏆','Champion'],['continental','◆',tier1?.shortName||tier1?.name||'Continental Tier 1'],['secondary','◇',tier2?.shortName||tier2?.name||'Continental Tier 2'],['conference','○',tier3?.shortName||tier3?.name||'Continental Tier 3'],['promotion','⬆️','Promotion'],['playoff','🎟️','Play-off'],['relegation','⬇️','Relegation']].filter(([k])=>k==='champion'||(Array.isArray(s.rules[k])&&s.rules[k].length));
     root.innerHTML=`<div class="league-command-centre"><section class="league-status-hero ${s.zone.key}"><div class="league-position-orb"><b>${s.position}</b><small>POSITION</small></div><div><small>${career.world?.leagueName||'LEAGUE TABLE'} \u00b7 ${played}/${totalMatches} PLAYED</small><h3>${s.zone.icon} ${status}</h3><p>${gamesLeft} matches remaining \u00b7 Goal difference ${s.rows[s.idx]?.gd>=0?'+':''}${s.rows[s.idx]?.gd||0}${s.nextTarget?` \u00b7 ${Math.max(0,s.nextTarget.pts-s.rows[s.idx].pts)} points to ${s.nextTarget.name}`:''}</p></div><div class="league-form-mini">${(career.recentRatings||[]).slice(-5).map(r=>`<span class="${r>=7.2?'win':r>=6.4?'draw':'loss'}">${r.toFixed(1)}</span>`).join('')||'<span>\u2014</span>'}</div></section><div class="league-zone-legend">${legend.map(([k,i,l])=>`<span class="${k}">${i} ${l}</span>`).join('')}<span class="you">\u2605 Your club</span></div><div class="full-league-table"><div class="full-league-head"><span>#</span><span>Club</span><span>P</span><span>W</span><span>D</span><span>L</span><span>GF</span><span>GA</span><span>GD</span><b>PTS</b><span>Status</span></div>${s.rows.map((r,i)=>{const pos=i+1,z=leagueZoneFor(pos,s.rules),you=s.home&&((r.id&&r.id===s.home.id)||(r.name&&r.name===s.home.name));return `<div class="full-league-row zone-${z.key} ${you?'you':''}"><b>${pos}</b><span class="league-club-cell">${crestMarkup(r,'tiny')}<strong>${r.name}</strong>${you?'<em>YOU</em>':''}</span><span>${r.p}</span><span>${r.w}</span><span>${r.d}</span><span>${r.l}</span><span>${r.gf}</span><span>${r.ga}</span><span>${r.gd>0?'+':''}${r.gd}</span><b>${r.pts}</b><span class="zone-label">${z.icon} ${z.label}</span></div>`}).join('')}</div></div>`;
   }
   function renderLeagueSummaryCard(){const root=$('#leagueTable');if(!root||!career)return;const s=leagueSituation(),row=s.rows[s.idx],risk=s.zone.key==='relegation'?'danger':s.position>=((s.rules.relegation[0]||99)-2)?'warning':'good';root.innerHTML=`<button class="league-summary-card ${risk}" data-open-league><span class="league-summary-position">${s.position}</span><div><small>${career.world?.leagueName||'LEAGUE'}</small><b>${s.zone.icon} ${s.zone.label}</b><p>${row?.pts||0} pts \u00b7 ${row?.gd>=0?'+':''}${row?.gd||0} GD \u00b7 ${Math.max(0,careerLeagueMatchTotal(career)-(career.leagueMatchesPlayed||0))} left</p></div><em>View full table \u2192</em></button>`;root.querySelector('[data-open-league]').onclick=()=>setCareerTab('league')}
@@ -8182,9 +8725,215 @@
     else if(activeTrainingCentreView==='activities'){const categories=TRAINING_CATEGORIES.filter(c=>p.position==='GK'||c!=='Goalkeeping'),items=activeTrainingCategory==='Recommended'?recommendedTrainingActivities(p):availableTrainingDrills(p).filter(([,d])=>d.category===activeTrainingCategory);content=`<div class="activities-browser"><header><div><small>PLAYABLE TRAINING LIBRARY</small><h3>Football Activities</h3><p>Every drill uses the same WASD and J / K / I / L football controls as matches.</p></div><span>${remaining} career sessions left · Practice unlimited</span></header><div class="training-category-strip">${categories.map(c=>`<button class="${activeTrainingCategory===c?'active':''}" data-training-category="${c}">${c}</button>`).join('')}</div><div class="training-activity-grid">${items.map(([id,d])=>trainingDrillCardMarkup(id,d,t,locked)).join('')||'<p>No activities available for this position.</p>'}</div></div>`}
     else if(activeTrainingCentreView==='development')content=`<div class="development-centre"><header><div><small>MY DEVELOPMENT</small><h3>Attribute Progress</h3><p>Strong sessions bank fractional development towards visible attribute growth.</p></div><span>${focus.icon} ${focus.label}</span></header>${trainingDevelopmentMarkup(p,t)}</div>`;
     else content=trainingGroundMarkup(p);
-    root.innerHTML=`<div class="training-centre-shell"><nav class="training-centre-nav">${nav.map(([id,icon,label])=>`<button class="${activeTrainingCentreView===id?'active':''}" data-training-view="${id}"><span>${icon}</span>${label}${id==='ground'&&remaining?`<i>${remaining}</i>`:''}</button>`).join('')}</nav><main class="training-centre-main">${content}</main></div>`;
+    root.innerHTML=`${v76WeekPlanMarkup(career)}${v76TrainingBoostMarkup(career)}<div class="training-centre-shell"><nav class="training-centre-nav">${nav.map(([id,icon,label])=>`<button class="${activeTrainingCentreView===id?'active':''}" data-training-view="${id}"><span>${icon}</span>${label}${id==='ground'&&remaining?`<i>${remaining}</i>`:''}</button>`).join('')}</nav><main class="training-centre-main">${content}</main></div>`;
     root.querySelectorAll('[data-training-view]').forEach(b=>b.onclick=()=>{activeTrainingCentreView=b.dataset.trainingView;renderTrainingCentre(p)});root.querySelectorAll('[data-training-category]').forEach(b=>b.onclick=()=>{activeTrainingCategory=b.dataset.trainingCategory;renderTrainingCentre(p)});root.querySelectorAll('[data-play-drill]').forEach(b=>b.onclick=()=>openTrainingDrill(b.dataset.playDrill));root.querySelectorAll('[data-sim-drill]').forEach(b=>b.onclick=()=>simulateTrainingDrill(b.dataset.simDrill));const intensity=root.querySelector('#trainingIntensitySelect');if(intensity)intensity.onchange=()=>{t.intensity=intensity.value;t.automatic=false;saveCareer();renderTrainingCentre(p)};const diff=root.querySelector('#trainingDifficultySelect');if(diff)diff.onchange=()=>{t.trainingDifficulty=diff.value;saveCareer();renderTrainingCentre(p)};const apply=root.querySelector('#applyRecommendationBtn');if(apply)apply.onclick=()=>{t.focus=rec.focus;t.intensity=rec.intensity;const first=recommendedTrainingActivities(p)[0]?.[0];if(first)t.weekPlan[0]=first;saveCareer();renderTrainingCentre(p)};const quick=root.querySelector('#quickCoachSession');if(quick)quick.onclick=()=>runTraining();if(activeTrainingCentreView==='ground')bindTrainingGround(root);$('#trainingTabBadge').textContent=career.injury?'🩹':remaining?String(remaining):'✓';
   }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // CIRCLE XI v76 — CONNECTED PLAYER CAREER LOOP
+  // Career home, squad pathway, reputation, relationships, rivalries, weekly
+  // planning, match-specific objectives, training boosts, world stories and
+  // milestone/narrative feedback. This layer deliberately reuses the existing
+  // career, training, finance, relationship and match-engine systems.
+  // ─────────────────────────────────────────────────────────────────────────────
+  // V76 constants are declared near the top of the module so save migration can use them safely.
+
+  function ensureV76CareerSystems(save=career){
+    if(!save?.player)return save;
+    save.v76 ||= {};
+    const v=save.v76;v.version=CXI_V76_CAREER_VERSION;
+    v.reputation ||= {score:45,level:'Local Prospect',history:[]};
+    v.squadPath ||= {tier:'Academy',previousTier:null,changedWeek:null,history:[]};
+    v.narrative ||= {identity:'Emerging Prospect',timeline:[],worldStories:[],lastStoryWeek:0,rival:null};
+    v.matchPrep ||= {week:0,objectives:[],trainingBoosts:[],lastObjectiveReport:null};
+    v.story ||= {lastInteractiveWeek:0,answered:[]};
+    v.weekPlan ||= {week:0,days:[]};
+    v.lastMilestoneSnapshot ||= {apps:Number(save.stats?.apps)||0,goals:Number(save.stats?.goals)||0,assists:Number(save.stats?.assists)||0,caps:Number(save.international?.caps)||0};
+    v.origin ||= {background:save.player.careerBackground||'Local Academy Graduate',personality:save.player.careerPersonality||'Professional',applied:false};
+    v76ApplyOriginProfile(save);
+    v76UpdateReputation(save,null,false);
+    v76UpdateSquadPath(save,false);
+    v76EnsureRival(save);
+    v76RefreshMatchObjectives(save);
+    v76RefreshWeekPlan(save);
+    v76EnsureWorldStory(save);
+    v76EnsureInteractiveStory(save);
+    return save;
+  }
+
+  function v76ApplyOriginProfile(save=career){const v=save?.v76;if(!v?.origin||v.origin.applied)return;const p=save.player,rel=save.relationships||{},dev=ensureDevelopmentSystem(p);const bump=(k,n)=>{if(k in rel)rel[k]=clamp(Number(rel[k]||50)+n,0,100)};switch(v.origin.background){case'Local Academy Graduate':bump('supporters',6);bump('teamMates',3);break;case'Academy Wonderkid':p.potential=clamp(Number(p.potential||p.overall)+2,p.overall,99);v.reputation.originBonus=3;break;case'Late Bloomer':dev.momentum=clamp(Number(dev.momentum||50)+5,0,100);v.reputation.originBonus=-2;break;case'Lower-League Prospect':p.managerTrust=clamp(Number(p.managerTrust||45)+4,0,100);bump('teamMates',2);break;case'Overseas Prospect':v.reputation.originBonus=2;bump('teamMates',-2);break;case'Street Footballer':p.morale=clamp(Number(p.morale||72)+5,0,100);bump('supporters',3);break}switch(v.origin.personality){case'Professional':p.managerTrust=clamp(Number(p.managerTrust||45)+4,0,100);bump('board',3);break;case'Ambitious':v.reputation.personalityBonus=3;break;case'Loyal':bump('supporters',5);bump('teamMates',4);break;case'Confident':p.morale=clamp(Number(p.morale||72)+7,0,100);break;case'Quiet':bump('teamMates',2);break;case'Leader':bump('captain',6);bump('teamMates',3);break}v.origin.applied=true;}
+
+  function v76ReputationLevel(score){return [...V76_REPUTATION_LEVELS].reverse().find(x=>score>=x.min)||V76_REPUTATION_LEVELS[0]}
+  function v76ReputationScore(save=career){
+    const p=save?.player||{},s=save?.stats||{},intl=save?.international||{},rel=save?.relationships||{};
+    const ratings=(save?.recentRatings||[]).filter(Number.isFinite),form=ratings.length?ratings.reduce((a,b)=>a+b,0)/ratings.length:6.5;
+    const honours=(save?.honours?.individual?.length||0)+(save?.honours?.team?.length||0);
+    const originBonus=Number(save?.v76?.reputation?.originBonus||0)+Number(save?.v76?.reputation?.personalityBonus||0);
+    return clamp(Math.round(22+(p.overall||55)*.43+Math.min(12,(s.apps||0)*.055)+Math.min(9,(s.goals||0)*.16+(s.assists||0)*.12)+Math.min(7,(intl.caps||0)*.16)+Math.max(-4,(form-6.5)*4)+honours*.8+((rel.supporters||50)-50)*.06+originBonus),25,99);
+  }
+  function v76UpdateReputation(save=career,result=null,record=true){
+    if(!save?.v76?.reputation)return null;const rep=save.v76.reputation,before=Number(rep.score)||45,score=v76ReputationScore(save),level=v76ReputationLevel(score);rep.score=score;rep.level=level.label;rep.icon=level.icon;
+    if(record&&score!==before){rep.history.unshift({season:save.season,week:save.week,from:before,to:score,reason:result?`Match rating ${Number(result.rating||0).toFixed(1)}`:'Career progress'});rep.history=rep.history.slice(0,30)}
+    return rep;
+  }
+
+  function v76SquadTierFor(save=career){
+    const p=save.player||{},trust=Number(p.managerTrust)||0,apps=Number(save.stats?.apps)||0,rel=save.relationships||{},leadership=save.careerChoices?.captaincyStatus||'';
+    if(apps>=250&&trust>=88)return'Club Legend';
+    if(leadership==='Captain'&&trust>=88)return'Captain';
+    if(leadership==='Leadership group'&&trust>=82)return'Vice Captain';
+    if(trust>=84&&apps>=18)return'Star Player';
+    if(trust>=74&&apps>=10)return'Important Player';
+    if(trust>=64&&apps>=5)return'First Team';
+    if(trust>=55||apps>=3)return'Rotation';
+    if(trust>=48||apps>=1)return'Fringe Player';
+    if(trust>=43)return'Prospect';
+    return'Academy';
+  }
+  function v76UpdateSquadPath(save=career,record=true){
+    const path=save.v76.squadPath,next=v76SquadTierFor(save),old=path.tier||'Academy';path.previousTier=old;path.tier=next;
+    if(record&&next!==old){path.changedWeek=save.week;path.history.unshift({season:save.season,week:save.week,from:old,to:next});path.history=path.history.slice(0,20);save.messages.unshift({title:`Squad role: ${next}`,body:`Your standing has changed from ${old} to ${next}. Keep meeting the manager's expectations to climb the pathway.`,new:true,important:true,category:'Manager'});save.v76.narrative.timeline.unshift({icon:'👕',title:`Became ${next}`,detail:`Season ${save.season} · Week ${save.week}`})}
+    return path;
+  }
+  function v76SquadNextRequirement(save=career){
+    const path=save.v76.squadPath,idx=Math.max(0,V76_SQUAD_LADDER.indexOf(path.tier)),next=V76_SQUAD_LADDER[Math.min(V76_SQUAD_LADDER.length-1,idx+1)],p=save.player||{},apps=save.stats?.apps||0;
+    if(next===path.tier)return'You have reached the top of the club pathway.';
+    const req={Prospect:'48 manager trust', 'Fringe Player':'1+ senior appearance or 48 trust',Rotation:'55 manager trust', 'First Team':'64 manager trust and 5 appearances','Important Player':'74 trust and 10 appearances','Star Player':'84 trust and 18 appearances','Vice Captain':'Leadership group + 82 trust',Captain:'Earn leadership group and 88 trust','Club Legend':'250 appearances and elite trust'}[next]||'Keep performing consistently';
+    return `${next}: ${req} · Current ${Math.round(p.managerTrust||0)} trust / ${apps} apps`;
+  }
+
+  function v76CareerIdentity(save=career){
+    const p=save.player||{},s=save.stats||{},clubs=new Set((save.fixtureHistory||[]).map(r=>r.club?.id||r.club?.name).filter(Boolean));
+    if((save.v76?.squadPath?.tier)==='Club Legend')return'One Club Legend';
+    if((save.international?.caps||0)>=50)return'International Icon';
+    if((save.honours?.team?.length||0)>=5)return'Serial Winner';
+    if(clubs.size>=4)return'Journeyman';
+    if((p.age||18)<=21&&(p.overall||0)>=80)return'Wonderkid';
+    if((p.age||18)>=28&&(p.overall||0)>=80)return'Late Bloomer';
+    if((s.apps||0)>=100&&(p.managerTrust||0)>=82)return'Loyal Leader';
+    return s.apps>=20?'Established Professional':'Emerging Prospect';
+  }
+
+  function v76EnsureRival(save=career){
+    const n=save.v76.narrative;if(n.rival?.name)return n.rival;
+    let pool=[];try{pool=generatedClubSquad(save.club,save.world?.countryId).filter(x=>x.position===save.player.position||squadGroup(x.position)===squadGroup(save.player.position));}catch{}
+    const rival=pool.sort((a,b)=>(b.overall||0)-(a.overall||0))[0]||{name:'Daniel Mensah',position:save.player.position,overall:clamp((save.player.overall||65)+2,55,91)};
+    n.rival={name:rival.name,position:rival.position,overall:rival.overall||save.player.overall||65,goals:0,assists:0,rating:6.8,club:save.club?.name||'Your club'};return n.rival;
+  }
+  function v76AdvanceRival(save=career){const r=v76EnsureRival(save),seed=seededUnit(`${save.careerId}-${save.season}-${save.week}-${r.name}`);r.rating=+(6.3+seed*2.1).toFixed(1);if(seed>.77)r.goals++;if(seed>.63&&seed<.82)r.assists++;r.overall=clamp(r.overall+(seed>.9?.1:0),45,94);return r}
+
+  function v76ObjectiveTemplates(pos,status=''){
+    const substitute=['Substitute','Reserve'].includes(status);
+    if(pos==='GK')return substitute?[['rating','Make an impact','Reach a 6.8 match rating',6.8],['saves','Stop danger','Make 2 saves',2]]:[['rating','Command the match','Reach a 7.0 match rating',7],['saves','Protect the goal','Make 3 saves',3],['passPct','Distribute cleanly','Complete 75% of passes',75]];
+    if(['CB','RB','LB','DM'].includes(pos))return substitute?[['rating','Settle the game','Reach a 6.8 rating',6.8],['tackles','Win a duel','Make 2 tackles',2]]:[['rating','Defensive standard','Reach a 7.0 rating',7],['tackles','Win the ball','Make 4 tackles',4],['passPct','Play securely','Complete 80% of passes',80]];
+    if(['RW','LW','AM'].includes(pos))return substitute?[['rating','Change the game','Reach a 7.0 rating',7],['keyPasses','Create danger','Create 1 key pass',1]]:[['rating','Attack with purpose','Reach a 7.2 rating',7.2],['dribbles','Beat defenders','Complete 3 dribbles',3],['keyPasses','Create chances','Make 2 key passes',2]];
+    if(pos==='ST')return substitute?[['rating','Make an impact','Reach a 7.0 rating',7],['shotsOnTarget','Threaten goal','Put 1 shot on target',1]]:[['rating','Lead the line','Reach a 7.2 rating',7.2],['shotsOnTarget','Test the keeper','Put 3 shots on target',3],['goalContribution','Decide the game','Score or assist once',1]];
+    return substitute?[['rating','Control your minutes','Reach a 6.9 rating',6.9],['passPct','Keep the ball','Complete 80% of passes',80]]:[['rating','Midfield standard','Reach a 7.0 rating',7],['passPct','Control possession','Complete 82% of passes',82],['keyPasses','Progress the attack','Create 2 key passes',2]];
+  }
+  function v76RefreshMatchObjectives(save=career,force=false){
+    const prep=save.v76.matchPrep;if(!force&&prep.week===save.week&&prep.objectives?.length)return prep.objectives;
+    prep.week=save.week;prep.objectives=v76ObjectiveTemplates(save.player.position,save.player.status).map((x,i)=>({id:`${save.season}-${save.week}-${i}-${x[0]}`,key:x[0],label:x[1],detail:x[2],target:x[3],complete:false,value:0}));return prep.objectives;
+  }
+  function v76ObjectiveValue(o,r){if(o.key==='rating')return Number(r.rating)||0;if(o.key==='passPct')return Number(r.passPct)||0;if(o.key==='tackles')return Number(r.tackles)||0;if(o.key==='saves')return Number(r.saves)||0;if(o.key==='dribbles')return Number(r.successfulDribbles)||0;if(o.key==='keyPasses')return Number(r.keyPasses)||0;if(o.key==='shotsOnTarget')return Number(r.shotsOnTarget)||0;if(o.key==='goalContribution')return (Number(r.goals)||0)+(Number(r.assists)||0);return 0}
+  function v76EvaluateObjectives(save,result,objectives){const rows=(objectives||[]).map(o=>{const value=v76ObjectiveValue(o,result),complete=value>=o.target;return{...o,value,complete}}),done=rows.filter(x=>x.complete).length;save.v76.matchPrep.lastObjectiveReport={week:save.week,rows,done,total:rows.length};return save.v76.matchPrep.lastObjectiveReport}
+
+  function v76TrainingBoostFromDrill(drillId,score){
+    const id=String(drillId||'').toLowerCase(),strength=score>=8500?4:score>=6500?3:score>=4200?2:1;let attrs=['decisions'];let label='Match sharpness';let icon='⚡';
+    if(/finish|penalt/.test(id)){attrs=['finishing','composure'];label='Finishing confidence';icon='🎯'}
+    else if(/pass|tactical|vision/.test(id)){attrs=['passing','vision','decisions'];label='Creative passing';icon='🧠'}
+    else if(/drib|touch|agility/.test(id)){attrs=['dribbling','firstTouch','agility'];label='Close control';icon='🪄'}
+    else if(/defen|tack|press/.test(id)){attrs=['tackling','positioning','anticipation'];label='Defensive timing';icon='🛡️'}
+    else if(/free|corner|setpiece/.test(id)){attrs=['freeKicks','corners','technique'];label='Set-piece rhythm';icon='🚩'}
+    else if(/sprint|tread|bike|gym|race/.test(id)){attrs=['pace','acceleration','stamina'];label='Physical readiness';icon='🏃'}
+    else if(/recover|swim/.test(id)){attrs=['stamina','composure'];label='Recovery boost';icon='🧊'}
+    return{drillId,label,icon,attrs,strength,score,season:career?.season||1,week:career?.week||1,expiresWeek:(career?.week||1)+1};
+  }
+  function v76RecordTrainingImpact(drillId,score){if(!career)return;ensureV76CareerSystems(career);const boost=v76TrainingBoostFromDrill(drillId,score);career.v76.matchPrep.trainingBoosts=[boost,...(career.v76.matchPrep.trainingBoosts||[]).filter(x=>x.expiresWeek>=career.week&&x.label!==boost.label)].slice(0,4);career.v76.narrative.timeline.unshift({icon:boost.icon,title:boost.label,detail:`Training boost +${boost.strength} · Week ${career.week}`});return boost}
+  function v76ActiveTrainingBoosts(save=career){return (save?.v76?.matchPrep?.trainingBoosts||[]).filter(x=>(x.season===save.season)&&(x.expiresWeek>=save.week))}
+  function applyV76MatchBoosts(attrs,save=career){const out={...attrs};v76ActiveTrainingBoosts(save).forEach(boost=>boost.attrs.forEach(key=>{if(Number.isFinite(out[key]))out[key]=clamp(out[key]+boost.strength,1,99)}));return out}
+
+  function v76RefreshWeekPlan(save=career){
+    const v=save.v76.weekPlan;if(v.week===save.week&&v.days?.length)return v.days;const t=ensureTrainingProgramme(save.player),history=(t.sessionHistory||[]).filter(x=>x.week===save.week),labels=history.map(x=>x.label);
+    v.week=save.week;v.days=[
+      {day:'MON',type:'Recovery',icon:'🧊',state:labels[0]?'done':'recommended'},
+      {day:'TUE',type:labels[0]||'Technical',icon:'⚽',state:labels[0]?'done':'open'},
+      {day:'WED',type:labels[1]||'Tactical',icon:'🧠',state:labels[1]?'done':'open'},
+      {day:'THU',type:'Recovery',icon:'💤',state:'recommended'},
+      {day:'FRI',type:labels[2]||'Match Prep',icon:'🎯',state:labels[2]?'done':'open'},
+      {day:'SAT',type:'MATCH DAY',icon:'🏟️',state:'match'},
+      {day:'SUN',type:'Rest',icon:'🌙',state:'rest'}
+    ];return v.days;
+  }
+
+  function v76WorldStoryPool(save=career){const league=save.league||[],others=league.filter(c=>c.id!==save.club?.id&&c.abbr!==save.club?.abbr),a=others[(save.week*3)%Math.max(1,others.length)]||{name:'Northbridge'},b=others[(save.week*5+1)%Math.max(1,others.length)]||{name:'Riverton'};return[
+    {icon:'🔥',title:`${a.name} hit a run of form`,body:`Three strong results have pushed ${a.name} into the conversation at the top end of ${save.world?.leagueName||'the league'}.`},
+    {icon:'🩹',title:`Injury concern at ${b.name}`,body:`${b.name} are expected to rotate their squad after a difficult week on the training ground.`},
+    {icon:'🌟',title:'Young talent breaks through',body:`A highly rated academy player has forced his way into first-team plans elsewhere in ${save.world?.countryName||'the football world'}.`},
+    {icon:'🔄',title:'Transfer market starts moving',body:`Clubs are monitoring form and squad needs ahead of the next window, with several midfield and attacking roles under review.`},
+    {icon:'📊',title:'Title picture changes again',body:`Recent results have tightened the table and increased the pressure around the next round of fixtures.`}
+  ]}
+  function v76EnsureWorldStory(save=career){const n=save.v76.narrative;if(n.lastStoryWeek===save.week)return;n.lastStoryWeek=save.week;const pool=v76WorldStoryPool(save),story={...pool[(save.week+save.season)%pool.length],week:save.week,season:save.season};n.worldStories.unshift(story);n.worldStories=n.worldStories.slice(0,12);n.identity=v76CareerIdentity(save)}
+
+  function v76InteractiveMessage(save=career){
+    const p=save.player,path=save.v76.squadPath.tier,week=save.week;
+    if(week<=2)return{title:'Manager: define your approach',sender:'First Team Manager',category:'Manager',important:true,body:`You are currently viewed as ${path}. How do you want to approach your first run of matches?`,choices:[{id:'ready',label:"I'm ready for responsibility"},{id:'team',label:'Whatever the team needs'},{id:'patient',label:"I'll earn it patiently"}]};
+    if(week%8===0)return{title:'Agent: career direction',sender:'Your Agent',category:'Contracts',important:true,body:'Your form is creating options. What should your agent prioritise?',choices:[{id:'stay',label:'Build my status here'},{id:'move',label:'Explore bigger opportunities'},{id:'contract',label:'Focus on a new contract'}]};
+    if(week%6===0)return{title:'Captain: dressing-room standards',sender:'Club Captain',category:'General',important:false,body:'The captain asks how you want to contribute to the group this week.',choices:[{id:'lead',label:'Take more responsibility'},{id:'support',label:'Support the younger players'},{id:'focus',label:'Focus on my football'}]};
+    return null;
+  }
+  function v76EnsureInteractiveStory(save=career){const st=save.v76.story;if(st.lastInteractiveWeek===save.week)return;const message=v76InteractiveMessage(save);if(!message)return;st.lastInteractiveWeek=save.week;save.messages.unshift({...message,new:true,read:false,receivedAt:new Date().toISOString(),v76Interactive:true})}
+  function v76HandleInboxChoice(message,choiceId){
+    if(!career||!message||message.v76Answered)return;ensureV76CareerSystems(career);const p=career.player,r=career.relationships,rep=career.v76.reputation;let note='Decision recorded.';
+    const effects={
+      ready:()=>{p.managerTrust=clamp(p.managerTrust+2,0,100);r.manager=clamp(r.manager+2,0,100);p.morale=clamp(p.morale+2,0,100);note='The manager likes the confidence, but expectations are higher.'},
+      team:()=>{r.teamMates=clamp(r.teamMates+3,0,100);r.captain=clamp(r.captain+2,0,100);p.managerTrust=clamp(p.managerTrust+1,0,100);note='Your team-first answer improves dressing-room trust.'},
+      patient:()=>{r.manager=clamp(r.manager+1,0,100);p.morale=clamp(p.morale+1,0,100);note='The staff appreciate the patient, professional approach.'},
+      stay:()=>{r.supporters=clamp(r.supporters+3,0,100);r.manager=clamp(r.manager+2,0,100);note='Your commitment strengthens your standing at the club.'},
+      move:()=>{r.agent=clamp(r.agent+4,0,100);rep.score=clamp(rep.score+1,0,99);note='Your agent will quietly explore stronger opportunities.'},
+      contract:()=>{r.agent=clamp(r.agent+3,0,100);r.board=clamp(r.board+1,0,100);note='Your agent will focus on improving your current deal.'},
+      lead:()=>{r.captain=clamp(r.captain+3,0,100);r.teamMates=clamp(r.teamMates+2,0,100);note='The leadership group notices you taking responsibility.'},
+      support:()=>{r.teamMates=clamp(r.teamMates+4,0,100);note='Your support improves squad chemistry.'},
+      focus:()=>{p.morale=clamp(p.morale+2,0,100);note='You keep distractions low and focus on performance.'}
+    };(effects[choiceId]||(()=>{}))();message.v76Answered=choiceId;message.body+=`\n\nYour response: ${message.choices?.find(c=>c.id===choiceId)?.label||choiceId}. ${note}`;message.read=true;message.new=false;career.v76.story.answered.push({season:career.season,week:career.week,message:message.title,choice:choiceId});v76UpdateSquadPath(career,true);v76UpdateReputation(career,null,true);saveCareer();renderCareerInbox();renderHub();
+  }
+
+  function v76MatchMemoryLine(save=career,opponent=null){const history=(save?.fixtureHistory||[]).filter(r=>opponent&&(r.opponent?.id===opponent.id||r.opponent?.abbr===opponent.abbr||r.opponent?.name===opponent.name)).slice(-3),recent=(save?.recentRatings||[]).slice(-4);if(history.length){const last=history.at(-1);return `Last meeting: ${last.score?.[0]??0}–${last.score?.[1]??0} · you rated ${Number(last.rating||0).toFixed(1)}`;}if(recent.length){const avg=recent.reduce((a,b)=>a+b,0)/recent.length;return avg>=7.6?`In form: ${avg.toFixed(2)} average across your last ${recent.length} matches`:`Recent form: ${avg.toFixed(2)} average across ${recent.length} matches`;}return'This is the next chapter of your career.'}
+
+  function v76CauseEffectRows(result){
+    const p=career?.player||{},t=ensureDevelopmentSystem(p),rows=[];
+    if((result.misplacedPasses||0)>0)rows.push({icon:'↗',title:`${result.misplacedPasses} misplaced passes`,detail:`Passing ${p.attrs?.passing||0} · Vision ${p.attrs?.vision||0} · ${result.passPct||0}% completion`});
+    if((result.possessionLost||0)>4)rows.push({icon:'⚠️',title:'Possession security',detail:`Lost the ball ${result.possessionLost} times; pressure and first-touch quality mattered.`});
+    if((t.fatigue||0)>55||result.staminaEnd<35)rows.push({icon:'🔋',title:'Fatigue affected execution',detail:`Energy load ${Math.round(t.fatigue||0)}% · stamina ended at ${Math.round(result.staminaEnd||0)}%.`});
+    if((result.successfulDribbles||0)>0)rows.push({icon:'🪄',title:'Dribbling translated',detail:`${result.successfulDribbles}/${result.dribbles||0} take-ons completed from Dribbling ${p.attrs?.dribbling||0}.`});
+    return rows.slice(0,3);
+  }
+  function v76ProcessMilestones(save,result){
+    const v=save.v76,s=save.stats||{},intl=save.international||{},snap=v.lastMilestoneSnapshot||{};const checks=[[1,'apps','First professional appearance','🎬'],[50,'apps','50 career appearances','🏟️'],[100,'apps','100 career appearances','💯'],[1,'goals','First professional goal','⚽'],[25,'goals','25 career goals','🔥'],[1,'assists','First career assist','🎯'],[25,'assists','25 career assists','🅰️']];let newest=null;
+    checks.forEach(([target,key,title,icon])=>{if((s[key]||0)>=target&&(snap[key]||0)<target&&!v.narrative.timeline.some(x=>x.title===title)){newest={icon,title,detail:`Season ${save.season} · Week ${save.week}`};v.narrative.timeline.unshift(newest)}});if((intl.caps||0)>=1&&(snap.caps||0)<1&&!v.narrative.timeline.some(x=>x.title==='First international cap')){newest={icon:'🌍',title:'First international cap',detail:`${intl.countryName||save.player.nationality}`};v.narrative.timeline.unshift(newest)}
+    v.lastMilestoneSnapshot={apps:s.apps||0,goals:s.goals||0,assists:s.assists||0,caps:intl.caps||0};v.narrative.timeline=v.narrative.timeline.slice(0,40);return newest;
+  }
+  function v76ProcessMatchResult(save,result,preObjectives=[]){
+    ensureV76CareerSystems(save);const beforeRep=Number(save.v76.reputation.score)||0,beforeTier=save.v76.squadPath.tier,report=v76EvaluateObjectives(save,result,preObjectives),milestone=v76ProcessMilestones(save,result);v76AdvanceRival(save);v76UpdateSquadPath(save,true);v76UpdateReputation(save,result,true);save.v76.narrative.identity=v76CareerIdentity(save);save.v76.narrative.timeline.unshift({icon:result.rating>=8?'🌟':result.rating>=7?'✅':'📋',title:`${Number(result.rating||0).toFixed(1)} vs ${result.opponent?.name||'Opponent'}`,detail:`${result.score?.[0]??0}–${result.score?.[1]??0} · ${report.done}/${report.total} objectives`});save.v76.narrative.timeline=save.v76.narrative.timeline.slice(0,40);v76RefreshMatchObjectives(save,true);v76RefreshWeekPlan(save);v76EnsureWorldStory(save);v76EnsureInteractiveStory(save);result.v76={objectiveReport:report,reputationBefore:beforeRep,reputationAfter:save.v76.reputation.score,tierBefore:beforeTier,tierAfter:save.v76.squadPath.tier,milestone,causeEffect:v76CauseEffectRows(result)};return result.v76;
+  }
+
+  function v76WeekPlanMarkup(save=career){const days=v76RefreshWeekPlan(save);return `<section class="v76-week-plan"><header><div><small>WEEK ${save.week} PLAN</small><b>Prepare · perform · recover</b></div><span>${trainingSessionsRemaining(save.player)}/3 sessions left</span></header><div>${days.map(d=>`<article class="${d.state}"><small>${d.day}</small><span>${d.icon}</span><b>${escapeMarkup(d.type)}</b></article>`).join('')}</div></section>`}
+  function v76TrainingBoostMarkup(save=career){const boosts=v76ActiveTrainingBoosts(save);return `<section class="v76-boosts"><header><small>MATCH-DAY TRAINING EFFECTS</small><b>${boosts.length?'Active boosts':'No active boost yet'}</b></header><div>${boosts.map(b=>`<span><i>${b.icon}</i><strong>${escapeMarkup(b.label)}</strong><em>+${b.strength} ${b.attrs.slice(0,2).map(pretty).join(' / ')}</em></span>`).join('')||'<p>Complete a career training session to carry a temporary technical or physical benefit into the next fixture.</p>'}</div></section>`}
+
+  function v76CareerHomeMarkup(p,home,opp){
+    ensureV76CareerSystems(career);const currentEvent=careerCalendarEvents(home).get(career.week),nextOpp=currentEvent?.club||opp,nextCompetition=currentEvent?.competition||currentCareerCompetition(career),international=currentEvent?.type==='international'||nextCompetition?.type==='international',nextHome=international?nationalTeamClub(careerCountry(career)||ensureInternationalCareer(career).countryName,ensureInternationalCareer(career).teamRating):home;const v=career.v76,rep=v.reputation,path=v.squadPath,rival=v76EnsureRival(career),obj=v76RefreshMatchObjectives(career),story=v.narrative.worldStories[0],boosts=v76ActiveTrainingBoosts(career),condition=careerMatchCondition(p),memory=v76MatchMemoryLine(career,nextOpp),idx=V76_SQUAD_LADDER.indexOf(path.tier),progress=clamp((idx/(V76_SQUAD_LADDER.length-1))*100,0,100),identity=v76CareerIdentity(career),unread=careerUnreadCount(career);
+    return `<div class="v76-career-home">
+      <section class="v76-match-hero" style="--club:${nextHome.primary||'#6d28d9'};--opp:${nextOpp.primary||'#0ea5e9'}"><div class="v76-match-copy"><small>NEXT MATCH · ${escapeMarkup(nextCompetition?.name||career.world?.leagueName||'Career Match')}</small><h3>${escapeMarkup(nextHome.shortName||nextHome.name)} <em>vs</em> ${escapeMarkup(nextOpp.shortName||nextOpp.name)}</h3><p>${escapeMarkup(memory)}</p><div><span>${condition.label}</span><span>${path.tier}</span><span>${boosts.length} training boost${boosts.length===1?'':'s'}</span></div></div><div class="v76-match-crests">${crestMarkup(nextHome,'medium')}<b>VS</b>${crestMarkup(nextOpp,'medium')}</div><button data-career-tab-jump="fixtures">Match Centre →</button></section>
+      <section class="v76-career-status"><article><small>SQUAD PATHWAY</small><div class="v76-role-row"><b>${escapeMarkup(path.tier)}</b><span>${Math.round(p.managerTrust||0)}% trust</span></div><i><em style="width:${progress}%"></em></i><p>${escapeMarkup(v76SquadNextRequirement(career))}</p></article><article><small>REPUTATION</small><div class="v76-rep"><span>${rep.icon}</span><b>${rep.score}</b><div><strong>${escapeMarkup(rep.level)}</strong><em>${escapeMarkup(identity)}</em></div></div><p>Form, minutes, trophies, international football and supporter standing all contribute.</p></article><article><small>CAREER RIVAL</small><div class="v76-rival"><span>⚔️</span><div><b>${escapeMarkup(rival.name)}</b><em>${rival.position} · ${rival.overall} OVR</em></div><strong>${Number(rival.rating||6.8).toFixed(1)}</strong></div><p>You ${career.stats?.goals||0}G/${career.stats?.assists||0}A · Rival ${rival.goals||0}G/${rival.assists||0}A</p></article></section>
+      <section class="v76-objectives"><header><div><small>MANAGER MATCH PLAN</small><b>Personalised objectives</b></div><span>${p.position} · ${path.tier}</span></header><div>${obj.map(o=>`<article><span>${o.key==='rating'?'⭐':o.key==='passPct'?'↗':o.key==='tackles'?'🛡️':o.key==='saves'?'🧤':o.key==='dribbles'?'🪄':'🎯'}</span><div><b>${escapeMarkup(o.label)}</b><small>${escapeMarkup(o.detail)}</small></div></article>`).join('')}</div></section>
+      ${v76WeekPlanMarkup(career)}${v76TrainingBoostMarkup(career)}
+      <section class="v76-story-grid"><article class="v76-world-story"><small>WORLD FOOTBALL</small><span>${story?.icon||'📰'}</span><b>${escapeMarkup(story?.title||'The season is moving')}</b><p>${escapeMarkup(story?.body||'Results elsewhere continue to reshape the football world.')}</p></article><article class="v76-manager-card"><small>CAREER PULSE</small><span>🧑‍🏫</span><b>${Math.round(career.relationships?.manager||50)} manager relationship</b><p>${unread?`${unread} unread inbox message${unread===1?'':'s'} waiting for you.`:'No urgent messages. Keep building trust through training and matches.'}</p><button data-career-tab-jump="inbox">Open Inbox →</button></article><article class="v76-timeline-card"><small>CAREER TIMELINE</small>${v.narrative.timeline.slice(0,3).map(x=>`<div><span>${x.icon||'•'}</span><p><b>${escapeMarkup(x.title)}</b><small>${escapeMarkup(x.detail||'')}</small></p></div>`).join('')||'<p>Your first major career moment will appear here.</p>'}</article></section>
+    </div>`;
+  }
+
+  function v76ProfileMarkup(save=career){ensureV76CareerSystems(save);const v=save.v76,p=save.player,rep=v.reputation,rival=v76EnsureRival(save);return `<section class="v76-profile-career"><header><div><small>CAREER IDENTITY</small><h4>${escapeMarkup(v76CareerIdentity(save))}</h4><p>${escapeMarkup(v.squadPath.tier)} · ${escapeMarkup(rep.level)} · ${save.stats?.apps||0} senior appearances<br><small>${escapeMarkup(v.origin?.background||'Local Academy Graduate')} · ${escapeMarkup(v.origin?.personality||'Professional')}</small></p></div><span>${rep.icon}<b>${rep.score}</b></span></header><div><article><small>NEXT SQUAD STEP</small><b>${escapeMarkup(v76SquadNextRequirement(save))}</b></article><article><small>CAREER RIVAL</small><b>${escapeMarkup(rival.name)} · ${rival.overall} OVR</b></article><article><small>RELATIONSHIP HEALTH</small><b>${Math.round(Object.values(save.relationships||{}).reduce((a,b)=>a+Number(b||0),0)/Math.max(1,Object.keys(save.relationships||{}).length))}%</b></article></div></section>`}
+
+  function v76PostMatchMarkup(r){if(!career||!r.v76)return'';const v=r.v76,repDelta=v.reputationAfter-v.reputationBefore,rows=v.objectiveReport?.rows||[];return `<section class="v76-post-report"><header><div><small>CAREER IMPACT</small><h4>${v.objectiveReport?.done||0}/${v.objectiveReport?.total||0} manager objectives completed</h4></div><span class="${repDelta>=0?'good':'bad'}">Reputation ${repDelta>=0?'+':''}${repDelta}</span></header><div class="v76-post-objectives">${rows.map(x=>`<article class="${x.complete?'complete':'missed'}"><span>${x.complete?'✓':'×'}</span><div><b>${escapeMarkup(x.label)}</b><small>${Number(x.value).toFixed(x.key==='rating'?1:0)} / ${x.target}</small></div></article>`).join('')}</div>${v.tierAfter!==v.tierBefore?`<div class="v76-role-promotion">👕 Squad status changed: <b>${escapeMarkup(v.tierBefore)} → ${escapeMarkup(v.tierAfter)}</b></div>`:''}${v.milestone?`<div class="v76-milestone">${v.milestone.icon} <div><small>CAREER MILESTONE</small><b>${escapeMarkup(v.milestone.title)}</b></div></div>`:''}<div class="v76-cause-effect">${(v.causeEffect||[]).map(x=>`<article><span>${x.icon}</span><div><b>${escapeMarkup(x.title)}</b><small>${escapeMarkup(x.detail)}</small></div></article>`).join('')}</div></section>`}
+
 
   function renderHub() {
     if (!career) return navigate('menu');
@@ -8192,7 +8941,7 @@
     const p = career.player;
     ensureSetPieceStats(p);
     $('#hubGreeting').textContent = `Week ${career.week}: ${p.name}`;
-    $('#topCareerSummary').textContent = `${p.name} \u00b7 ${p.position} \u00b7 OVR ${p.overall}`;
+    if($('#topCareerSummary'))$('#topCareerSummary').textContent = `${p.name} \u00b7 ${p.position} \u00b7 OVR ${p.overall}`;
     $('#playMatchBtn').disabled=!!career.retired;$('#playMatchBtn').textContent=career.retired?'Career Retired':career.injury?`\ud83e\ude79 Simulate Fixture (${career.injury.remainingMatches} out)`:career.phase==='international'?'\ud83c\udf10 Play International Match':'Play Next Match';
     const tProfile=ensureDevelopmentSystem(p), keyAttrs=['passing','vision','dribbling','firstTouch','technique','decisions','composure','finishing','pace','stamina','tackling','positioning'];
     const retirementAge=p.position==='GK'?40:35;
@@ -8203,11 +8952,12 @@
     $('#profilePanel').insertAdjacentHTML('beforeend',`<div class="international-profile-card ${callupTone}"><span>\ud83c\udf10</span><div><small>INTERNATIONAL STATUS \u00b7 ${intl.teamRating} TEAM RATING</small><b>${intl.countryName} \u00b7 ${intl.status}</b><p>${intl.lastAssessmentSeason?intl.reason:`Selection will compare ${p.overall} OVR with your national-team rating and recent form.`}</p></div><aside><b>${intl.caps}</b><small>CAPS</small><span>${intl.goals} goals \u00b7 ${intl.assists} assists</span></aside></div>`);
     const setPieceTier=setPieceTrustTier(p.managerTrust);
     $('#profilePanel').insertAdjacentHTML('beforeend', `<div class="set-piece-stats"><small>SET PIECE RATINGS</small><div><span>\ud83c\udfaf Penalties <b>${p.attrs.penalties}</b></span><span>\ud83c\udf00 Free kicks <b>${p.attrs.freeKicks}</b></span><span>\ud83d\udea9 Corners <b>${p.attrs.corners}</b></span><span>\ud83d\ude4c Throw-ins <b>${p.attrs.throwIns}</b></span></div><section class="set-piece-trust-card"><span>${setPieceTier.icon}</span><div><small>MANAGER SET PIECE STANDING</small><b>${setPieceTier.label}</b><p>${setPieceTier.rank} \u00b7 trust now affects how often you take penalties, free kicks and corners.</p></div><em>${Math.round(p.managerTrust)}%</em></section></div>${styleLockerMarkup(career)}`);
+    $('#profilePanel').insertAdjacentHTML('beforeend',v76ProfileMarkup(career));
     document.querySelectorAll('[data-hair-style]').forEach(btn=>btn.onclick=()=>{if(btn.disabled)return;p.hair=btn.dataset.hairStyle;saveCareer();renderHub();beep(680,.04)});
     const home=career.club||career.league[career.clubIndex||0]||clubs[0],opp=career.league[career.nextOpponent % career.league.length]||career.league.find(c=>c.abbr!==home.abbr)||clubs[1];
     renderFixturePanel(home);renderTrophyCabinet();
     $('#leagueTableTitle').textContent=career.world?.leagueName||'The Crown League';$('#leagueTableCount').textContent=`${career.league.length} clubs`;
-    $('#playerOverviewList').innerHTML = `<div class="visual-overview"><section class="overview-player-mini classic-media-card"><div class="media-player-stage"><canvas id="mediaMiniPlayer" width="132" height="158"></canvas><span>\ud83d\udcfa CLASSIC MEDIA PLAYER</span></div><div class="media-player-copy"><small>${p.status}</small><b>${p.name}</b><span>\ud83d\udccd ${p.position} \u00b7 \u2b50 ${p.overall} OVR</span><div class="media-player-icons"><em>\ud83d\udcaa ${p.build||'Athletic'}</em><em>\ud83d\udc87 ${p.hair||'Short'}</em><em class="appearance-swatch-label"><i style="--swatch:${p.skinTone||'#7b4b2a'}"></i> Skin</em><em class="appearance-swatch-label"><i style="--swatch:${p.hairColour||'#21140d'}"></i> Hair</em><em>\ud83d\udc55 #${p.shirtNumber}</em></div></div></section><section class="overview-meters">${(()=>{const n=careerVitalNotes(p),c=n.condition,r=n.injury,pct=v=>`${v>=1?'+':''}${Math.round((v-1)*100)}%`;return [['\u2764\ufe0f',Math.round(p.fitness)+'%','Fitness',n.fitness,pct(c.physical)],['\u26a1',Math.round(c.sharpness)+'%','Sharpness',n.sharpness,pct(c.technical)],['\ud83d\ude0a',Math.round(p.morale)+'%','Morale',n.morale,pct(c.mental)],['\ud83d\udd0b',Math.round(100-(ensureDevelopmentSystem(p).fatigue||0))+'%','Energy',n.energy,Math.round(careerFatigueMatchProfile(p).ceiling)+'% cap'],['\ud83e\udd1d',Math.round(p.managerTrust)+'%','Trust',n.trust,n.setPiece.rank],['\ud83e\ude79',r.label,'Risk',n.risk,r.percent+'%']].map(([i,v,l,note,tag])=>`<div title="${escapeMarkup(note)}"><span>${i}</span><b>${v}</b><small>${l}</small><em class="meter-effect">${escapeMarkup(tag)}</em></div>`).join('')})()}<div class="meter-condition-note ${careerMatchCondition(p).tone}"><b>Match day condition: ${careerMatchCondition(p).label}</b><p>Fitness, Sharpness and Morale scale your physical, technical and mental attributes for the next fixture. Energy sets the stamina ceiling and Trust decides set-piece duty.</p></div></section><section class="overview-next-match"><div>${crestMarkup(home,'small')}<span>VS</span>${crestMarkup(opp,'small')}</div><b>${home.shortName||home.name} v ${opp.shortName||opp.name}</b><small>\ud83d\udcc5 Saturday \u00b7 \ud83c\udfdf\ufe0f ${home.stadium||'Home Ground'}</small></section><section class="overview-actions"><button data-career-tab-jump="fixtures">\ud83d\udcc5<b>Fixture</b><small>Next match</small></button><button data-career-tab-jump="inbox">\ud83d\udce9<b>Inbox</b><small>${careerUnreadCount(career)} unread</small></button></section><section class="objective-icon-row">${career.objectives.map((o,i)=>`<div><span>${['\ud83c\udfaf','\u2705','\ud83e\udd1d'][i]||'\u2b50'}</span><b>${Math.min(o.value,o.target)}/${o.target}</b><small>${o.label}</small></div>`).join('')}</section></div>`;
+    $('#playerOverviewList').innerHTML = v76CareerHomeMarkup(p,home,opp);
     renderMediaMiniPlayer();
     document.querySelectorAll('[data-career-tab-jump]').forEach(b=>b.onclick=()=>setCareerTab(b.dataset.careerTabJump));
     renderCareerForm();
@@ -8332,13 +9082,12 @@
     }
     if(picked.length<12){
       const need=[['GK',3],['CB',3],['LB',2],['RB',2],['DM',2],['CM',3],['AM',2],['LW',2],['RW',2],['ST',3]];
-      const names=['Aurel Beci','Drin Kastrati','Noel Marku','Ilir Hoxha','Endri Gashi','Rei Lleshi','Tomas Vata','Aleks Duka','Mateo Rama','Kreshnik Berisha','Luan Shala','Bler Dema','Ardit Peci','Fatjon Krasniqi','Genti Malaj','Erion Zeka','Klaudio Bardhi','Sokol Vinca','Ermal Nika','Dorian Cela','Redi Lika','Blend Ismaili'];
       let slot=0;
       need.forEach(([position,count])=>{
         for(let i=0;i<count;i++){
           if(picked.length>=22)return;
           const seed=`${career.careerId}|intl-fallback|${countryName}|${position}|${slot}`,u=seededUnit(seed);
-          picked.push({id:`intl-fallback-${slot}`,name:names[slot%names.length],position,overall:Math.round(clamp(62+u*22,58,86)),potential:Math.round(clamp(70+u*20,66,92)),shirtNumber:slot+1,age:Math.round(19+u*13),attrs:baseAttributes(position,'Playmaker'),clubName:'Domestic club',clubAbbr:''});
+          picked.push({id:`intl-fallback-${slot}`,name:generatedCountryPlayerName(intl?.countryId||career.world?.countryId,countryName,seed),position,overall:Math.round(clamp(62+u*22,58,86)),potential:Math.round(clamp(70+u*20,66,92)),shirtNumber:slot+1,age:Math.round(19+u*13),attrs:baseAttributes(position,'Playmaker'),clubName:'Domestic club',clubAbbr:''});
           slot++;
         }
       });
@@ -8354,17 +9103,87 @@
   }
   const CLUB_SQUAD_NAMES=['Kofi Mensah','Leo Hart','Callum Price','Andre Cole','Malik Johnson','Finn Doyle','Rafael Costa','Tariq Evans','Noah King','Isaac Grant','Daniel Moore','Ethan Blake','Jayden Clarke','Samir Patel','Owen Brooks','Mason Reid','Theo Wilson','Alex Morgan'];
   const CLUB_SQUAD_POSITIONS=['GK','RB','CB','CB','LB','DM','CM','AM','RW','LW','ST','GK','CB','CM','RW','ST','LB','DM'];
-  const CLUB_SQUAD_SURNAMES=['Adeyemi','Bianchi','Novak','Farrell','Okonkwo','Lindqvist','Moreau','Vargas','Sorensen','Kowalski','Haddad','Ferreira','Nakamura','Bakker','Duarte','Ionescu','Fischer','Quinn','Salvatore','Petrov','Oyelaran','Marchetti'];
-  const CLUB_SQUAD_FIRSTNAMES=['Elias','Mateo','Jonas','Andrei','Samuel','Luca','Idris','Nikolai','Emeka','Tomas','Rasmus','Adam','Kenji','Bruno','Hugo','Milan','Felix','Aaron','Dario','Viktor','Femi','Enzo'];
+  const COUNTRY_NAME_POOLS={
+    england:[['Jack','Harry','Oliver','George','Charlie','Alfie','James','Theo'],['Smith','Jones','Taylor','Brown','Wilson','Davies','Evans','Thomas']],
+    norway:[['Erik','Lars','Magnus','Kristian','Sander','Marius','Emil','Oskar'],['Hansen','Johansen','Andersen','Olsen','Larsen','Nilsen','Berg','Solberg']],
+    scotland:[['Callum','Lewis','Jamie','Finlay','Ross','Fraser','Ewan','Scott'],['Campbell','Stewart','Robertson','MacDonald','Murray','Anderson','Fraser','McLean']],
+    ireland:[['Sean','Conor','Cian','Darragh','Ronan','Eoin','Liam','Oisin'],['Murphy','Kelly','Byrne','Ryan','OBrien','Walsh','Doyle','McCarthy']],
+    france:[['Lucas','Hugo','Theo','Jules','Louis','Antoine','Enzo','Maxime'],['Martin','Bernard','Dubois','Thomas','Robert','Petit','Moreau','Laurent']],
+    germany:[['Lukas','Leon','Jonas','Felix','Florian','Julian','Niklas','Maximilian'],['Muller','Schmidt','Schneider','Fischer','Weber','Wagner','Becker','Hoffmann']],
+    spain:[['Alejandro','Daniel','Pablo','Sergio','Javier','Adrian','Alvaro','Diego'],['Garcia','Rodriguez','Martinez','Lopez','Sanchez','Perez','Gomez','Fernandez']],
+    italy:[['Lorenzo','Matteo','Alessandro','Federico','Marco','Davide','Riccardo','Nicolo'],['Rossi','Russo','Ferrari','Esposito','Bianchi','Romano','Colombo','Ricci']],
+    portugal:[['Joao','Diogo','Tiago','Goncalo','Ruben','Andre','Pedro','Miguel'],['Silva','Santos','Ferreira','Pereira','Oliveira','Costa','Rodrigues','Martins']],
+    brazil:[['Gabriel','Lucas','Matheus','Rafael','Pedro','Bruno','Vinicius','Gustavo'],['Silva','Santos','Oliveira','Souza','Pereira','Costa','Rodrigues','Almeida']],
+    argentina:[['Santiago','Mateo','Nicolas','Tomas','Joaquin','Lautaro','Facundo','Franco'],['Gonzalez','Rodriguez','Gomez','Fernandez','Lopez','Martinez','Perez','Sanchez']],
+    netherlands:[['Daan','Sem','Lars','Luuk','Jesse','Thijs','Bram','Wout'],['De Jong','Jansen','De Vries','Van Dijk','Bakker','Visser','Smit','Meijer']],
+    japan:[['Haruto','Yuto','Ren','Sota','Kaito','Daiki','Takumi','Riku'],['Sato','Suzuki','Takahashi','Tanaka','Watanabe','Ito','Yamamoto','Nakamura']],
+    nigeria:[['Chinedu','Emeka','Tunde','Ibrahim','Kelechi','Samuel','Victor','Moses'],['Okafor','Adeyemi','Okonkwo','Balogun','Eze','Musa','Iheanacho','Nwosu']],
+    ghana:[['Kwame','Kofi','Kojo','Yaw','Daniel','Samuel','Ibrahim','Mohammed'],['Mensah','Owusu','Asante','Boateng','Osei','Appiah','Agyeman','Acheampong']]
+  };
+  // The base pools carry eight first names and eight surnames each - only 64 combinations,
+  // which is nowhere near enough for a 22-player fixture. Duplicates were routine and the same
+  // generated name could turn out for both teams in the same match. These extensions take each
+  // pool to roughly 20x20 (~400 combinations). The added names are deliberately ordinary: the
+  // generator must never be able to produce a real, identifiable footballer.
+  const COUNTRY_NAME_POOL_EXTRA={"england":[["Ollie","Louie","Alex","Ben","Callum","Elliot","Freddie","Isaac","Joe","Nathan","Sam","Toby"],["Walker","Wright","Hughes","Clarke","Hall","Green","Baker","Turner","Ward","Cooper","Morgan","Bennett"]],"norway":[["Anders","Bjorn","Henrik","Jonas","Mathias","Nikolai","Sindre","Tobias","Even","Halvor","Petter","Vetle"],["Olsen","Larsen","Pedersen","Nilsen","Kristiansen","Jensen","Karlsen","Berg","Haugen","Moen","Dahl","Strand"]],"scotland":[["Aidan","Angus","Duncan","Euan","Hamish","Iain","Murray","Rory","Struan","Cameron","Blair","Gregor"],["MacLeod","Fraser","Munro","Wallace","Sinclair","Kerr","Boyd","Hunter","Ross","Baird","Cunningham","Muir"]],"ireland":[["Cathal","Donal","Fergal","Killian","Niall","Odhran","Padraig","Shane","Tadhg","Cormac","Ruairi","Fintan"],["Doyle","Walsh","Fitzgerald","Brennan","Cullen","Duffy","Lynch","Nolan","Quinn","Hayes","Sheridan","Devlin"]],"france":[["Baptiste","Clement","Corentin","Damien","Florian","Gaetan","Mathis","Nathan","Quentin","Romain","Thibault","Yanis"],["Moreau","Laurent","Lefevre","Girard","Fontaine","Chevalier","Renaud","Marchand","Perrin","Guillot","Barbier","Duval"]],"germany":[["Fabian","Jannik","Marvin","Moritz","Nico","Pascal","Sebastian","Simon","Tobias","Yannick","Dominik","Elias"],["Wagner","Becker","Hoffmann","Schulz","Koch","Richter","Klein","Wolf","Neumann","Zimmermann","Braun","Krause"]],"spain":[["Carlos","Hugo","Iker","Jorge","Marcos","Mario","Miguel","Raul","Ruben","Victor","Alonso","Nacho"],["Fernandez","Lopez","Sanchez","Perez","Gomez","Ruiz","Ramos","Vargas","Ortega","Castillo","Herrera","Iglesias"]],"italy":[["Andrea","Cristian","Emanuele","Fabio","Gianluca","Luca","Manuel","Nicola","Pietro","Simone","Stefano","Tommaso"],["Ferrari","Esposito","Bianchi","Romano","Colombo","Ricci","Marino","Greco","Gallo","Conti","Rizzo","Ferraro"]],"portugal":[["Bruno","Duarte","Fabio","Hugo","Ivo","Nuno","Paulo","Rafael","Rui","Sergio","Tomas","Vasco"],["Pereira","Rodrigues","Martins","Sousa","Fonseca","Cardoso","Almeida","Ribeiro","Teixeira","Moreira","Barbosa","Lourenco"]],"brazil":[["Caio","Diego","Eduardo","Felipe","Igor","Leandro","Murilo","Otavio","Renan","Thiago","Vitor","Wesley"],["Souza","Lima","Pereira","Almeida","Ribeiro","Carvalho","Gomes","Martins","Rocha","Barbosa","Cardoso","Teixeira"]],"argentina":[["Agustin","Bruno","Emiliano","Federico","Gonzalo","Ignacio","Julian","Leandro","Marcos","Nahuel","Ramiro","Valentin"],["Fernandez","Lopez","Martinez","Diaz","Romero","Sosa","Acosta","Benitez","Herrera","Molina","Ferreyra","Aguirre"]],"netherlands":[["Bas","Dirk","Ferdi","Guus","Jelle","Koen","Milan","Niels","Rick","Stijn","Teun","Youri"],["Bakker","Visser","Smit","Meijer","Mulder","Bos","Vos","Peters","Hendriks","Dekker","Brouwer","Kuiper"]],"japan":[["Hiroto","Kenta","Naoki","Shota","Tatsuya","Yuki","Sora","Hayato","Kosei","Rui","Asahi","Kenji"],["Watanabe","Ito","Yamamoto","Nakamura","Kobayashi","Kato","Yoshida","Yamada","Sasaki","Matsumoto","Inoue","Kimura"]],"nigeria":[["Chidi","Uche","Femi","Segun","Ifeanyi","Nnamdi","Yusuf","Chukwuma","Ekene","Obiora","Bashir","Tobenna"],["Eze","Nwachukwu","Balogun","Abiodun","Nnaji","Uzoma","Olawale","Adebayo","Ogunleye","Ibeh","Chidiebere","Afolabi"]],"ghana":[["Kwabena","Kwaku","Kwesi","Fiifi","Nana","Akwasi","Ato","Kojo","Abeiku","Kwadwo","Ebo","Kobina"],["Boateng","Appiah","Agyeman","Osei","Antwi","Amoah","Darko","Sarpong","Baffour","Nkrumah","Quartey","Tetteh"]]};
+  const REGIONAL_NAME_POOL_EXTRA={"Europe":[["Andrej","Filip","Jakub","Milos","Petar","Stefan","Tomas","Viktor","Nikola","Bojan","Matej","Ivan"],["Kovac","Novotny","Marek","Ivanov","Dimitrov","Jankovic","Sokolov","Vlasic","Bartos","Kral","Sedlak","Tomic"]],"Africa":[["Sekou","Mamadou","Bakary","Cheikh","Lamine","Aliou","Karim","Salif","Boubacar","Modou","Ousmane","Adama"],["Sow","Ndiaye","Fofana","Keita","Sylla","Toure","Camara","Bamba","Konate","Cisse","Drame","Sangare"]],"Asia":[["Rashid","Faisal","Tariq","Jun-Ho","Seo-Jun","Haruki","Vikram","Rohan","Bilal","Imran","Zhen","Kenji"],["Ahmed","Rahman","Park","Choi","Jung","Wang","Liu","Zhang","Sharma","Patel","Hussain","Nakamura"]],"South America":[["Alonso","Cristian","Emanuel","Facundo","Gaston","Joaquin","Maximiliano","Renato","Sebastian","Ivan","Rodrigo","Esteban"],["Morales","Castro","Vargas","Rojas","Medina","Flores","Nunez","Paredes","Cabrera","Quintero","Salazar","Mendoza"]],"North America":[["Aaron","Brandon","Dylan","Evan","Isaiah","Julian","Kevin","Mateo","Owen","Tyler","Xavier","Elias"],["Miller","Davis","Garcia","Martinez","Anderson","Thompson","Robinson","Clark","Lewis","Young","Hernandez","Reyes"]],"Oceania":[["Cooper","Hunter","Jai","Kai","Lachlan","Mitchell","Riley","Tama","Beau","Cody","Hemi","Rangi"],["Anderson","Clarke","Harris","Jackson","Kelly","Palmer","Reid","Thompson","Walsh","Wood","Fifita","Latu"]]};
+  function extendNamePools(pools,extra){
+    Object.entries(extra).forEach(([id,ext])=>{
+      const pool=pools[id];if(!pool)return;
+      ext[0].forEach(n=>{if(!pool[0].includes(n))pool[0].push(n)});
+      ext[1].forEach(n=>{if(!pool[1].includes(n))pool[1].push(n)});
+    });
+  }
+  const REGIONAL_NAME_POOLS={
+    Europe:[['Adam','Daniel','Luka','Martin','Alex','David','Simon','Marko'],['Novak','Petrov','Horvat','Popovic','Kovac','Ionescu','Nagy','Marin']],
+    Africa:[['Samuel','Ibrahim','Moussa','Youssef','Amadou','Emmanuel','Idris','Abdou'],['Diallo','Traore','Camara','Keita','Hassan','Mensah','Okoro','Bamba']],
+    Asia:[['Ali','Omar','Hassan','Min-Jun','Wei','Riku','Arjun','Aziz'],['Khan','Kim','Lee','Chen','Tanaka','Singh','Rahman','Haddad']],
+    'South America':[['Mateo','Lucas','Santiago','Diego','Bruno','Rafael','Nicolas','Tomas'],['Garcia','Silva','Gonzalez','Santos','Rojas','Pereira','Vargas','Romero']],
+    'North America':[['Daniel','Ethan','Noah','Liam','Miguel','Jacob','Joshua','Andre'],['Johnson','Williams','Brown','Garcia','Martinez','Campbell','Lewis','Clarke']],
+    Oceania:[['Jack','Noah','Liam','Oliver','Tane','Ari','Lucas','Finn'],['Smith','Williams','Brown','Wilson','Taylor','Martin','Taufua','Manu']]
+  };
+  // `taken` lets a caller build a squad without two players sharing a full name. The pools are
+  // small enough that duplicates were routine - a match could field the same "Harry Smith" on
+  // both sides - so on a clash we walk deterministically to the next free combination, which
+  // keeps the same squad reproducible from the same seed.
+  extendNamePools(COUNTRY_NAME_POOLS,COUNTRY_NAME_POOL_EXTRA);
+  extendNamePools(REGIONAL_NAME_POOLS,REGIONAL_NAME_POOL_EXTRA);
+
+  function generatedCountryPlayerName(countryId,countryName,seed,taken=null){
+    const id=String(countryId||countryName||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''),country=circleXIManagerCore.COUNTRIES.find(item=>item.id===id||item.name===countryName);
+    const pool=COUNTRY_NAME_POOLS[id]||REGIONAL_NAME_POOLS[country?.continent]||REGIONAL_NAME_POOLS.Europe,first=seededUnit(`${seed}-first`),last=seededUnit(`${seed}-last`);
+    const firsts=pool[0],lasts=pool[1];
+    let fi=Math.floor(first*firsts.length)%firsts.length,li=Math.floor(last*lasts.length)%lasts.length;
+    let name=`${firsts[fi]} ${lasts[li]}`;
+    if(taken){
+      const ledger=taken instanceof Set?{names:taken,surnames:new Set()}:taken;
+      // Prefer a surname nobody in this squad already carries. With a twenty-name pool and a
+      // twenty-two man fixture, pure hashing routinely produced five players called Walker,
+      // which reads as broken even though every full name was technically distinct.
+      let step=0;
+      while(step<lasts.length&&ledger.surnames.has(lasts[li])){li=(li+1)%lasts.length;step++;}
+      name=`${firsts[fi]} ${lasts[li]}`;
+      // Then guarantee the full name is unique, walking the whole space if it has to.
+      const total=firsts.length*lasts.length;
+      step=0;
+      while(ledger.names.has(name)&&step<total){
+        step++;li=(li+1)%lasts.length;if(li===0)fi=(fi+1)%firsts.length;
+        name=`${firsts[fi]} ${lasts[li]}`;
+      }
+      ledger.names.add(name);ledger.surnames.add(lasts[li]);
+    }
+    return name;
+  }
   const CLUB_SQUAD_SECONDARY={GK:[],RB:['RWB','CB'],LB:['LWB','CB'],CB:['DM'],DM:['CM','CB'],CM:['DM','AM'],AM:['CM','RW'],RW:['AM','ST'],LW:['AM','ST'],ST:['AM']};
   // Deterministic per club, so the same eleven turn out every match and the
   // squad screen and the match introduction always agree.
-  function generatedClubSquad(club){
+  function generatedClubSquad(club,countryId=career?.world?.countryId){
     const key=String(club?.id||club?.abbr||club?.name||'club'),strength=clamp(Number(club?.reputation||64),40,96);
+    const takenNames={names:new Set(),surnames:new Set()};
     return CLUB_SQUAD_POSITIONS.map((position,i)=>{
       const seed=`${key}-squad-${i}`,u=seededUnit(seed),v=seededUnit(seed+'v');
       const name=club?.id||club?.abbr
-        ? `${CLUB_SQUAD_FIRSTNAMES[(i+Math.floor(u*CLUB_SQUAD_FIRSTNAMES.length))%CLUB_SQUAD_FIRSTNAMES.length]} ${CLUB_SQUAD_SURNAMES[(i+Math.floor(v*CLUB_SQUAD_SURNAMES.length))%CLUB_SQUAD_SURNAMES.length]}`
+        ? generatedCountryPlayerName(countryId,career?.world?.countryName,seed,takenNames)
         : CLUB_SQUAD_NAMES[i];
       return{id:`${key}-sq-${i}`,name,position,secondaryPositions:CLUB_SQUAD_SECONDARY[position]||[],
         overall:Math.round(clamp(strength-9+u*18,42,94)),potential:Math.round(clamp(strength-2+v*16,50,97)),
@@ -8377,7 +9196,7 @@
     const imported=loadCircleXIManagerSquad(countryId,club.id);
     if(imported?.length)return imported;
     const key=String(club.id||club.abbr||club.name||'club');
-    if(!clubSquadCache.has(key))clubSquadCache.set(key,generatedClubSquad(club));
+    if(!clubSquadCache.has(key))clubSquadCache.set(key,generatedClubSquad(club,countryId));
     return clubSquadCache.get(key);
   }
   function buildSquadRows(){
@@ -8647,7 +9466,7 @@
     activeCalendarMonth=null;selectedCalendarWeek=null;syncCreatorName();const country=selectedNationalityCountry();
     career = makeCareer({
       name: $('#playerName').value.trim() || 'John Smith',firstName:$('#firstName')?.value.trim()||'John',surname:$('#surname')?.value.trim()||'Smith', nationality: country?.name||$('#nationality').value, nationalityId:country?.id||$('#nationality').value, age:+($('#age')?.value||17),
-      foot:$('#foot')?.value||'Right', position:$('#position').value, archetype:$('#archetype').value,customAttrs:cloneData(initialiseCreatorAttributes()),
+      foot:$('#foot')?.value||'Right', position:$('#position').value, archetype:$('#archetype').value, careerBackground:$('#careerBackground')?.value||'Local Academy Graduate', careerPersonality:$('#careerPersonality')?.value||'Professional',customAttrs:cloneData(initialiseCreatorAttributes()),
       skinTone:$('#skinTone').value, hair:$('#hair').value, hairColour:$('#hairColour')?.value||'#21140d', bootColour:$('#bootColour').value,
       shirtNumber:+$('#shirtNumber').value || 8, build:$('#build').value, careerMode:$('#careerMode')?.value||'Standard Career', weakFootRating:($('#careerMode')?.value==='Attribute Editor Career'?clamp(+($('#weakFootRating')?.value||3),1,5):3), bothFooted:$('#careerMode')?.value==='Attribute Editor Career'&&!!$('#bothFootedToggle')?.checked, worldSelection:selectedCircleXIWorld()
     });
@@ -8680,11 +9499,7 @@
     career.seasonHonoursAwarded=finishedSeason;
   }
   function beginInternationalSummer(home){
-    awardClubSeasonHonours(home);const intl=evaluateInternationalCallup(career,true);
-    career.messages.unshift({title:intl.selected?`${intl.countryName} call-up`:`${intl.countryName} squad decision`,body:intl.reason,new:true});
-    if(!intl.selected){completeCareerSeason(home);return;}
-    intl.tournament=buildInternationalTournament(career);career.phase='international';career.week=intl.tournament.fixtures[0].week;career.trainingAvailable=false;
-    career.messages.unshift({title:`Selected for the ${intl.tournament.name}`,body:`The squad meets after the club season, starting against ${intl.tournament.fixtures[0].opponent.name}.`,new:true});
+    awardClubSeasonHonours(home);const intl=evaluateInternationalCallup(career,true);career.messages.unshift({title:intl.selected?`${intl.countryName} call-up`:`${intl.countryName} squad decision`,body:intl.reason,new:true});if(!intl.selected){completeCareerSeason(home);return}intl.tournament=buildInternationalTournament(career);career.phase='international';career.week=intl.tournament.fixtures[0].week;career.trainingAvailable=false;career.messages.unshift({title:`Selected for ${intl.tournament.name}`,body:`Club football is complete before international duty begins. First fixture: ${intl.tournament.fixtures[0].opponent.name}.`,new:true});
   }
 
   function finishedLeaguePosition(save,home){const rows=[...(save.league||[])].sort((a,b)=>b.pts-a.pts||b.gd-a.gd),idx=rows.findIndex(r=>(home?.id&&r.id===home.id)||r.abbr===home?.abbr);return idx<0?rows.length:idx+1;}
@@ -8692,34 +9507,10 @@
     const ids=['england','spain','germany','italy','france'],season=Number(save.season||1),base={england:22.8,spain:21.5,germany:19.8,italy:19.2,france:16.8};
     return ids.map(id=>{const jitter=(seededUnit(`uefa-association-${season}-${id}`)-.5)*4.2,boost=id===save.world?.countryId?userPoints*.16:0;return{id,score:base[id]+jitter+boost}}).sort((a,b)=>b.score-a.score);
   }
-  function europeanQualificationFromSeason(save,home){
-    if(Number(save.world?.leagueLevel||1)!==1)return null;
-    const pos=finishedLeaguePosition(save,home),rules=leagueRules(save),eps=!!save.uefaAssociationCoefficient?.performanceSpot,cups=ensureCupCompetitions(save),wonUelCup=cups.some(c=>c.domestic&&c.winner&&c.europeRoute==='uel'),wonUeclCup=cups.some(c=>c.domestic&&c.winner&&c.europeRoute==='uecl');
-    const uclPlaces=[...rules.continental],nextLeaguePlace=()=>Math.max(0,...uclPlaces)+1;if(eps&&!uclPlaces.includes(nextLeaguePlace()))uclPlaces.push(nextLeaguePlace());
-    if(uclPlaces.includes(pos))return'ucl-league-phase';
-    if(wonUelCup)return'uel-league-phase';
-    const normalUel=(rules.secondary||[])[0]||Math.max(...uclPlaces)+1,uelLeaguePos=eps?Math.max(normalUel,Math.max(...uclPlaces)+1):normalUel;
-    if(pos===uelLeaguePos)return'uel-league-phase';
-    if(wonUeclCup)return'uecl-playoff';
-    const conferencePos=Math.max((rules.conference||[])[0]||uelLeaguePos+1,uelLeaguePos+1);if(pos===conferencePos)return'uecl-playoff';
-    return null;
-  }
-  function updateAssociationCoefficient(save){
-    const euro=ensureCupCompetitions(save).find(c=>c.continental),history=euro?.history||[],points=history.reduce((sum,h)=>sum+(h.score?.[0]>h.score?.[1]?2:h.score?.[0]===h.score?.[1]?1:0),0),depth=euro?.winner?8:euro?.leaguePhaseRank&&euro.leaguePhaseRank<=8?4:euro?.leaguePhaseRank&&euro.leaguePhaseRank<=24?2:0,total=points+depth,ranking=simulatedAssociationRanking(save,total),rank=ranking.findIndex(r=>r.id===save.world?.countryId)+1;
-    save.uefaAssociationCoefficient={season:save.season||1,points:total,rank:rank||null,performanceSpot:rank>0&&rank<=2,table:ranking};
-  }
+  function europeanQualificationFromSeason(save,home){const q=cxiContinentalQualificationFromSeason(save,home);if(q?.confederationId!=='UEFA')return null;return q.competitionId==='champions-league'?'ucl-league-phase':q.competitionId==='europa-league'?'uel-league-phase':q.competitionId==='conference-league'?'uecl-league-phase':null}
+  function updateAssociationCoefficient(save){const continental=ensureCupCompetitions(save).find(c=>c.continental),history=continental?.history||[],points=history.reduce((sum,h)=>sum+(h.score?.[0]>h.score?.[1]?2:h.score?.[0]===h.score?.[1]?1:0),0),depth=continental?.winner?8:continental?.leaguePhaseRank&&continental.leaguePhaseRank<=8?4:continental?.leaguePhaseRank&&continental.leaguePhaseRank<=24?2:0;save.associationCoefficient={season:save.season||1,confederationId:cxiClubConfederation(save).id,points:points+depth};if(cxiClubConfederation(save).id==='UEFA')save.uefaAssociationCoefficient={season:save.season||1,points:points+depth,rank:null,performanceSpot:false,table:[]}}
   function completeCareerSeason(home){
-    awardClubSeasonHonours(home);const p=career.player,finishedSeason=career.season||1;updateAssociationCoefficient(career);career.europeanQualification=europeanQualificationFromSeason(career,home);
-    p.age=(p.age||16)+1;applyAgeingDecline(p,p.age>=33?.72:0);p.overall=calcOverall(p.attrs,p.position);
-    const retirementAge=p.position==='GK'?40:35;
-    if(p.age>=retirementAge){career.retired=true;p.status='Retired';career.trainingAvailable=false;career.messages.unshift({title:'Career complete',body:`After season ${finishedSeason}, ${p.name} retires at age ${p.age}. The complete career record remains in the trophy cabinet.`,new:true});return;}
-    const finishedPos=finishedLeaguePosition(career,home),wonMainDomestic=ensureCupCompetitions(career).some(c=>c.domestic&&!c.superCup&&c.winner);career.superCupQualified=Number(career.world?.leagueLevel||1)===1&&(finishedPos===1||wonMainDomestic);
-    career.season=finishedSeason+1;career.week=1;career.leagueMatchesPlayed=0;career.injury=null;career.recentRatings=[];career.trainingAvailable=true;career.phase='club';
-    career.league.forEach(c=>{c.p=0;c.pts=0;c.gd=0;});
-    career.cups=[];career.cups=ensureCupCompetitions(career).map(c=>({...c,roundIndex:c.superCup?CUP_ROUNDS.length-1:0,nextWeek:c.continental?5:c.superCup?2:c.id==='efl-cup'?7:4,eliminated:false,winner:false,history:[],leaguePhasePlayed:0,leaguePhasePoints:0,leaguePhaseGF:0,leaguePhaseGA:0}));
-    const intl=ensureInternationalCareer(career);Object.assign(intl,{selected:false,status:'Not assessed',selectionScore:0,averageForm:0,reason:'',tournament:null,lastAssessmentSeason:0});
-    career.nextOpponent=career.league.findIndex((_,i)=>i!==career.clubIndex);if(career.nextOpponent<0)career.nextOpponent=0;
-    career.messages.unshift({title:`Season ${career.season} begins`,body:`A new ${careerLeagueMatchTotal(career)}-match ${career.world?.leagueName||'league'} season is ready. ${p.age>=33?'Age-related decline now applies despite training.':'Pre-season development is complete.'}`,new:true});
+    awardClubSeasonHonours(home);const p=career.player,finishedSeason=career.season||1;updateAssociationCoefficient(career);career.continentalQualification=cxiContinentalQualificationFromSeason(career,home);career.europeanQualification=europeanQualificationFromSeason(career,home);p.age=(p.age||16)+1;applyAgeingDecline(p,p.age>=33?.72:0);p.overall=calcOverall(p.attrs,p.position);const retirementAge=p.position==='GK'?40:35;if(p.age>=retirementAge){career.retired=true;p.status='Retired';career.trainingAvailable=false;career.messages.unshift({title:'Career complete',body:`After season ${finishedSeason}, ${p.name} retires at age ${p.age}. The complete career record remains in the trophy cabinet.`,new:true});return}const finishedPos=finishedLeaguePosition(career,home),wonMainDomestic=ensureCupCompetitions(career).some(c=>c.domestic&&!c.superCup&&c.winner);career.superCupQualified=Number(career.world?.leagueLevel||1)===1&&(finishedPos===1||wonMainDomestic);career.season=finishedSeason+1;career.week=1;career.leagueMatchesPlayed=0;career.injury=null;career.recentRatings=[];career.trainingAvailable=true;career.phase='club';career.league.forEach(c=>{c.p=0;c.pts=0;c.gd=0});career.cups=[];career.cups=ensureCupCompetitions(career).map(c=>({...c,roundIndex:c.superCup?CUP_ROUNDS.length-1:0,nextWeek:c.continental?cxiCompetitionStartSlot(c.confederationId,c.tier):c.superCup?2:c.id==='efl-cup'?7:4,eliminated:false,winner:false,history:[],leaguePhasePlayed:0,leaguePhasePoints:0,leaguePhaseGF:0,leaguePhaseGA:0}));const intl=ensureInternationalCareer(career);Object.assign(intl,{selected:false,status:'Not assessed',selectionScore:0,averageForm:0,reason:'',tournament:null,windowSchedule:null,lastAssessmentSeason:0,lastWindowAssessmentSeason:0});cxiEnsureInternationalWindowSchedule(career);career.nextOpponent=career.league.findIndex((_,i)=>i!==career.clubIndex);if(career.nextOpponent<0)career.nextOpponent=0;career.messages.unshift({title:`Season ${career.season} begins`,body:`Your club and international schedule is ready for the new season.`,new:true});
   }
 
   class MatchGame {
@@ -8728,7 +9519,10 @@
       this.originalRandom=null;this.deterministicGenerator=null;if(settings.deterministicSeed){this.originalRandom=Math.random;this.deterministicGenerator=mulberry32(20260802);Math.random=this.deterministicGenerator;}
       this.canvas = $('#gameCanvas');
       this.ctx = this.canvas.getContext('2d',{alpha:false,desynchronized:true})||this.canvas.getContext('2d');
-      this.W = 1050; this.H = 680; this.goalTop = 265; this.goalBottom = 415;
+      this.W = 1050; this.H = 680;
+      this.goalTop = Math.round(this.H / 2 - GOAL_WIDTH_UNITS / 2); this.goalBottom = this.goalTop + GOAL_WIDTH_UNITS;
+      // Scales keeper dive reaches (tuned against a 150-unit mouth) to the real goal size.
+      this.goalScale = GOAL_WIDTH_UNITS / GOAL_REFERENCE_WIDTH;
       this.players = []; this.user = null; this.keys = {}; this.touchMove={x:0,y:0};this.pendingChallenges=[];
       this.aimState={x:1,y:0,angle:0,targetAngle:0,active:false,holdTimer:0};
       this.keyAction={key:null,charge:0,maxCharge:1.15};
@@ -8738,7 +9532,11 @@
       this.aerialIndicator={active:false,x:0,y:0,eta:0,uncertainty:10,receiver:null,secondReceiver:null,contest:false,type:'BOUNCE',out:false,ready:'none',changed:0,lastX:null,lastY:null};
       this.pendingTeamCommand=null;
       this.positionAssistActive=false; this.zoneAssistArrived=false; this.controlHudContext=''; this.controlHudPulse=1;
-      this.score=[0,0]; this.elapsed=0; this.duration=quick?240:+settings.matchLength;this.regulationDuration=this.duration;this.extraTimeDuration=this.regulationDuration/3;this.matchPhase='regulation';this.extraTimeStarted=false;this.extraTimeHalfDone=false;this.extraTimeBreakPending=false;this.extraTimeBreakTimer=0;this.extraTimeBreakKind='';this.extraTimeKickoffTeam=1;this.penaltyShootout=null;this.matchDecision=null;this.fullTimePending=false;this.fullTimeTimer=0;this.firstHalfKickoffTeam=0;this.halftimeDone=false;this.halftimePending=false;this.halftimeTimer=0;
+      // Quick Match used to hard-code the shortest possible length, so a player who had chosen
+      // "Long" in settings still got four minutes from it. Quick Match is about skipping the
+      // setup screens, not about overriding the length preference - it honours the setting now,
+      // only capping it so "jump straight onto the pitch" cannot become a twelve-minute commitment.
+      this.score=[0,0]; this.elapsed=0; this.duration=quick?Math.min(480,+settings.matchLength||240):+settings.matchLength;this.regulationDuration=this.duration;this.extraTimeDuration=this.regulationDuration/3;this.matchPhase='regulation';this.extraTimeStarted=false;this.extraTimeHalfDone=false;this.extraTimeBreakPending=false;this.extraTimeBreakTimer=0;this.extraTimeBreakKind='';this.extraTimeKickoffTeam=1;this.penaltyShootout=null;this.matchDecision=null;this.fullTimePending=false;this.fullTimeTimer=0;this.firstHalfKickoffTeam=0;this.halftimeDone=false;this.halftimePending=false;this.halftimeTimer=0;
       this.running=false; this.paused=false; this.last=performance.now(); this.stepAccumulator=0; this.matchRating=6.5;
       this.performanceStats={sampleTime:0,sampleFrames:0,averageMs:16.7,droppedCatchup:0};this.adaptiveQualityTier=settings.performanceMode==='Low'?0:1;this.lastRenderedAt=0;this.nextHudRefreshAt=0;
       this.dribbleRating={active:false,lastX:0,lastY:0,distance:0,forward:0,pressureDistance:0,rewards:0};
@@ -8796,13 +9594,14 @@
       this.stats={goals:0,assists:0,passes:0,completed:0,misplacedPasses:0,keyPasses:0,chancesCreated:0,crosses:0,successfulCrosses:0,saves:0,tackles:0,interceptions:0,shots:0,shotsOnTarget:0,shotsOffTarget:0,bigChancesMissed:0,xG:0,xA:0,distance:0,goodPosition:0,totalPosition:0,mistakes:0,possessionLost:0,dangerousTurnovers:0,errorsLeadingToShot:0,errorsLeadingToGoal:0,goalsConcededResponsibility:0,dribbles:0,successfulDribbles:0,progressiveCarries:0,roundedKeeper:0,roundedKeeperGoals:0,finesseGoals:0,chipGoals:0,longShotGoals:0,weakFootGoals:0,firstTouches:0,poorTouches:0,blocks:0,pressures:0,duelsWon:0,aerialDuels:0,aerialWins:0,foulsWon:0,foulsCommitted:0,yellowCards:0,redCards:0,advantagesPlayed:0,advantagesCompleted:0,advantagesCalledBack:0,goalsAfterAdvantage:0,instructions:0,instructionChecks:0};
       const careerLeague=career?.league?.length?career.league:clubs;
       this.competition=career&&!quick?currentCareerCompetition(career):{type:'friendly',id:'friendly',name:'Circle XI Manager Friendly',icon:'\u25c6',round:'Exhibition match'};
-      this.knockoutCup=this.competition.type==='cup'&&!['league-phase'].includes(this.competition?.cup?.format);
+      this.knockoutCup=this.competition.type==='cup'&&!['league-phase','qualifying-to-league-phase'].includes(this.competition?.cup?.format);
       this.trophyMatch=!!career&&!quick&&((this.competition.type==='cup'&&/final/i.test(String(this.competition.round||'')))||(this.competition.type==='international'&&/final/i.test(String(this.competition.round||'')))||(this.competition.type==='league'&&(career.leagueMatchesPlayed||0)>=37));
       const internationalMatch=this.competition.type==='international',internationalFixture=internationalMatch?currentInternationalFixture(career):null;
       this.homeClub=internationalMatch?nationalTeamClub(careerCountry(career)||ensureInternationalCareer(career).countryName,ensureInternationalCareer(career).teamRating):(career?.club||careerLeague[career?.clubIndex||0]||clubs[0]);
-      const continentalCup=this.competition?.type==='cup'&&this.competition?.cup?.continental?this.competition.cup:null,uefaPool=continentalCup?cxiUefaParticipantPool(continentalCup.participantPoolKey).filter(c=>c.name!==this.homeClub.name):[];
-      const cupOpponent=uefaPool.length?uefaPool[(career.week+continentalCup.leaguePhasePlayed+continentalCup.roundIndex)%uefaPool.length]:null;
+      const continentalCup=this.competition?.type==='cup'&&this.competition?.cup?.continental?this.competition.cup:null,continentalPool=continentalCup?cxiContinentalParticipantPool(continentalCup,career).filter(c=>c.name!==this.homeClub.name):[];
+      const cupOpponent=continentalPool.length?continentalPool[(career.week+(continentalCup.leaguePhasePlayed||0)+(continentalCup.roundIndex||0))%continentalPool.length]:null;
       this.opponent=internationalFixture?.opponent||cupOpponent||careerLeague[(career?.nextOpponent??1)%careerLeague.length]||careerLeague.find(c=>c.id!==this.homeClub.id)||clubs[1];
+      this.careerMemoryLine=!quick&&career?v76MatchMemoryLine(career,this.opponent):'';
       const homeIdentity=this.homeClub.id||this.homeClub.abbr||this.homeClub.name,awayIdentity=this.opponent.id||this.opponent.abbr||this.opponent.name;
       const selectedKits=pendingMatchKitSelection&&pendingMatchKitSelection.homeId===homeIdentity&&pendingMatchKitSelection.awayId===awayIdentity?pendingMatchKitSelection:null;
       this.kitSelection=resolveKitClash(this.homeClub,this.opponent,selectedKits?.homeKey||'home',selectedKits?.awayKey||'auto');
@@ -8835,7 +9634,7 @@
       this.running=true; this.last=performance.now(); this.stepAccumulator=0;
       this.crowdAmbience=startCrowdAmbience();
       if(!quick&&career&&['Substitute','Reserve'].includes(career.player.status)){this.elapsed=this.duration*.55;this.halftimeDone=true;this.user.stamina=96;this.userSubEligibleAt=this.elapsed+this.duration*.3;setTimeout(()=>this.feedback('You enter from the bench \u00b7 make an impact',.02),120);}
-      else this.startMatchCeremony('preMatch');
+      else {this.startMatchCeremony('preMatch');if(this.careerMemoryLine)setTimeout(()=>{if(this.running)this.showMatchEvent('info','CAREER CONTEXT',this.careerMemoryLine,2.8)},650);}
       requestAnimationFrame(t=>this.loop(t));
     }
 
@@ -9026,16 +9825,17 @@
           const base = playerData?.attrs || baseAttributes(f.pos, 'Playmaker');
           const attrs = playerData?.attrs ? {...playerData.attrs} : Object.fromEntries(Object.entries(base).map(([k, v]) => [k, clamp(v + rand(-8, 8), 45, 82)]));
           const isKeeper = f.pos === 'GK';
-          const canonicalVisual=canonicalMatchDayVisualProfile(playerData||{id:`${team}-${i}`,name:`Player ${i+1}`},team,i,isKeeper);
+          const canonicalVisual=canonicalMatchDayVisualProfile(playerData||{id:`${team}-${i}`,name:`Player ${i+1}`},team,i,isKeeper,f.pos);
           const p = {
             id: `${team}-${i}`, importedPlayerId:imported?.id||null, name:playerData?.name||`Player ${i+1}`, overall:playerData?.overall||calcOverall(attrs,f.pos), team, index: i, position: f.pos, formationRole:f.pos, formationSlot:f.slotIndex??i,
             x: mirrored.x, y: mirrored.y, homeX: mirrored.x, homeY: mirrored.y,
             vx: 0, vy: 0, dir: team === 0 ? 0 : Math.PI, moveDir: team === 0 ? 0 : Math.PI, upperDir: team === 0 ? 0 : Math.PI,
-            attrs: willBeUser&&career&&!this.quick?applyCareerConditionToAttrs(attrs):attrs, stamina: willBeUser&&career?matchCareerFatigue(this).ceiling:100, hasBall: false, decision: rand(.2, .8), called: false, callType: 'feet', callTimer: 0, callTarget: null, anim: Math.random() * 10,
+            attrs: willBeUser&&career&&!this.quick?applyV76MatchBoosts(applyCareerConditionToAttrs(attrs),career):attrs, stamina: willBeUser&&career?matchCareerFatigue(this).ceiling:100, hasBall: false, decision: rand(.2, .8), called: false, callType: 'feet', callTimer: 0, callTarget: null, anim: Math.random() * 10,
             action: 'idle', actionTimer: 0, actionLength: 0, actionBlend: 1, recoveryTimer: 0, actionVariant: 'mid', pendingKick: null, prevSpeed: 0, accelVisual: 0, visualSpeed:0, visualAcceleration:0, visualStop:0, visualFatigue:0, visualGait:'idle', isSprinting:false, visualFacing:team===0?0:Math.PI, visualTurn:0, visualAnim:0, idleAnim:i*.37, gkHoldingBall:false, gkHoldTimer:0,
             aiDecisionTimer:rand(.08,.34),possessionTime:0,actionWatchdog:0,aiDribbleTarget:null,aiIntent:'',aiIntentTimer:0,receiveIntentTimer:0,nearBallIdleTime:0,ballReactionState:'',reactionTarget:null,
             commandIcon: '', commandTimer: 0, yellow:0, red:false, sentOff:false, injuredTimer:0, duelCooldown:rand(.2,.8), touchCooldown:0, heavyTouchCooldown:0, queuedAction:null, headerIntent:null, jockeying:false, shielding:false, lastGoodAction:0, roleDiscipline:1,
             restartTargetX:null,restartTargetY:null,restartHoldX:null,restartHoldY:null,
+            heightCm:canonicalVisual.heightCm,weightKg:canonicalVisual.weightKg,physicalProfile:canonicalVisual.physical,
             heightScale:canonicalVisual.heightScale,
             legScale:canonicalVisual.legScale,
             shoulderScale:canonicalVisual.shoulderScale, headScale:canonicalVisual.headScale,
@@ -9046,33 +9846,63 @@
             skin:canonicalVisual.skin,
             hair:canonicalVisual.hair,
             hairColour:canonicalVisual.hairColour,
-            boots:canonicalVisual.boots,
-            build:canonicalVisual.build,
+            boots:canonicalVisual.boots,bootColour:canonicalVisual.bootColour,bootModel:canonicalVisual.bootModel,bootSecondaryColour:canonicalVisual.bootSecondaryColour,
+            build:canonicalVisual.build,bodyBuild:canonicalVisual.build,visualIdentity:{...canonicalVisual.visualIdentity},headShape:canonicalVisual.headShape,jawStyle:canonicalVisual.jawStyle,noseStyle:canonicalVisual.noseStyle,eyeStyle:canonicalVisual.eyeStyle,browStyle:canonicalVisual.browStyle,facialHair:canonicalVisual.facialHair,complexion:canonicalVisual.complexion,sleeveLength:canonicalVisual.sleeveLength,shirtStyle:canonicalVisual.shirtStyle,sockHeight:canonicalVisual.sockHeight,wristTape:canonicalVisual.wristTape,matchAccessories:canonicalVisual.matchAccessories,runningStyle:canonicalVisual.runningStyle,shootingStyle:canonicalVisual.shootingStyle,goalCelebration:canonicalVisual.goalCelebration,freeKickStance:canonicalVisual.freeKickStance,penaltyRunUp:canonicalVisual.penaltyRunUp,
             preferredFoot: playerData?.naturalFoot || playerData?.foot || playerData?.preferredFoot || pick(['Right', 'Left']),
             naturalFoot: playerData?.naturalFoot || playerData?.foot || playerData?.preferredFoot || 'Right',
             weakFootRating: clamp(Number(playerData?.weakFootRating)||(willBeUser?3:pick([2,3,3,4])),1,5),
             bothFooted:!!playerData?.bothFooted||Number(playerData?.weakFootRating)>=5,
             actionFoot: playerData?.naturalFoot || playerData?.foot || playerData?.preferredFoot || 'Right',
-            collisionRadius: isKeeper ? 9.4 : 7.4,
-            collisionMass: (playerData?.build || 'Athletic') === 'Strong' ? 1.22 : (playerData?.build || 'Athletic') === 'Lean' ? .9 : 1.05,
+            collisionRadius: canonicalVisual.physical.collisionRadius*(isKeeper?1.08:1),
+            collisionMass: canonicalVisual.physical.collisionMass,
             collisionCooldown: 0,
             shirtNumber: playerData?.shirtNumber || i + 1,
             glove: isKeeper ? '#fef3c7' : null,
             kitPattern: isKeeper ? 'solid' : ((team===0?this.homeClub:this.opponent).kitPattern||kitStyleForClub(team === 0 ? this.homeClub : this.opponent)),
             role:this.roleForPosition(f.pos,i),tendencies:this.createPlayerTendencies(f.pos,attrs,team),scanTimer:rand(.08,.55),awareness:clamp((attrs.vision+attrs.anticipation+attrs.decisions)/300,.25,.98),knownPressure:0,
             tacticalTarget:null,pressRole:'hold',markTargetId:null,rotationState:'',runPattern:'',runTimer:0,communicationTimer:rand(.2,1.4),firstTouchPlan:'secure',lastDecision:'',lastDecisionQuality:0,
-            jumpReach:18+(attrs.strength||55)*.09+(attrs.anticipation||55)*.05,aerialCooldown:0,substituted:false,
+            jumpReach:canonicalVisual.physical.jumpReach,aerialCooldown:0,substituted:false,
             familiarity:clamp((willBeUser?(career?.player?.chemistry||62):rand(52,88))/100,.35,.98),chemistry:clamp((willBeUser?(career?.player?.chemistry||62):rand(48,90))/100,.3,.98),
             decisionPersonality:this.createDecisionPersonality(f.pos,attrs),confidence:clamp(rand(.46,.74)+(team===0?.02:0),.25,.9),form:clamp(rand(.42,.76),.25,.92),
             perceptionRange:95+(attrs.vision||55)*2.05,scanMemory:[],blindSideRisk:0,coverShadow:null,duelState:'',injuryRisk:clamp((100-(attrs.stamina||55))*.0025+.025,.025,.18),
             animationCommit:0,lastCombinationWith:null,lastReceivedFrom:null,lastReceivedAt:-99,gkRead:null,actionValue:0
           };
+          applyPhysicalProfileToRuntime(p);if(isKeeper){p.collisionRadius*=1.06;p.bodyRadius=p.collisionRadius;}
           if (willBeUser) { this.user = p; p.isUser = true; p.position = userPos; userTaken = true; }
           this.players.push(p);
         });
       }
       if (!this.user) { this.user = this.players.find(p => p.team === 0 && p.position === 'CM'); this.user.isUser = true; }
+      this.ensureUniqueSquadNames();
       this.setupKickoff(0);
+    }
+
+    // The two clubs build their squads independently and know nothing about each other, so the
+    // same generated name could turn out for both teams in one fixture - the goal feed once
+    // showed "Harry Smith" scoring for each side in the same match. Names here are display-only
+    // (identity is carried by p.id), so renaming a clash is safe and never touches a saved squad.
+    ensureUniqueSquadNames(){
+      const countryId=career?.world?.countryId,countryName=career?.world?.countryName;
+      const taken={names:new Set(),surnames:new Set()};
+      const surnameOf=n=>String(n).split(' ').slice(-1)[0];
+      // The user's own name is fixed, and the home side is settled before the visitors, so a
+      // clash is always resolved on the away player rather than renaming someone mid-career.
+      const order=[...this.players].sort((a,b)=>(b.isUser?1:0)-(a.isUser?1:0)||a.team-b.team);
+      // Surnames are seeded but not reserved, so a repeat only forces a rename once the same
+      // surname has already appeared three times in the fixture - enough to stop a squad
+      // reading as five Walkers, without renaming half the teamsheet.
+      const surnameUses=new Map();
+      order.forEach(p=>{
+        if(!p||!p.name)return;
+        const surname=surnameOf(p.name),uses=(surnameUses.get(surname)||0)+1;
+        const clash=taken.names.has(p.name)||uses>2;
+        if(p.isUser||!clash){taken.names.add(p.name);taken.surnames.add(surname);surnameUses.set(surname,uses);return}
+        const replacement=generatedCountryPlayerName(countryId,countryName,`${p.id}-dedupe`,taken);
+        if(replacement&&replacement!==p.name){
+          p.name=replacement;
+          surnameUses.set(surnameOf(replacement),(surnameUses.get(surnameOf(replacement))||0)+1);
+        }else surnameUses.set(surname,uses);
+      });
     }
 
     initMatchdayBenches(){
@@ -9265,7 +10095,7 @@
       $('#watchGoalReplayBtn').onclick=()=>this.watchGoalReplay();
       $('#skipGoalReplayBtn').onclick=()=>this.skipGoalReplay();
       $('#restartMatchBtn').onclick=()=>{this.destroy();startMatch(this.quick,true)}; $('#quitMatchBtn').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});this.destroy();navigate(career?'hub':'menu')};
-      $('#continueSubOffBtn').onclick=()=>{const overlay=$('#subOffOverlay');overlay?.classList.add('hidden');this.simulateToFullTimeAndFinish('player-off');};
+      $('#continueSubOffBtn').onclick=()=>{const overlay=$('#subOffOverlay');overlay?.classList.add('hidden');this.paused=false;this.simulateToFullTimeAndFinish('player-off');};
       $('#closeTutorial').onclick=()=>{career&&(career.firstMatch=false,saveCareer());$('#tutorial').classList.add('hidden');this.paused=false;this.last=performance.now();this.stepAccumulator=0};
       this.bindTouch();
     }
@@ -9558,7 +10388,12 @@
       // technicians get their foot/body set sooner; low Technique remains usable
       // but carries a visibly longer wind-up, especially on first-time actions.
       const techniqueTempo=difficultTechnique?lerp(1.09,.91,technicalEase):lerp(1.035,.97,technicalEase);
-      const adjustedDuration = duration * techniqueTempo * (weakFoot ? 1.04 + (5-(p.weakFootRating||3))*.012 : 1);
+      // v77.15: a pressed player snaps the ball away rather than completing a full
+      // wind-up. Without this the pass contacts the ball late enough that a closing
+      // opponent takes it first, which read as "J does not pass under pressure".
+      const rushable=['pass','drivenPass','through','loftedPass','cross','cutback','backheel'].includes(action);
+      const pressureTempo=rushable?lerp(1,.58,clamp(pressure/2,0,1)):1;
+      const adjustedDuration = duration * techniqueTempo * pressureTempo * (weakFoot ? 1.04 + (5-(p.weakFootRating||3))*.012 : 1);
       this.setAction(p, action, adjustedDuration, facingDir);
       const contactTiming=kickContactTiming(action,selectedVariant);
       const contactFraction=action==='throw'?.52:clamp(contactTiming[0]+contactTiming[1]*.68,.2,.58);
@@ -9593,8 +10428,8 @@
       }
       if(this.restart&&this.restart.taker!==this.user){this.feedback('Waiting for the restart taker',0);return;}
       if(this.canQueueUserHeader()){this.queueUserHeader(k);return;}
-      if(this.actionCooldown>0&&this.ball.owner===this.user)return;
-      if(!this.ball.owner&&this.ball.lastTouchTeam===this.user.team&&dist(this.user,this.ball)<220)this.user.queuedAction={key:k,power:.45,timer:1.2,combo:null,firstTime:true};
+      if(this.actionCooldown>0&&this.ball.owner===this.user){this.bufferUserAction(k);return;}
+      if(!this.ball.owner&&dist(this.user,this.ball)<260)this.user.queuedAction={key:k,power:.45,timer:1.2,combo:null,firstTime:true};
       this.keyAction.key=k;this.keyAction.charge=.045;
       if(this.restart){
         const type=this.restart.type;
@@ -9659,6 +10494,32 @@
       return k==='j'?'z':k==='i'?'c':'x';
     }
 
+    // v77.13: a press that arrives while the player is mid-touch, mid-cooldown or being
+    // challenged is held for a short window and released as soon as it can actually be
+    // played, instead of being silently discarded.
+    bufferUserAction(k){
+      if(!k||!['j','k','l','i'].includes(String(k).toLowerCase()))return;
+      this.userActionBuffer={key:String(k).toLowerCase(),at:this.elapsed||0};
+    }
+    updateBufferedUserAction(){
+      const buf=this.userActionBuffer;
+      if(!buf)return;
+      const age=(this.elapsed||0)-buf.at;
+      if(age>USER_ACTION_BUFFER_WINDOW||!this.user||this.paused||this.goalCelebration||this.matchCeremony){this.userActionBuffer=null;return}
+      if(this.restart||this.keyAction.key)return;
+      if((this.actionCooldown||0)>0)return;
+      if(this.ball.owner!==this.user){
+        // Still worth waiting if the ball is loose right next to him.
+        if(!this.ball.owner&&dist(this.user,this.ball)<=86){this.ball.owner=this.user;this.user.hasBall=true;}
+        else return;
+      }
+      this.userActionBuffer=null;
+      // Held keys resume a normal charge; a released key plays as a quick first-time ball.
+      if(this.keys&&this.keys[buf.key]){this.beginKeyAction(buf.key);return}
+      this.resolveContextAction(buf.key,.34);
+      this.showCue(this.user,'QUICK RELEASE',.34);
+    }
+
     resolveContextAction(k,power){
       if(this.restart){this.resolveRestartAction(k,power);return;}
       const owner=this.ball.owner;
@@ -9674,6 +10535,11 @@
         else if(k==='k')this.requestBall('through');
         else if(k==='l')this.commandTeammateShoot();
         else if(k==='i')this.requestBall('cross');
+        return;
+      }
+      if(!owner&&!this.user.queuedAction&&dist(this.user,this.ball)<260){
+        this.user.queuedAction={key:k,power:clamp(power,.12,1),timer:1.2,combo:null,firstTime:true};
+        this.showCue(this.user,'FIRST TIME',.5);
         return;
       }
       if(!owner&&this.user.queuedAction){
@@ -9751,9 +10617,9 @@
       const choice=typeof input==='string'?this.goalkeeperInputChoice([input]):input;
       if(!choice||!this.isManualGoalkeeperControlContext())return false;
       const animation=this.goalkeeperAnimationForChoice(choice),facing=this.user.team===0?0:Math.PI,screenSide=choice.side*(this.user.team===0?1:-1);
-      const reach=choice.side===0?0:choice.height==='high'?31:choice.height==='low'?27:29;
+      const reach=(choice.side===0?0:choice.height==='high'?31:choice.height==='low'?27:29)*GOAL_GEOMETRY_SCALE;
       const duration=choice.side===0?.62:choice.height==='high'?.78:.7;
-      const startX=this.user.x,startY=this.user.y,targetY=clamp(startY+screenSide*reach,this.goalTop-28,this.goalBottom+28);
+      const startX=this.user.x,startY=this.user.y,targetY=clamp(startY+screenSide*reach,this.goalTop-28*GOAL_GEOMETRY_SCALE,this.goalBottom+28*GOAL_GEOMETRY_SCALE);
       const forward=choice.side===0&&choice.height==='low'?(animation.variant==='smother'?9:4):2;
       const targetX=clamp(startX+(this.user.team===0?1:-1)*forward,18,this.W-18);
       this.gkSaveIntent={...choice,...animation,logicalSide:choice.side,side:screenSide,key:inputKeys.join('+')||choice.zone,inputKeys:[...inputKeys],startedAt:this.elapsed,expiresAt:this.elapsed+1.02,motionEndsAt:this.elapsed+duration,startX,startY,targetX,targetY,duration};
@@ -9901,7 +10767,7 @@
         Object.assign(this.setPieceMiniGame,{freeKickTrainingLike:true,freeKickCharging:false,freeKickChargeElapsed:0,freeKickHeldKeys:new Set(),freeKicks:clamp(Number(a.freeKicks||55),1,99),composure:clamp(Number(a.composure||55),1,99),technique:clamp(Number(a.technique||55),1,99),curveAttr:clamp(Number(a.curve||a.technique||55),1,99),shotPower:clamp(Number(a.shotPower||a.longShots||60),1,99),pressure:this.matchFreeKickPressure(r.taker),option:'fkCurl',freeKickTechnique:'fkCurl',aimX:.5,aimY:.30});
       }
       if(selectedTarget)r.selectedRestartTargetId=selectedTarget.id;r.miniGameOpened=true;
-      if(r.type==='penalty')this.openMatchPenaltyTrainingOverlay();else if(r.type==='freeKick')this.openMatchFreeKickTrainingOverlay();else{$('#matchPenaltyTrainingOverlay')?.classList.add('hidden');$('#matchFreeKickTrainingOverlay')?.classList.add('hidden');$('#matchScreen')?.classList.remove('match-penalty-active','match-free-kick-active');$('#setPieceMiniGame').classList.remove('hidden');}
+      if(r.type==='penalty'){this.openMatchPenaltyTrainingOverlay();this.startMatchPenaltyCountdown();}else if(r.type==='freeKick')this.openMatchFreeKickTrainingOverlay();else{$('#matchPenaltyTrainingOverlay')?.classList.add('hidden');$('#matchFreeKickTrainingOverlay')?.classList.add('hidden');$('#matchScreen')?.classList.remove('match-penalty-active','match-free-kick-active');$('#setPieceMiniGame').classList.remove('hidden');}
       this.renderSetPieceMiniGame();this.feedback(r.type==='penalty'?'Penalty Training system active  ·  aim, hold, release':r.type==='freeKick'?'Free Kick Training system active  ·  aim, choose technique, hold and release':`${this.restartName(r.type)} mini game`,0);return true;
     }
 
@@ -9919,7 +10785,7 @@
       r.gkSaveMiniGame=true;r.aiDelay=99;$('#matchPenaltyTrainingOverlay')?.classList.add('hidden');$('#matchFreeKickTrainingOverlay')?.classList.add('hidden');$('#matchScreen')?.classList.remove('match-penalty-active','match-free-kick-active');$('#setPieceMiniGame').classList.remove('hidden');this.renderSetPieceMiniGame();this.feedback(`Circle XI ${this.restartName(r.type).toLowerCase()} save`,0);return true;
     }
 
-    closeSetPieceMiniGame(){if(this.setPieceMiniGame)this.setPieceMiniGame.active=false;const overlay=$('#setPieceMiniGame');overlay?.classList.add('hidden');overlay?.classList.remove('saving');const penalty=$('#matchPenaltyTrainingOverlay');penalty?.classList.add('hidden');penalty?.classList.remove('penalty-perfect','penalty-charging','penalty-help-open');const fk=$('#matchFreeKickTrainingOverlay'),fkStage=$('#matchFreeKickTrainingStage');fk?.classList.add('hidden');fkStage?.classList.remove('fk-perfect-power','fk-charging','fk-striking','fk-help-open','fk-minimal');$('#matchScreen')?.classList.remove('match-penalty-active','match-free-kick-active')}
+    closeSetPieceMiniGame(){this.clearMatchPenaltyCountdown&&this.clearMatchPenaltyCountdown();if(this.setPieceMiniGame)this.setPieceMiniGame.active=false;const overlay=$('#setPieceMiniGame');overlay?.classList.add('hidden');overlay?.classList.remove('saving');const penalty=$('#matchPenaltyTrainingOverlay');penalty?.classList.add('hidden');penalty?.classList.remove('penalty-perfect','penalty-charging','penalty-help-open');const fk=$('#matchFreeKickTrainingOverlay'),fkStage=$('#matchFreeKickTrainingStage');fk?.classList.add('hidden');fkStage?.classList.remove('fk-perfect-power','fk-charging','fk-striking','fk-help-open','fk-minimal');$('#matchScreen')?.classList.remove('match-penalty-active','match-free-kick-active')}
 
     renderSetPieceMiniGame(){
       const state=this.setPieceMiniGame;if(!state?.active)return;
@@ -10010,7 +10876,7 @@
       this.openMatchPenaltyTrainingOverlay();
       const technique=state.penaltyTechnique||state.option||'shot',power=clamp(state.meter||0,0,1),timing=penaltyTimingResult(clamp(power,.12,1),technique),powerWindow=penaltyPowerWindow(technique,state.penalties,state.composure);
       overlay.classList.toggle('penalty-charging',!!state.penaltyCharging);overlay.classList.toggle('penalty-perfect',!!state.penaltyCharging&&timing.perfect);overlay.dataset.penaltyTechnique=technique;
-      overlay.style.setProperty('--pen-zone-left',`${powerWindow.low}%`);overlay.style.setProperty('--pen-zone-width',`${powerWindow.high-powerWindow.low}%`);overlay.style.setProperty('--pen-current-power',`${Math.round(power*100)}%`);
+      overlay.style.setProperty('--pen-ideal',`${powerWindow.ideal}%`);overlay.style.setProperty('--pen-zone-left',`${powerWindow.low}%`);overlay.style.setProperty('--pen-zone-width',`${powerWindow.high-powerWindow.low}%`);overlay.style.setProperty('--pen-current-power',`${Math.round(power*100)}%`);overlay.dataset.penaltyTechnique=state.option||'shot';
       const rating=$('#matchPenHudRating'),tier=$('#matchPenHudTier'),comp=$('#matchPenHudComposure'),pressure=$('#matchPenHudPressure'),pressureFill=$('#matchPenaltyPressureFill'),compFill=$('#matchPenHudComposureFill');if(rating)rating.textContent=Math.round(state.penalties);if(tier)tier.textContent=penaltyUiTier(state.penalties);if(comp)comp.textContent=Math.round(state.composure);if(compFill)compFill.style.width=`${Math.round(state.composure)}%`;if(pressure)pressure.textContent=`${Math.round((state.pressure||0)*100)}%`;if(pressureFill)pressureFill.style.width=`${Math.round((state.pressure||0)*100)}%`;
       const minute=$('#matchPenMinute');if(minute)minute.textContent=`${Math.max(1,Math.round(this.currentMatchMinute()))}'`;
       const name=$('#matchPenaltyActionName'),short=$('#matchPenTechniqueShort'),guide=$('#matchPenaltyActionGuide'),powerText=$('#matchPenaltyPowerText'),fill=$('#matchPenaltyPowerFill');if(name)name.textContent=penaltyTechniqueLabel(technique);if(short)short.textContent=penaltyTechniqueKeys(technique);if(guide)guide.textContent=`${penaltyTechniqueKeys(technique)} · aim, hold, release inside PERFECT`;if(powerText)powerText.textContent=state.penaltyCharging&&timing.perfect?`PERFECT · ${Math.round(power*100)}%`:`${Math.round(power*100)}%`;if(fill)fill.style.width=`${Math.round(power*100)}%`;
@@ -10023,12 +10889,62 @@
 
     beginPenaltySetPieceCharge(k){
       const state=this.setPieceMiniGame;if(!state?.active||state.type!=='penalty'||!state.penaltyTrainingLike)return false;if(!['j','k','l','i'].includes(k))return false;
+      if(state.penaltyReady===false){this.matchPenaltyFeedback('WAIT FOR THE WHISTLE','warn',600);return true;}
       state.penaltyHeldKeys ||= new Set();state.penaltyHeldKeys.add(k);if(!state.penaltyHeldKeys.has('l'))return true;
       const keys=state.penaltyHeldKeys;const combo=keys.has('j')?'finesse':keys.has('k')?'drivenShot':keys.has('i')?'chipShot':(state.option||'shot');if(['shot','finesse','drivenShot','chipShot'].includes(combo)){state.option=combo;state.penaltyTechnique=combo;}
       if(!state.penaltyCharging){state.penaltyCharging=true;state.penaltyChargeElapsed=0;state.meter=.12;}this.renderPenaltyTrainingSetPiece();return true;
     }
 
+    // v77.14: the match penalty now carries the same run-up countdown and per-attempt
+    // feedback line as the Penalty Training drill.
+    matchPenaltyFeedback(text,tone='info',duration=1050){
+      const mini=$('#matchPenaltyAttemptFeedback');
+      if(!mini)return;
+      mini.textContent=text;mini.dataset.tone=tone;
+      mini.classList.remove('show');void mini.offsetWidth;mini.classList.add('show');
+      clearTimeout(mini.__timer);mini.__timer=setTimeout(()=>mini?.classList.remove('show'),duration);
+    }
+    startMatchPenaltyCountdown(){
+      const overlay=$('#matchPenaltyTrainingOverlay'),count=$('#matchPenaltyCountdown');
+      const state=this.setPieceMiniGame;
+      if(!overlay||!state)return;
+      clearInterval(this.matchPenaltyCountdownTimer);
+      clearTimeout(this.matchPenaltyCountdownEnd);
+      state.penaltyReady=false;
+      overlay.classList.add('penalty-counting');
+      if(count){count.classList.add('show');count.querySelector('b').textContent='3';count.querySelector('small').textContent='GET SET';}
+      this.matchPenaltyFeedback('GET SET','objective',700);
+      let n=3;
+      this.matchPenaltyCountdownTimer=setInterval(()=>{
+        if(!this.setPieceMiniGame?.active||this.setPieceMiniGame.type!=='penalty'){this.clearMatchPenaltyCountdown();return}
+        n--;
+        if(n>0){if(count)count.querySelector('b').textContent=String(n);}
+        else{
+          clearInterval(this.matchPenaltyCountdownTimer);
+          if(count){count.querySelector('b').textContent='SHOOT!';count.querySelector('small').textContent='AIM · CHARGE · RELEASE';}
+          this.matchPenaltyCountdownEnd=setTimeout(()=>{
+            if(!this.setPieceMiniGame?.active)return;
+            this.setPieceMiniGame.penaltyReady=true;
+            overlay.classList.remove('penalty-counting');
+            count?.classList.remove('show');
+            this.matchPenaltyFeedback('YOUR PENALTY','objective',650);
+          },480);
+        }
+      },620);
+    }
+    clearMatchPenaltyCountdown(){
+      clearInterval(this.matchPenaltyCountdownTimer);
+      clearTimeout(this.matchPenaltyCountdownEnd);
+      $('#matchPenaltyTrainingOverlay')?.classList.remove('penalty-counting');
+      $('#matchPenaltyCountdown')?.classList.remove('show');
+      if(this.setPieceMiniGame)this.setPieceMiniGame.penaltyReady=true;
+    }
+
     releasePenaltySetPieceCharge(k){
+      if(this.setPieceMiniGame?.type==='penalty'&&this.setPieceMiniGame.penaltyCharging&&String(k).toLowerCase()==='l'){
+        const t=penaltyTimingResult(clamp(this.setPieceMiniGame.meter||0,0,1),this.setPieceMiniGame.option||'shot');
+        this.matchPenaltyFeedback(t.perfect?'PERFECT STRIKE':t.early?'TOO EARLY · UNDERHIT':'TOO LATE · OVERHIT',t.perfect?'good':'warn',900);
+      }
       const state=this.setPieceMiniGame;if(!state?.active||state.type!=='penalty'||!state.penaltyTrainingLike)return false;if(!['j','k','l','i'].includes(k))return false;
       state.penaltyHeldKeys ||= new Set();state.penaltyHeldKeys.delete(k);if(!state.penaltyCharging)return true;if(state.penaltyHeldKeys.size)return true;
       const power=clamp(state.meter||.12,.12,1),technique=state.penaltyTechnique||state.option||'shot';state.penaltyCharging=false;state.penaltyChargeElapsed=0;this.takePenaltyTrainingSetPiece(technique,power);return true;
@@ -10170,7 +11086,7 @@
       const state=this.setPieceMiniGame,r=this.restart;if(!state?.active||state.mode!=='save'||state.stage!=='dive'||!r||r.phase!=='ready')return false;
       const choice={TL:{side:-1,height:'high'},TC:{side:0,height:'high'},TR:{side:1,height:'high'},ML:{side:-1,height:'mid'},C:{side:0,height:'mid'},MR:{side:1,height:'mid'},BL:{side:-1,height:'low'},BC:{side:0,height:'low'},BR:{side:1,height:'low'}}[state.zone];if(!choice)return false;
       const gradeBonus={Perfect:.24,Good:.12,Late:-.06,'Too Early':-.15,'Too Late':-.22}[state.grade]||0,animation=this.goalkeeperAnimationForChoice(choice),screenSide=choice.side*(this.user.team===0?1:-1);
-      const keeper=this.user,startX=keeper.x,startY=keeper.y,reach=choice.side===0?0:choice.height==='high'?40:choice.height==='low'?36:38,duration=choice.side===0?.68:choice.height==='high'?.82:.76,targetY=clamp(startY+screenSide*reach,this.goalTop-32,this.goalBottom+32),forward=choice.side===0&&choice.height==='low'?10:3,targetX=clamp(startX+(keeper.team===0?1:-1)*forward,18,this.W-18);
+      const keeper=this.user,startX=keeper.x,startY=keeper.y,keeperPhysical=keeper.physicalProfile||calculatePhysicalProfile(keeper),reach=(choice.side===0?0:choice.height==='high'?40:choice.height==='low'?36:38)*GOAL_GEOMETRY_SCALE*clamp(keeperPhysical.aerialFactor*(keeperPhysical.heightCm/190),.92,1.10),duration=choice.side===0?.68:choice.height==='high'?.82:.76,targetY=clamp(startY+screenSide*reach,this.goalTop-32*GOAL_GEOMETRY_SCALE,this.goalBottom+32*GOAL_GEOMETRY_SCALE),forward=choice.side===0&&choice.height==='low'?10:3,targetX=clamp(startX+(keeper.team===0?1:-1)*forward,18,this.W-18);
       this.gkSaveIntent={...choice,...animation,logicalSide:choice.side,side:screenSide,zone:state.zone,key:'setPiece',timingBonus:gradeBonus+.06,timingGrade:state.grade,startedAt:this.elapsed,expiresAt:this.elapsed+2.4,motionEndsAt:this.elapsed+duration,startX,startY,targetX,targetY,duration};
       state.stage='committed';keeper.gkDiveSide=screenSide;keeper.gkDiveHeight=choice.height;keeper.actionVariant=animation.variant;const action=animation.variant==='smother'?'smother':animation.outcome==='parry'?'parry':choice.side===0?'catch':'dive';this.setAction(keeper,action,duration,(keeper.team===0?0:Math.PI)+screenSide*Math.PI/2);keeper.vx=(targetX-startX)/duration;keeper.vy=(targetY-startY)/duration;
       const zone=state.aiZone,col=zone.endsWith('L')?-1:zone.endsWith('R')?1:0,row=zone.startsWith('T')?'top':zone.startsWith('B')?'bottom':'middle',attack=r.team===0?1:-1,lateral=col*.42,magnitude=Math.hypot(attack,lateral)||1,angle=Math.atan2(lateral/magnitude,attack/magnitude);
@@ -10332,7 +11248,7 @@
       this.players.forEach(p=>{
         if(p.position!=='GK'||p===r.taker||p.sentOff||p.onPitch===false||p.substituted)return;
         const ownGoal=p.team===0?0:this.W,inward=p.team===0?1:-1;
-        const lineX=ownGoal+inward*30,lineY=clamp(r.spot?.y??this.H/2,this.goalTop+12,this.goalBottom-12);
+        const lineX=ownGoal+inward*30,lineY=clamp(r.spot?.y??this.H/2,this.goalTop+12*GOAL_GEOMETRY_SCALE,this.goalBottom-12*GOAL_GEOMETRY_SCALE);
         p.restartRole='hold-goal';p.vx=p.vy=0;
         // Offside restarts walk everyone into shape rather than snapping, so the keeper gets a
         // target to jog back to; the offside branch re-applies it after its own pass.
@@ -10357,7 +11273,7 @@
         r.taker.x=goalX+(goalX===this.W?-8:8);r.taker.y=top?-8:this.H+8;const target={x:goalX+inward*96,y:this.H/2};r.taker.dir=r.taker.upperDir=Math.atan2(target.y-r.taker.y,target.x-r.taker.x);
         const attackers=this.players.filter(p=>p.team===r.team&&p!==r.taker&&p.position!=='GK'&&!p.sentOff).sort((a,b)=>this.cornerAerialScore(b)-this.cornerAerialScore(a));
         const defenders=this.players.filter(p=>p.team===other&&p.position!=='GK'&&!p.sentOff).sort((a,b)=>this.cornerDefendingScore(b)-this.cornerDefendingScore(a));
-        const nearY=top?this.goalTop+17:this.goalBottom-17,farY=top?this.goalBottom-18:this.goalTop+18,centreY=(this.goalTop+this.goalBottom)/2;
+        const nearY=top?this.goalTop+17*GOAL_GEOMETRY_SCALE:this.goalBottom-17*GOAL_GEOMETRY_SCALE,farY=top?this.goalBottom-18*GOAL_GEOMETRY_SCALE:this.goalTop+18*GOAL_GEOMETRY_SCALE,centreY=(this.goalTop+this.goalBottom)/2;
         const roleSlots=[
           {role:'main-target',start:{x:goalX+inward*124,y:centreY+(top?-62:62)},target:{x:goalX+inward*64,y:centreY}},
           {role:'near-post',start:{x:goalX+inward*126,y:nearY+(top?-42:42)},target:{x:goalX+inward*43,y:nearY}},
@@ -10415,7 +11331,7 @@
         this.players.forEach(p=>{
           if(p.position!=='GK'||p===r.taker||p.sentOff||p.onPitch===false||p.substituted)return;
           const ownGoal=p.team===0?0:this.W,inward=p.team===0?1:-1;
-          p.restartTargetX=ownGoal+inward*30;p.restartTargetY=clamp(r.spot.y,this.goalTop+12,this.goalBottom-12);
+          p.restartTargetX=ownGoal+inward*30;p.restartTargetY=clamp(r.spot.y,this.goalTop+12*GOAL_GEOMETRY_SCALE,this.goalBottom-12*GOAL_GEOMETRY_SCALE);
         });
       }else if(r.type==='freeKick'){
         const dir=r.team===0?1:-1,goalX=r.team===0?this.W:0,goalY=this.H/2,goalDistance=Math.hypot(goalX-r.spot.x,goalY-r.spot.y);
@@ -10428,7 +11344,7 @@
         otherOutfield.forEach((p,i)=>{const side=i%2?1:-1,depth=135+(i%3)*42;p.x=clamp(r.spot.x+dir*depth,25,this.W-25);p.y=clamp(r.spot.y+side*(96+(i%4)*32),25,this.H-25);const dx=p.x-r.spot.x,dy=p.y-r.spot.y,d=Math.hypot(dx,dy)||1;if(d<88){p.x=r.spot.x+dx/d*88;p.y=r.spot.y+dy/d*88;}p.restartRole='mark';});
         const attackers=this.players.filter(p=>p.team===r.team&&p!==r.taker&&p.position!=='GK');attackers.forEach((p,i)=>{p.x=clamp(r.spot.x+dir*(82+(i%3)*58),25,this.W-25);p.y=clamp(r.spot.y+(i%2?1:-1)*(68+(i%4)*27),25,this.H-25);p.restartRole=i===0?'short-option':'runner';});
         const defendingKeeper=this.players.find(p=>p.team===other&&p.position==='GK'),attackingKeeper=this.players.find(p=>p.team===r.team&&p.position==='GK');
-        if(defendingKeeper){const wallSide=Math.sign(wallCentre.y-goalY)||1,uncoveredY=goalY-wallSide*23;defendingKeeper.x=goalX+(goalX===0?28:-28);defendingKeeper.y=clamp(uncoveredY,this.goalTop+10,this.goalBottom-10);defendingKeeper.dir=defendingKeeper.upperDir=Math.atan2(r.spot.y-defendingKeeper.y,r.spot.x-defendingKeeper.x);defendingKeeper.restartRole='keeper';}
+        if(defendingKeeper){const wallSide=Math.sign(wallCentre.y-goalY)||1,uncoveredY=goalY-wallSide*23;defendingKeeper.x=goalX+(goalX===0?28:-28);defendingKeeper.y=clamp(uncoveredY,this.goalTop+10*GOAL_GEOMETRY_SCALE,this.goalBottom-10*GOAL_GEOMETRY_SCALE);defendingKeeper.dir=defendingKeeper.upperDir=Math.atan2(r.spot.y-defendingKeeper.y,r.spot.x-defendingKeeper.x);defendingKeeper.restartRole='keeper';}
         if(attackingKeeper){const ownGoalX=r.team===0?0:this.W;attackingKeeper.x=ownGoalX+(ownGoalX===0?34:-34);attackingKeeper.y=this.H/2;attackingKeeper.dir=attackingKeeper.upperDir=ownGoalX===0?0:Math.PI;attackingKeeper.restartRole='hold-goal';}
         r.wallSize=wallSize;r.wallDistance=wallDistance;r.goalDistance=goalDistance;
       }else{
@@ -10438,7 +11354,7 @@
       }
       this.ball.x=r.spot.x;this.ball.y=r.spot.y;this.ball.owner=r.taker;r.taker.hasBall=true;r.taker.pendingKick=null;
       if(r.type!=='throw'){r.taker.action='setPieceReady';r.taker.actionTimer=0;r.taker.actionLength=0;}
-      r.phase='setup';r.timer=r.type==='offside'?1.05:.62;r.phaseElapsed=0;r.autoReleaseTimer=0;
+      r.phase='setup';r.timer=(r.type==='offside'?1.05:.62)*RESTART_TEMPO;r.phaseElapsed=0;r.autoReleaseTimer=0;
     }
 
     updateSetPieceTheatre(dt){
@@ -10625,16 +11541,16 @@
       if(r.foulSequence){
         r.foulSequence.total+=dt;
         if(r.phase==='foulReaction'&&r.timer<=0){
-          r.phase='refereeDecision';r.phaseElapsed=0;r.timer=r.type==='penalty'?1.20:1.02;r.foulSequence.stage='decision';if(this.matchV37Telemetry)this.matchV37Telemetry.foulStages.push('decision');
+          r.phase='refereeDecision';r.phaseElapsed=0;r.timer=(r.type==='penalty'?1.20:1.02)*RESTART_TEMPO;r.foulSequence.stage='decision';if(this.matchV37Telemetry)this.matchV37Telemetry.foulStages.push('decision');
           const offender=this.players.find(p=>p.id===r.meta?.tacklerId);if(offender)offender.dir=offender.upperDir=Math.atan2(this.referee.y-offender.y,this.referee.x-offender.x);
           this.showMatchEvent('info',r.type==='penalty'?'PENALTY DECISION':'REFEREE DECISION',r.type==='penalty'?'Referee points to the spot':'Players wait while the referee confirms the restart',1.45);return;
         }
         if(r.phase==='refereeDecision'&&r.timer<=0){
-          r.phase='foulRegroup';r.phaseElapsed=0;r.timer=.92;r.foulSequence.stage='regroup';if(this.matchV37Telemetry)this.matchV37Telemetry.foulStages.push('regroup');
+          r.phase='foulRegroup';r.phaseElapsed=0;r.timer=.92*RESTART_TEMPO;r.foulSequence.stage='regroup';if(this.matchV37Telemetry)this.matchV37Telemetry.foulStages.push('regroup');
           this.feedback('Players moving into restart positions',0);return;
         }
         if(r.phase==='foulRegroup'&&r.timer<=0){
-          this.arrangeRestart();r.foulSequence=null;r.timer=Math.max(r.timer,.78);return;
+          this.arrangeRestart();r.foulSequence=null;r.timer=Math.max(r.timer,.78*RESTART_TEMPO);return;
         }
         if(['foulReaction','refereeDecision','foulRegroup'].includes(r.phase))return;
       }
@@ -10643,7 +11559,7 @@
         r.phase='ready';r.phaseElapsed=0;
         this.players.forEach(p=>{p.vx=p.vy=0});
         const userSaving=this.user.position==='GK'&&r.team!==this.user.team&&['penalty','freeKick'].includes(r.type);
-        r.aiDelay=r.userControlled||userSaving?99:rand(.72,1.2);
+        r.aiDelay=r.userControlled||userSaving?99:rand(.72,1.2)*RESTART_TEMPO;
         this.feedback(r.userControlled?'Use WASD to aim \u00b7 hold J, K, L or I':userSaving?'Prepare to choose your save direction':'Restart taker preparing',0);
         if(r.userControlled&&['penalty','freeKick','corner','throw'].includes(r.type))this.openSetPieceMiniGame();
         else if(userSaving)this.openGoalkeeperSetPieceMiniGame();
@@ -10656,11 +11572,29 @@
             r.autoReleaseTimer=(r.autoReleaseTimer||0)+dt;
             if(r.autoReleaseTimer>.28){const key=this.keyAction.key;r.autoReleaseTimer=0;this.endKeyAction(key);}
           }else r.autoReleaseTimer=0;
+          // Bounded grace period. The match clock keeps advancing during a restart, so an
+          // untaken kick used to hold the ball on the spot for the rest of the half. The
+          // player gets a warning first, then the referee has it taken.
+          // Charging a kick counts as taking it, so the countdown only runs while the player is
+          // doing nothing at all. A penalty gets a longer window than a throw-in.
+          if(!this.keyAction.key){
+            const grace=USER_RESTART_GRACE*(r.type==='penalty'?USER_PENALTY_GRACE_MULTIPLIER:1);
+            const warnAt=USER_RESTART_WARN_AT*(r.type==='penalty'?USER_PENALTY_GRACE_MULTIPLIER:1);
+            if(!r.takeWarned&&r.watchdog>warnAt){
+              r.takeWarned=true;
+              const seconds=Math.max(1,Math.round(grace-r.watchdog));
+              this.showMatchEvent('info','TAKE THE RESTART',`The referee is waiting · ${seconds}s before it is taken for you`,3);
+            }
+            if(r.watchdog>grace){
+              this.showMatchEvent('info','REFEREE RESTARTS PLAY','You took too long over the ball',2.2);
+              this.forceRestartRelease('user-restart-timeout');
+            }
+          }
           return;
         }
         if(this.setPieceMiniGame?.active&&this.setPieceMiniGame.mode==='save')return;
         r.aiDelay-=dt;
-        if(r.aiDelay<=0||r.phaseElapsed>3.2){
+        if(r.aiDelay<=0||r.phaseElapsed>3.2*RESTART_TEMPO){
           let key='j';
           if(r.type==='throw')key=r.routine==='Line run'?'i':'j';
           else if(r.type==='corner'){r.cornerDeliveryType=pick(['inswing','outswing','driven','floated','nearWhip']);key='i';}
@@ -10682,7 +11616,11 @@
           this.forceRestartRelease('kick-timeout');return;
         }
       }
-      if(r.watchdog>8&&!(r.phase==='ready'&&(r.userControlled||this.setPieceMiniGame?.active)))this.forceRestartRelease('restart-timeout');
+      // The user-controlled ready phase returns earlier and runs its own bounded timeout;
+      // this covers every other way a restart can stall. The goalkeeper save mini-game is
+      // still exempt because it resolves on the shot, not on a timer.
+      const awaitingKeeper=r.phase==='ready'&&this.setPieceMiniGame?.active;
+      if(!awaitingKeeper&&r.watchdog>8)this.forceRestartRelease('restart-timeout');
     }
 
     resolveRestartAction(k,power){const r=this.restart;if(!r||r.taker!==this.user||r.phase!=='ready'){this.feedback('Wait for the restart to be ready',0);return}this.takeRestart(k,power)}
@@ -10773,7 +11711,7 @@
     cornerMovementTarget(p){
       const c=this.cornerPhase;if(!c?.active||p.sentOff||p.position==='GK'&&p.team===c.team)return null;
       if(p.position==='GK'&&p.team===c.defendingTeam){
-        if(c.phase==='delivery'&&this.ball.z>13)return{x:clamp(lerp(p.x,c.target.x,.22),18,this.W-18),y:clamp(lerp(p.y,c.target.y,.48),this.goalTop-18,this.goalBottom+18),weight:.78};
+        if(c.phase==='delivery'&&this.ball.z>13)return{x:clamp(lerp(p.x,c.target.x,.22),18,this.W-18),y:clamp(lerp(p.y,c.target.y,.48),this.goalTop-18*GOAL_GEOMETRY_SCALE,this.goalBottom+18*GOAL_GEOMETRY_SCALE),weight:.78};
         return null;
       }
       if(p.team===c.team&&p.cornerRole){
@@ -10823,17 +11761,17 @@
       }
       else if(r.type==='goalKick'){speed=k==='z'?lerp(205,345,power):k==='x'?lerp(360,520,power):lerp(450,650,power);action='goalKick';duration=k==='z'?.5:.68;target=this.bestRestartTarget(r.team,dir,k==='c')}
       else if(r.type==='penalty'){
-        const a=taker.attrs||{},penSkill=clamp(((a.penalties||55)*.50+(a.composure||55)*.28+(a.technique||55)*.14+(a.finishing||55)*.08)/99,.1,1),aiTechnique=penSkill>.82?pick(['shot','finesse','drivenShot','chipShot']):penSkill>.62?pick(['shot','shot','finesse','drivenShot']):pick(['shot','shot','finesse']),aiSide=Math.random()<.5?-1:1,aiAimX=clamp(.5+aiSide*lerp(.24,.415,penSkill)+gaussianRandom()*lerp(.155,.040,penSkill),-.16,1.16),aiAimY=clamp(lerp(.60,.30,penSkill)+gaussianRandom()*lerp(.20,.055,penSkill),-.20,1.10),finalAimX=mini?.finalAimX??aiAimX,finalAimY=mini?.finalAimY??aiAimY;
+        const a=taker.attrs||{},penSkill=clamp(((a.penalties||55)*.50+(a.composure||55)*.28+(a.technique||55)*.14+(a.finishing||55)*.08)/99,.1,1),aiTechnique=penSkill>.82?pick(['shot','finesse','drivenShot','chipShot']):penSkill>.62?pick(['shot','shot','finesse','drivenShot']):pick(['shot','shot','finesse']),aiSide=Math.random()<.5?-1:1,aiAimX=clamp(.5+aiSide*lerp(.23,.40,penSkill)+gaussianRandom()*lerp(.105,.034,penSkill),-.06,1.06),aiAimY=clamp(lerp(.58,.32,penSkill)+gaussianRandom()*lerp(.125,.045,penSkill),-.08,1.05),finalAimX=mini?.finalAimX??aiAimX,finalAimY=mini?.finalAimY??aiAimY;
         if(!mini){r.miniGameResult={zone:finalAimX<.335?'ML':finalAimX>.665?'MR':'C',row:finalAimY<.335?'top':finalAimY>.665?'bottom':'middle',aimX:finalAimX,aimY:finalAimY,finalAimX,finalAimY,accuracy:penSkill,power,option:aiTechnique,inGreen:true,keeperGuess:null,aiTrainingStyle:true};}
-        const gx=r.team===0?this.W+16:-16,goalHalf=(this.goalBottom-this.goalTop)/2-6,visual=(finalAimX-.5),gy=clamp(this.H/2+visual*2*goalHalf*(r.team===0?1:-1),this.goalTop-46,this.goalBottom+46),d=Math.hypot(gx-taker.x,gy-taker.y)||1;dir={x:(gx-taker.x)/d,y:(gy-taker.y)/d};
+        const gx=r.team===0?this.W+16:-16,goalHalf=(this.goalBottom-this.goalTop)/2-6,visual=(finalAimX-.5),gy=clamp(this.H/2+visual*2*goalHalf*(r.team===0?1:-1),this.goalTop-46*GOAL_GEOMETRY_SCALE,this.goalBottom+46*GOAL_GEOMETRY_SCALE),d=Math.hypot(gx-taker.x,gy-taker.y)||1;dir={x:(gx-taker.x)/d,y:(gy-taker.y)/d};
         mode=r.miniGameResult?.option||'shot';const profile={shot:{speed:[440,575],action:'penaltyKick',duration:.56,variant:'pen-normal'},finesse:{speed:[385,510],action:'finesse',duration:.54,variant:'pen-placed'},drivenShot:{speed:[500,640],action:'penaltyKick',duration:.50,variant:'pen-low-driven'},chipShot:{speed:[305,425],action:'chip',duration:.63,variant:'pen-panenka'}}[mode]||{speed:[440,575],action:'penaltyKick',duration:.56,variant:'pen-normal'};speed=lerp(profile.speed[0],profile.speed[1],power);action=profile.action;duration=profile.duration;taker.actionVariant=profile.variant;target={x:gx,y:gy};
       }
       else if(r.type==='freeKick'){
         const gx=r.team===0?this.W+12:-12,goalHalf=(this.goalBottom-this.goalTop)/2-5,a=taker.attrs||{},aiFkSkill=clamp(((a.freeKicks||55)*.50+(a.technique||55)*.24+(a.composure||55)*.14+(a.curve||a.technique||55)*.08+(a.longShots||55)*.04)/99,.1,1);
         if(mini){
-          const visual=(mini.finalAimX??.5)-.5,gy=clamp(this.H/2+visual*2*goalHalf*(r.team===0?1:-1),this.goalTop+4,this.goalBottom-4),d=Math.hypot(gx-taker.x,gy-taker.y)||1;dir={x:(gx-taker.x)/d,y:(gy-taker.y)/d};target={x:gx,y:gy};mode=mini.option||'shot';
+          const visual=(mini.finalAimX??.5)-.5,gy=clamp(this.H/2+visual*2*goalHalf*(r.team===0?1:-1),this.goalTop+4*GOAL_GEOMETRY_SCALE,this.goalBottom-4*GOAL_GEOMETRY_SCALE),d=Math.hypot(gx-taker.x,gy-taker.y)||1;dir={x:(gx-taker.x)/d,y:(gy-taker.y)/d};target={x:gx,y:gy};mode=mini.option||'shot';
         }else{
-          const side=Math.random()<.5?-1:1,cornerOffset=goalHalf*lerp(.32,.72,aiFkSkill),placementError=goalHalf*lerp(.22,.055,aiFkSkill),gy=clamp(this.H/2+side*cornerOffset+gaussianRandom()*placementError,this.goalTop+4,this.goalBottom-4),d=Math.hypot(gx-taker.x,gy-taker.y)||1;dir={x:(gx-taker.x)/d,y:(gy-taker.y)/d};target={x:gx,y:gy};
+          const side=Math.random()<.5?-1:1,cornerOffset=goalHalf*lerp(.34,.74,aiFkSkill),placementError=goalHalf*lerp(1.75,1.05,aiFkSkill),gy=clamp(this.H/2+side*cornerOffset+gaussianRandom()*placementError,this.goalTop-72*GOAL_GEOMETRY_SCALE,this.goalBottom+72*GOAL_GEOMETRY_SCALE),d=Math.hypot(gx-taker.x,gy-taker.y)||1;dir={x:(gx-taker.x)/d,y:(gy-taker.y)/d};target={x:gx,y:gy};
           const gd=r.goalDistance||d;mode=aiFkSkill<.58?(gd<240?pick(['fkCurl','shot','shot']):pick(['fkDip','shot'])):gd<205?pick(['fkCurl','fkLowDriven','shot']):gd<330?pick(['fkCurl','fkDip','fkKnuckle','shot']):pick(['fkDip','fkKnuckle','shot']);const idealPower={fkCurl:.58,fkDip:.64,fkKnuckle:.76,fkLowDriven:.72,shot:.68}[mode]||.68;power=clamp(lerp(power,idealPower,lerp(.08,.62,aiFkSkill)),.28,.94);
         }
         const speedMap={fkCurl:[420,555],fkDip:[430,575],fkKnuckle:[475,620],fkLowDriven:[500,645],shot:[455,605]},range=speedMap[mode]||speedMap.shot;
@@ -10871,7 +11809,7 @@
         started=this.beginKick(taker,action,duration,angle,r.kickPlan.vx,r.kickPlan.vy,target,{restartRelease:true,mode,lift,curve:r.kickPlan.curve,flight:r.kickPlan.flight,topspin:r.kickPlan.topspin,backspin:r.kickPlan.backspin,dip:r.kickPlan.dip,airDrag:r.kickPlan.airDrag,shotProfile:r.kickPlan.shotProfile,power:r.kickPlan.power,setPieceThreat:r.kickPlan.setPieceThreat,gravityScale:r.kickPlan.gravityScale,groundResistance:r.kickPlan.groundResistance});
       }
       if(!started){this.forceRestartRelease('kick-start-failed');return;}
-      if(r.type==='penalty'){const result=r.miniGameResult||mini,keeper=this.players.find(p=>p.team!==r.team&&p.position==='GK'&&!p.sentOff);if(keeper&&keeper!==this.user&&result){const actualSide=Math.sign((result.finalAimX??.5)-.5),guessSide=Number.isFinite(result.keeperGuess)?result.keeperGuess:(Math.random()<.24?actualSide:pick([-1,0,1])),targetY=result.finalAimY??.5;keeper.gkDiveSide=guessSide;keeper.gkDiveHeight=targetY<.38?'high':targetY>.68?'low':'mid';keeper.actionVariant=guessSide===0?'body-behind':keeper.gkDiveHeight==='high'?'top-corner':keeper.gkDiveHeight==='low'?'low-reach-catch':'two-hand-dive';keeper.dir=keeper.upperDir=Math.atan2(guessSide,.35*(r.team===0?-1:1));const reaction=clamp(.88-(keeper.attrs?.anticipation||60)*.0013-(keeper.attrs?.agility||60)*.0009,.64,.82);this.setAction(keeper,guessSide===0?'catch':'dive',reaction,keeper.dir)}}
+      if(r.type==='penalty'){const result=r.miniGameResult||mini,keeper=this.players.find(p=>p.team!==r.team&&p.position==='GK'&&!p.sentOff);if(keeper&&keeper!==this.user&&result){const actualSide=Math.sign((result.finalAimX??.5)-.5),guessSide=Number.isFinite(result.keeperGuess)?result.keeperGuess:(Math.random()<.14?actualSide:pick([-1,0,1])),targetY=result.finalAimY??.5;keeper.gkDiveSide=guessSide;keeper.gkDiveHeight=targetY<.38?'high':targetY>.68?'low':'mid';keeper.actionVariant=guessSide===0?'body-behind':keeper.gkDiveHeight==='high'?'top-corner':keeper.gkDiveHeight==='low'?'low-reach-catch':'two-hand-dive';keeper.dir=keeper.upperDir=Math.atan2(guessSide,.35*(r.team===0?-1:1));const reaction=clamp(.88-(keeper.attrs?.anticipation||60)*.0013-(keeper.attrs?.agility||60)*.0009,.64,.82);this.setAction(keeper,guessSide===0?'catch':'dive',reaction,keeper.dir)}}
       this.feedback(`${this.restartName(r.type)} \u00b7 ${Math.round(power*100)}% power${mini&&['penalty','freeKick'].includes(r.type)?' \u00b7 target locked':''}`,0);beep(620+power*100,.04)
     }
 
@@ -11202,10 +12140,10 @@
       const safeX=Math.abs(dir.x)<.08?.08*sign:dir.x;
       const travel=(goalX-p.x)/safeX;
       const projected=Number.isFinite(travel)&&travel>0?p.y+dir.y*travel:goalCentre+dir.y*72;
-      const directional=clamp(projected,this.goalTop+10,this.goalBottom-10);
+      const directional=clamp(projected,this.goalTop+10*GOAL_GEOMETRY_SCALE,this.goalBottom-10*GOAL_GEOMETRY_SCALE);
       const keeper=this.players.find(k=>k.team!==p.team&&k.position==='GK'&&!k.sentOff);
-      const openSide=keeper&&keeper.y<goalCentre?this.goalBottom-16:this.goalTop+16;
-      const userZone=clamp(goalCentre+dir.y*90,this.goalTop+12,this.goalBottom-12);
+      const openSide=keeper&&keeper.y<goalCentre?this.goalBottom-16*GOAL_GEOMETRY_SCALE:this.goalTop+16*GOAL_GEOMETRY_SCALE;
+      const userZone=clamp(goalCentre+dir.y*90,this.goalTop+12*GOAL_GEOMETRY_SCALE,this.goalBottom-12*GOAL_GEOMETRY_SCALE);
       const intentional=goalward>.16?lerp(userZone,directional,.42):goalCentre;
       const openBlend=clamp((q-.56)*.52,0,.22)*(distance<280?1:.48);
       const chosen=lerp(intentional,openSide,openBlend);
@@ -11218,17 +12156,17 @@
       const lead=.24+q*.48+power*.12;
       let x=target.x+(target.vx||0)*lead,y=target.y+(target.vy||0)*lead;
       const cutback=(user.team===0?user.x>this.W-145:user.x<145)&&((target.x-user.x)*attackSign)<25;
-      const nearPost=target.y<this.H/2?this.goalTop+34:this.goalBottom-34;
-      const farPost=target.y<this.H/2?this.goalBottom-28:this.goalTop+28;
+      const nearPost=target.y<this.H/2?this.goalTop+34*GOAL_GEOMETRY_SCALE:this.goalBottom-34*GOAL_GEOMETRY_SCALE;
+      const farPost=target.y<this.H/2?this.goalBottom-28*GOAL_GEOMETRY_SCALE:this.goalTop+28*GOAL_GEOMETRY_SCALE;
       let zone='PENALTY SPOT';
-      if(cutback){x=user.team===0?this.W-168:168;y=clamp(target.y,this.goalTop+42,this.goalBottom-42);zone='CUTBACK';}
+      if(cutback){x=user.team===0?this.W-168:168;y=clamp(target.y,this.goalTop+42*GOAL_GEOMETRY_SCALE,this.goalBottom-42*GOAL_GEOMETRY_SCALE);zone='CUTBACK';}
       else if(Math.abs(target.y-this.H/2)>105){y=lerp(y,farPost,.20+q*.18);zone='FAR POST';}
       else if(Math.abs(user.y-target.y)<70){y=lerp(y,nearPost,.14+q*.16);zone='NEAR POST';}
       else{y=lerp(y,this.H/2,.10+q*.12);zone='PENALTY SPOT';}
       x=clamp(x,user.team===0?this.W-235:36,user.team===0?this.W-36:235);
-      y=clamp(y,this.goalTop+20,this.goalBottom-20);
+      y=clamp(y,this.goalTop+20*GOAL_GEOMETRY_SCALE,this.goalBottom-20*GOAL_GEOMETRY_SCALE);
       const keeper=this.players.find(p=>p.team!==user.team&&p.position==='GK'&&!p.sentOff);
-      if(keeper&&Math.abs(y-keeper.y)<32&&q>.55)y=clamp(y+(y<this.H/2?-1:1)*(22+q*22),this.goalTop+18,this.goalBottom-18);
+      if(keeper&&Math.abs(y-keeper.y)<32&&q>.55)y=clamp(y+(y<this.H/2?-1:1)*(22+q*22),this.goalTop+18*GOAL_GEOMETRY_SCALE,this.goalBottom-18*GOAL_GEOMETRY_SCALE);
       return{x,y,zone,goalX};
     }
 
@@ -11284,7 +12222,14 @@
 
     userDirectionalPass(type='pass',power=.5){
       if(this.ball.owner!==this.user&&this.user&&dist(this.user,this.ball)<=52){this.ball.owner=this.user;this.user.hasBall=true;}
-      if(this.ball.owner!==this.user){this.feedback('You need the ball',-.02);return}
+      // A challenge can detach ownership for a few frames. If the ball is still at the
+      // player's feet, or he had it a moment ago, keep the input alive rather than
+      // dropping it on the floor with a 'you need the ball' message.
+      if(this.ball.owner!==this.user&&this.user&&!this.ball.owner&&dist(this.user,this.ball)<=86&&(this.elapsed-(this.user.lastOwnedAt||-9))<.45){this.ball.owner=this.user;this.user.hasBall=true;}
+      if(this.ball.owner!==this.user){
+        if((this.elapsed-(this.user?.lastOwnedAt||-9))<.30||dist(this.user,this.ball)<=120){this.bufferUserAction(type==='through'||type==='liftedThrough'?'k':type==='cross'||type==='lofted'?'i':'j');return}
+        this.feedback('You need the ball',-.02);return
+      }
       power=clamp(power,.08,1);
       const aerialPass=['cross','lofted','loftedPass','liftedThrough'].includes(type),liftedThrough=type==='liftedThrough';
       const actionType=type==='cross'||type==='lofted'?'cross':type==='through'||liftedThrough?'through':'pass';
@@ -11349,7 +12294,14 @@
 
     userShootAt(targetX,targetY,charge=.55,mode='auto'){
       if(this.ball.owner!==this.user&&this.user&&dist(this.user,this.ball)<=52){this.ball.owner=this.user;this.user.hasBall=true;}
-      if(this.ball.owner!==this.user){this.feedback('You need the ball',-.02);return}
+      // A challenge can detach ownership for a few frames. If the ball is still at the
+      // player's feet, or he had it a moment ago, keep the input alive rather than
+      // dropping it on the floor with a 'you need the ball' message.
+      if(this.ball.owner!==this.user&&this.user&&!this.ball.owner&&dist(this.user,this.ball)<=86&&(this.elapsed-(this.user.lastOwnedAt||-9))<.45){this.ball.owner=this.user;this.user.hasBall=true;}
+      if(this.ball.owner!==this.user){
+        if((this.elapsed-(this.user?.lastOwnedAt||-9))<.30||dist(this.user,this.ball)<=120){this.bufferUserAction('l');return}
+        this.feedback('You need the ball',-.02);return
+      }
       charge=clamp(charge,.08,1);
       let rawDx=targetX-this.user.x,rawDy=targetY-this.user.y,rawD=Math.hypot(rawDx,rawDy)||1;
       const rawDir={x:rawDx/rawD,y:rawDy/rawD};
@@ -11369,14 +12321,14 @@
       let finalY=assist.y+gaussianRandom()*missRadius;
       if(finesse)finalY=lerp(finalY,assist.y,.22);
       const finalX=assist.x;
-      const openCorner=keeper&&keeper.y<goalCentre?this.goalBottom-14:this.goalTop+14;
+      const openCorner=keeper&&keeper.y<goalCentre?this.goalBottom-14*GOAL_GEOMETRY_SCALE:this.goalTop+14*GOAL_GEOMETRY_SCALE;
       if(curlTriggered)finalY=lerp(finalY,openCorner,.18+curlSkill*.38);
       const preferredFinesseFoot=finesse&&!this.isBothFooted(this.user)?(this.user.preferredFoot||this.user.naturalFoot||'Right'):this.chooseKickFoot(this.user,Math.atan2(finalY-this.user.y,finalX-this.user.x),'finesse');
       const naturalFootSign=preferredFinesseFoot==='Right'?-1:1,targetSideSign=Math.sign(finalY-this.user.y)||Math.sign(finalY-goalCentre)||naturalFootSign,curveShape=targetSideSign>0?'c':'inverse-c';
       // Start slightly against the eventual bend so the ball flies outward then curls back (classic C).
       // Bend sign is matched to the pitch y-down coordinate system and preferred foot.
       const launchOffset=finesse?lerp(15,47,curlSkill)*lerp(.76,1.08,charge)*clamp(assist.distance/185,.72,1.28):0;
-      const launchY=finesse?clamp(finalY+targetSideSign*launchOffset,this.goalTop-72,this.goalBottom+72):finalY;
+      const launchY=finesse?clamp(finalY+targetSideSign*launchOffset,this.goalTop-72*GOAL_GEOMETRY_SCALE,this.goalBottom+72*GOAL_GEOMETRY_SCALE):finalY;
       let dx=finalX-this.user.x,dy=launchY-this.user.y,d=Math.hypot(dx,dy)||1;
       let corrected=Math.atan2(dy,dx);
       const accuracyPowerPenalty=Math.max(0,charge-.88)*lerp(.13,.025,q);
@@ -11496,21 +12448,22 @@
       const pressurePenalty=relativeSpeed*.014+approach*6.2+(playerFirst?10:0),skill=(tackling*.48+anticipation*.27+decisions*.25)*(userInitiated?1:this.difficulty.tackle),shield=victim.shielding?((victim.attrs.strength||50)+(victim.attrs.balance||50))*.10:0;
       const chance=clamp((skill-dribbling*.42-shield+(slide?5:0)-pressurePenalty)/69,.08,.86);
       const contactSeverity=clamp((slide?.24:.10)+relativeSpeed/430+(fromBehind?.20:0)+(playerFirst?.18:-.08)+approach*.055,0,1);
-      const foulBase=ballFirst?(slide?.018:.009):(slide?.22:.075);
+      const foulBase=ballFirst?(slide?.018:.009):(slide?FOUL_BASE_SLIDE:FOUL_BASE_STANDING);
       const foulChance=clamp(foulBase+relativeSpeed*.00036+approach*.028+(100-decisions)*.0008+(100-tackling)*.00072+(fromBehind?(slide?.23:.11):0),.004,.78)*this.referee.strictness;
       this.ballPulse=.13;this.spawnTurfEffect((tackler.x+victim.x)/2,(tackler.y+victim.y)/2,contactAngle,slide?10:6,1.15);this.showCue(tackler,slide?'SLIDE CONTACT':'TACKLE CONTACT',.62);
+      tackler.tackleOutcome=null;tackler.foulFollowThrough=0;
       const success=Math.random()<chance;
       if(ballFirst&&success){
         // A genuinely ball-first challenge is overwhelmingly clean; incidental follow-through is rare.
         if(Math.random()<foulChance*.10){this.handleFoul(tackler,victim,Math.max(.28,contactSeverity*.72),{slide:!!slide,fromBehind,relativeSpeed,ballFirst:true,playerFirst:false,tackleVariant:variant,impactAngle:contactAngle});}
-        else{this.giveBall(tackler);victim.vx*=.72;victim.vy*=.72;this.showCue(tackler,'CLEAN WIN',.7);beep(420,.05);if(userInitiated){this.stats.tackles++;this.stats.duelsWon++;this.adjustRating(slide?.06:.08);this.feedback(`${this.tackleVariantLabel(variant)} won the ball`,slide?.06:.08)}else if(victim===this.user){this.adjustRating(-.018);this.feedback('Possession lost after visible contact',-.018)}}
+        else{this.giveBall(tackler);victim.vx*=.72;victim.vy*=.72;tackler.tackleOutcome='clean';tackler.tackleOutcomeAt=this.elapsed;victim.tackleOutcome=null;this.showCue(tackler,'CLEAN WIN',.7);beep(420,.05);if(userInitiated){this.stats.tackles++;this.stats.duelsWon++;this.adjustRating(slide?.06:.08,'tackle');this.feedback(`${this.tackleVariantLabel(variant)} won the ball`,slide?.06:.08)}else if(victim===this.user){this.adjustRating(-.018);this.feedback('Possession lost after visible contact',-.018)}}
         return;
       }
       if(playerFirst&&Math.random()<foulChance){
         this.handleFoul(tackler,victim,clamp(.34+contactSeverity*.58,.34,.96),{slide:!!slide,fromBehind,relativeSpeed,ballFirst:false,playerFirst:true,tackleVariant:variant,impactAngle:contactAngle});if(userInitiated)this.feedback(fromBehind?'Late challenge from behind · foul':'Player caught before the ball · foul',-.08);return;
       }
       if(success&&Math.random()<clamp(.18+tackling/180,.22,.66)){
-        this.giveBall(tackler);victim.vx*=.76;victim.vy*=.76;this.showCue(tackler,'SCRAPPY WIN',.55);if(userInitiated){this.stats.tackles++;this.stats.duelsWon++;this.adjustRating(.035);this.feedback(`${this.tackleVariantLabel(variant)} recovered the ball`,.035)}
+        this.giveBall(tackler);victim.vx*=.76;victim.vy*=.76;this.showCue(tackler,'SCRAPPY WIN',.55);if(userInitiated){this.stats.tackles++;this.stats.duelsWon++;this.adjustRating(.035,'tackle');this.feedback(`${this.tackleVariantLabel(variant)} recovered the ball`,.035)}
       }else{
         // Do not start a second slide animation on a miss. The committed slide/recovery state finishes naturally.
         if(!slide)this.setAction(tackler,'stumble',.30,tackler.dir);victim.vx*=1.035;victim.vy*=1.035;if(userInitiated){this.adjustRating(slide?-.06:-.035);this.feedback(`${this.tackleVariantLabel(variant)} missed`,slide?-.06:-.035)}
@@ -11602,7 +12555,7 @@
       if(state.distance<62)return;
       if(state.forward>=22&&state.rewards<12){
         const underPressure=state.pressureDistance>=15,reward=underPressure?.045:.028;
-        this.stats.progressiveCarries++;state.rewards++;this.adjustRating(reward);
+        this.stats.progressiveCarries++;state.rewards++;this.adjustRating(reward,'dribble');
         this.feedback(underPressure?'Strong dribble under pressure':'Progressive carry',reward);
         this.showCue(p,underPressure?'DRIBBLE':'GOOD CARRY',.55);
       }
@@ -11708,7 +12661,7 @@
       const skill=clamp(((p.attrs.finishing||55)+(p.attrs.technique||55)+(p.attrs.composure||55))/300,.25,.97);
       if(Math.random()>clamp(.08+skill*.42-(context.action==='bicycleKick'?.18:0),.06,.48))return false;
       const centre=(this.goalTop+this.goalBottom)/2,keeper=this.players.find(q=>q.team!==p.team&&q.position==='GK'&&!q.sentOff);
-      const targetY=clamp((keeper&&keeper.y<centre?this.goalBottom-16:this.goalTop+16)+gaussianRandom()*lerp(28,5,skill),this.goalTop+8,this.goalBottom-8);
+      const targetY=clamp((keeper&&keeper.y<centre?this.goalBottom-16*GOAL_GEOMETRY_SCALE:this.goalTop+16*GOAL_GEOMETRY_SCALE)+gaussianRandom()*lerp(28,5,skill),this.goalTop+8*GOAL_GEOMETRY_SCALE,this.goalBottom-8*GOAL_GEOMETRY_SCALE);
       this.giveBall(p);const dx=(p.team===0?this.W+14:-14)-p.x,dy=targetY-p.y,d=Math.hypot(dx,dy)||1,speed=lerp(410,590,skill);
       this.beginKick(p,context.action,context.duration,Math.atan2(dy,dx),dx/d*speed,dy/d*speed,null,{lift:context.lift,contactZ:context.contactZ,topspin:context.topspin,dip:context.dip});
       if(p.pendingKick)p.pendingKick.delay=.055;p.actionVariant=context.action;p.aiIntent=context.action;p.aiIntentTimer=.8;this.showCue(p,context.label,.7);return true;
@@ -11770,7 +12723,7 @@
         if(intended){const lead=key==='j'?.18:key==='k'?.36:.3;target={x:intended.x+(intended.vx||0)*lead,y:intended.y+(intended.vy||0)*lead};}
       }else{
         const goalX=this.user.team===0?this.W+12:-12,centre=(this.goalTop+this.goalBottom)/2;
-        target={x:goalX,y:clamp(centre+raw.y*54+gaussianRandom()*lerp(30,5,quality),this.goalTop+7,this.goalBottom-7)};
+        target={x:goalX,y:clamp(centre+raw.y*54+gaussianRandom()*lerp(30,5,quality),this.goalTop+7*GOAL_GEOMETRY_SCALE,this.goalBottom-7*GOAL_GEOMETRY_SCALE)};
       }
       let dx=target.x-this.user.x,dy=target.y-this.user.y,d=Math.hypot(dx,dy)||1;
       const angleError=gaussianRandom()*lerp(.16,.025,quality)*(1+pressure*.24);const angle=Math.atan2(dy,dx)+angleError;
@@ -11785,7 +12738,7 @@
       this.ball.vx=Math.cos(angle)*speed;this.ball.vy=Math.sin(angle)*speed;this.ball.vz=vertical;this.ball.curve=0;this.ball.curveProfile=null;this.ball.shotProfile='aerial';this.ball.impactSquash=0;this.ball.spin=(this.ball.spin||0)+2.2;this.ball.bounceCount=0;
       this.ball.lastTouchTeam=this.user.team;this.ball.lastPasser=this.user;this.ball.lastTouch=this.user;this.ball.intended=intended;this.ball.flight=flight;this.ball.lastActionType=key==='l'?'shotHeader':key==='i'?'loftedHeader':key==='k'?'drivenHeader':'shortHeader';this.ball.aerialDuelCooldown=.34;this.ballPulse=.13;
       if(key==='l'){
-        const goal={x:this.user.team===0?this.W:0,y:target.y},xg=this.calculateXG(this.user,goal,pressure,0)*.82;this.ball.lastShotXG=xg;this.stats.shots++;this.stats.xG+=xg;this.telemetry.shots[this.user.team]++;this.telemetry.xG[this.user.team]+=xg;this.recordEvent('shot',this.user.team,{player:this.user.id,xg,kind:'header'});this.feedback('Header towards goal!',.02);
+        const goal={x:this.user.team===0?this.W:0,y:target.y},xg=this.calculateXG(this.user,goal,pressure,0)*.82;this.ball.lastShotXG=xg;this.ball.shotTelemetryCounted=true;this.stats.shots++;this.stats.xG+=xg;this.telemetry.shots[this.user.team]++;this.telemetry.xG[this.user.team]+=xg;this.recordEvent('shot',this.user.team,{player:this.user.id,xg,kind:'header'});this.feedback('Header towards goal!',.02);
       }else{
         this.stats.passes++;this.telemetry.passes[this.user.team]++;this.recordEvent('pass',this.user.team,{from:this.user.id,to:intended?.id||null,action:this.ball.lastActionType});this.feedback(key==='j'?'Short header':key==='k'?'Driven header':'Lofted header',.015);
       }
@@ -11839,7 +12792,7 @@
             const lighter=ma<mb?a:b;
             const stronger=lighter===a?b:a;
             const balanceAttr=clamp(Number(lighter.attrs.balance||55),1,99),lighterStrength=clamp(Number(lighter.attrs.strength||55),1,99),strongerStrength=clamp(Number(stronger.attrs.strength||55),1,99);
-            const stability=balanceAttr*.72+lighterStrength*.28,momentum=closing*lerp(.94,1.08,strongerStrength/99);
+            const lighterPhysical=lighter.physicalProfile||calculatePhysicalProfile(lighter),strongerPhysical=stronger.physicalProfile||calculatePhysicalProfile(stronger),stability=(balanceAttr*.72+lighterStrength*.28)*lighterPhysical.contactStabilityFactor,momentum=closing*lerp(.94,1.08,strongerStrength/99)*strongerPhysical.momentumFactor;
             const impact=momentum+strongerStrength*.40-stability*.46;
             const stumbleChance=clamp((impact-70)/125,.05,.66)*lerp(1.16,.56,balanceAttr/99);
             if(impact>84&&Math.random()<stumbleChance){
@@ -11897,7 +12850,7 @@
     resolvePhysicalDuels(dt){
       const owner=this.ball.owner;if(!owner||owner.sentOff)return;
       if(this.pressWindow>0){this.pressWindow=Math.max(0,this.pressWindow-dt);if(owner.team!==this.user.team){const called=this.calledPressHelperId?this.players.find(p=>p.id===this.calledPressHelperId&&!p.sentOff&&p.onPitch!==false):null;const helper=called||this.players.filter(p=>p.team===this.user.team&&!p.isUser&&!p.sentOff).sort((a,b)=>dist(a,owner)-dist(b,owner))[0];if(helper&&dist(helper,owner)<58)helper.duelCooldown=0;}if(this.pressWindow<=0)this.calledPressHelperId=null;}
-      if(owner===this.user&&this.user.shielding){const closest=this.players.filter(p=>p.team===1&&!p.sentOff).sort((a,b)=>dist(a,owner)-dist(b,owner))[0];if(closest&&dist(closest,owner)<23){const us=owner.attrs||{},them=closest.attrs||{},hold=(us.strength||55)*.56+(us.balance||55)*.29+(us.technique||55)*.15-(them.strength||55)*.38-(them.tackling||55)*.34-(them.anticipation||55)*.12;const breakChance=clamp(.012-hold*.000085,.0012,.016);if(Math.random()<breakChance*dt*60){this.makeHeavyTouch(this.user,{x:Math.cos(this.user.dir),y:Math.sin(this.user.dir)},false)}else if(hold>18){closest.vx*=.985;closest.vy*=.985;}}}
+      if(owner===this.user&&this.user.shielding){const closest=this.players.filter(p=>p.team===1&&!p.sentOff).sort((a,b)=>dist(a,owner)-dist(b,owner))[0];if(closest&&dist(closest,owner)<23){const us=owner.attrs||{},them=closest.attrs||{},ownerPhysical=owner.physicalProfile||calculatePhysicalProfile(owner),challengerPhysical=closest.physicalProfile||calculatePhysicalProfile(closest),hold=((us.strength||55)*.56+(us.balance||55)*.29+(us.technique||55)*.15)*ownerPhysical.shieldingFactor-((them.strength||55)*.38+(them.tackling||55)*.34+(them.anticipation||55)*.12)*challengerPhysical.contactStabilityFactor;const breakChance=clamp(.012-hold*.000085,.0012,.016);if(Math.random()<breakChance*dt*60){this.makeHeavyTouch(this.user,{x:Math.cos(this.user.dir),y:Math.sin(this.user.dir)},false)}else if(hold>18){closest.vx*=.985;closest.vy*=.985;}}}
     }
 
     advantageOpportunity(team,spot,victim=null){
@@ -11925,8 +12878,15 @@
       else if(fouls>=5)score+=.055;
       const directRed=!!context.violent||(score>=1.02&&severity>.86&&!!context.slide&&!!context.playerFirst);
       if(directRed)return{level:'red',score,reason:context.violent?'SERIOUS FOUL PLAY':'DANGEROUS CHALLENGE'};
-      const persistent=p.refereeWarningGiven&&fouls>=4&&score>=.62;
-      if(score>=.80||persistent){let reason=persistent?'PERSISTENT FOULING':context.fromBehind&&context.slide?'RECKLESS SLIDE FROM BEHIND':relativeSpeed>225?'HIGH SPEED CHALLENGE':context.playerFirst?'LATE CHALLENGE':'RECKLESS CHALLENGE';return{level:'yellow',score,reason};}
+      // Roughly one foul in seven is booked in real football. The original .80 threshold booked
+      // about 44% of them - four yellows from nine fouls, and two reds a match via second
+      // yellows. A first pass at .92 overshot the other way: zero cards from seven fouls, with
+      // the referee issuing five warnings and never once following through, which reads as a
+      // referee who does not exist. .86 sits between the two measured points.
+      // Persistent fouling also has to be reachable: requiring five fouls AND a prior warning
+      // meant it effectively never fired inside a single match.
+      const persistent=p.refereeWarningGiven&&fouls>=3&&score>=.66;
+      if(score>=CARD_YELLOW_THRESHOLD||persistent){let reason=persistent?'PERSISTENT FOULING':context.fromBehind&&context.slide?'RECKLESS SLIDE FROM BEHIND':relativeSpeed>225?'HIGH SPEED CHALLENGE':context.playerFirst?'LATE CHALLENGE':'RECKLESS CHALLENGE';return{level:'yellow',score,reason};}
       if(score>=.52||fouls>=2)return{level:'warning',score,reason:fouls>=3?'FINAL WARNING':'REFEREE WARNING'};
       return{level:'none',score,reason:'NO CARD'};
     }
@@ -11998,10 +12958,11 @@
       const fouledTeam=victim.team,defendingTeam=tackler.team,spot={x:clamp(victim.x,18,this.W-18),y:clamp(victim.y,18,this.H-18)};
       const penalty=this.isInsidePenaltyArea(spot,defendingTeam),serious=!!context.violent||severity>.93||(!!context.slide&&!!context.fromBehind&&severity>.87),variant=this.foulAnimationVariant(context,severity),impactAngle=Number.isFinite(context.impactAngle)?context.impactAngle:Math.atan2(victim.y-tackler.y,victim.x-tackler.x);
       victim.foulVariant=variant;victim.foulSeverity=severity;victim.foulImpactAngle=impactAngle;victim.foulSourceTacklerId=tackler.id;
+      tackler.tackleOutcome='foul';tackler.tackleOutcomeAt=this.elapsed;tackler.foulFollowThrough=severity;
       victim.actionVariant=variant;this.setAction(victim,'foul',lerp(.72,1.10,severity),victim.dir);this.checkInjury(victim,severity,'tackle');
       if(tackler===this.user){this.stats.foulsCommitted++;this.adjustRating(-.08)}
       if(victim===this.user){
-        this.stats.foulsWon++;const foulReward=penalty?.14:serious?.11:.09;this.adjustRating(foulReward);this.feedback(penalty?'Penalty won':serious?'Foul won (strong)':'Foul won',foulReward);
+        this.stats.foulsWon++;const foulReward=penalty?.14:serious?.11:.09;this.adjustRating(foulReward,'foul');this.feedback(penalty?'Penalty won':serious?'Foul won (strong)':'Foul won',foulReward);
       }
       this.telemetry.refereeCalls++;this.recordEvent('foul',defendingTeam,{tackler:tackler.id,victim:victim.id,awardedTo:fouledTeam,spot,penalty,slide:!!context.slide,fromBehind:!!context.fromBehind,ballFirst:!!context.ballFirst,playerFirst:!!context.playerFirst,variant,severity,foulCount:tackler.foulCount});
       const card={tackler,severity,context:{...context,foulVariant:variant,impactAngle,tackleVariant:context.tackleVariant||tackler.actionVariant}};
@@ -12133,15 +13094,35 @@
       const finalThird=this.user.team===0?receiver.x>this.W*.7:receiver.x<this.W*.3;
       const dangerous=finalThird&&forward>32&&['through','liftedThrough','loftedPass','cross','cutback','drivenPass'].includes(action);
       const reward=.035+(progressive?.025:0)+(dangerous?.04:0);
-      this.stats.completed++;if(['cross','cutback'].includes(action))this.stats.successfulCrosses++;if(dangerous){this.stats.keyPasses++;this.stats.chancesCreated++;}this.adjustRating(reward);
+      this.stats.completed++;if(['cross','cutback'].includes(action))this.stats.successfulCrosses++;if(dangerous){this.stats.keyPasses++;this.stats.chancesCreated++;}this.adjustRating(reward,'pass');
       if(dangerous){this.feedback('Chance-creating pass',reward);this.showCue(this.user,'KEY PASS',.6)}
       else if(progressive){this.feedback('Progressive pass',reward);this.showCue(this.user,'GOOD PASS',.5)}
       else{this.feedback('Completed pass',reward);this.showCue(this.user,'PASS COMPLETE',.36)}
     }
 
+    // An interception is a ball cut out in transit, not any loose ball picked up after an
+    // opponent touched it last. Without these gates every stray collection was counted and
+    // rewarded, producing 20+ "interceptions" a match and walking the rating up by 2-3 points.
+    isGenuineInterception(ballSpeed){
+      // The ball must have come off an opponent and still be travelling. Speed is what
+      // separates cutting out a pass from jogging onto a ball that has already stopped:
+      // a loose ball decays below this threshold quickly, a pass in flight does not.
+      // (lastPasser is deliberately not used here - it survives across possessions, so it is
+      // routinely still pointing at a team-mate when the opposition last touched the ball.)
+      if(this.ball.lastTouchTeam===this.user.team)return false;
+      if(ballSpeed<INTERCEPTION_MIN_SPEED)return false;
+      const now=this.elapsed||0;
+      if(now-(this.lastInterceptionAt??-99)<INTERCEPTION_COOLDOWN)return false;
+      return true;
+    }
+
     awardUserInterception(){
-      const defendingThird=this.user.team===0?this.user.x<this.W*.34:this.user.x>this.W*.66,ballSpeed=Math.hypot(this.ball.vx||0,this.ball.vy||0),dangerBonus=defendingThird?.045:0,paceBonus=ballSpeed>245?.02:0,reward=.1+dangerBonus+paceBonus;
-      this.stats.interceptions++;this.adjustRating(reward);this.feedback(defendingThird?'Danger stopped \u00b7 interception':'Interception',reward);this.showCue(this.user,defendingThird?'DANGER STOPPED':'INTERCEPTION',.62);playMatchSound('tackle','interception',.58);
+      const ballSpeed=Math.hypot(this.ball.vx||0,this.ball.vy||0);
+      if(!this.isGenuineInterception(ballSpeed))return false;
+      this.lastInterceptionAt=this.elapsed||0;
+      const defendingThird=this.user.team===0?this.user.x<this.W*.34:this.user.x>this.W*.66,dangerBonus=defendingThird?.045:0,paceBonus=ballSpeed>245?.02:0,reward=.1+dangerBonus+paceBonus;
+      this.stats.interceptions++;this.adjustRating(reward,'interception');this.feedback(defendingThird?'Danger stopped \u00b7 interception':'Interception',reward);this.showCue(this.user,defendingThird?'DANGER STOPPED':'INTERCEPTION',.62);playMatchSound('tackle','interception',.58);
+      return true;
     }
 
     updateManagerSystems(dt){
@@ -13052,9 +14033,12 @@
         }else{this.keyAction.maxHoldTimer=0;}
         if(this.ball.owner===this.user){const combo=this.keyAction.combo?.id,action=['chipShot','finesseShot','drivenShot'].includes(combo)?'shot':combo==='liftedThrough'?'through':['loftedPass','drivenPass'].includes(combo)?'pass':this.keyAction.key==='j'?'pass':this.keyAction.key==='k'?'through':this.keyAction.key==='i'?'cross':'shot',guideKey=action==='shot'?'l':action==='through'?'k':action==='pass'?'j':this.keyAction.key;const aim=this.actionAimDirection(action);this.user.upperDir=angleLerp(this.user.upperDir??this.user.dir,Math.atan2(aim.y,aim.x),.42);this.refreshAssistPreview(guideKey,clamp(this.keyAction.charge/this.keyAction.maxCharge,.08,1));}
       }
+      if(this.user&&this.ball.owner===this.user)this.user.lastOwnedAt=this.elapsed;
+      this.updateBufferedUserAction(dt);
       if(this.pendingTeamCommand){this.pendingTeamCommand.delay-=dt;if(this.pendingTeamCommand.delay<=0)this.executeTeamCommand()}
       this.players.forEach(p => {
         if(p.sentOff)return;
+        p.crossCooldown=Math.max(0,(p.crossCooldown||0)-dt);
         p.duelCooldown=Math.max(0,(p.duelCooldown||0)-dt);p.collisionCooldown=Math.max(0,(p.collisionCooldown||0)-dt);p.touchCooldown=Math.max(0,(p.touchCooldown||0)-dt);p.aerialCooldown=Math.max(0,(p.aerialCooldown||0)-dt);p.heavyTouchCooldown=Math.max(0,(p.heavyTouchCooldown||0)-dt);
         p.injuredTimer=Math.max(0,(p.injuredTimer||0)-dt);
         if(p.injuryActive){
@@ -13255,23 +14239,23 @@
       const pressureSprint=!!pressureOwner&&pressureDistance>86;
       const sprint = moving && (this.keys.shift||pressureSprint) && this.user.stamina > 4 && !jockey && !shield && !this.positionAssistActive && (!injuryMotion.active||injuryMotion.severity<.72);
       this.user.isSprinting=!!sprint;this.user.isDribbling=!!hasBall&&moving;this.user.isLimping=injuryMotion.active;
-      const pace = this.user.attrs.pace,dribbling=clamp(Number(this.user.attrs.dribbling||55),1,99);
+      const pace = this.user.attrs.pace,dribbling=clamp(Number(this.user.attrs.dribbling||55),1,99),physical=this.user.physicalProfile||applyPhysicalProfileToRuntime(this.user);
       const shotPrep=(this.mouse.charging||this.keyAction.key)&&hasBall;
       const fatigueFactor=clamp(.58+this.user.stamina*.0042,.58,1);
       const injuryFactor=injuryMotion.speedFactor;
       const zoneSpeedFactor=this.positionAssistActive?(hasBall?.54:.78):1;
       const dribbleRetention=hasBall?lerp(.82,1.015,dribbling/99):1;
       const reserveFactor=sprint?(this.user.sprintReserveFactor||1):1;
-      const baseTargetSpeed = moving ? (92 + pace * 1.34) * MATCH_PACE_SCALE * this.matchTempo * (sprint&&!shotPrep ? 1.23 : 1) * (shotPrep?.62:1) * fatigueFactor * injuryFactor * (jockey?.58:shield?.68:1) * zoneSpeedFactor * dribbleRetention * reserveFactor : 0;
+      const baseTargetSpeed = moving ? (92 + pace * 1.34) * MATCH_PACE_SCALE * this.matchTempo * physical.topSpeedFactor * (sprint&&!shotPrep ? 1.23 : 1) * (shotPrep?.62:1) * fatigueFactor * injuryFactor * (jockey?.58:shield?.68:1) * zoneSpeedFactor * dribbleRetention * reserveFactor : 0;
       const oldSpeed = Math.hypot(this.user.vx, this.user.vy);
       const desiredAngle=moving?Math.atan2(dir.y,dir.x):this.user.moveDir;
       const turnAngle=moving?Math.abs(angleDifference(this.user.moveDir??desiredAngle,desiredAngle)):0;
       const turnSeverity=clamp(turnAngle/(Math.PI*.72),0,1),turnAbility=clamp(((this.user.attrs.agility||55)*.58+(this.user.attrs.balance||55)*.22+dribbling*.20)/99,0,1);
-      const targetSpeed=baseTargetSpeed*lerp(1,lerp(.54,.78,turnAbility),turnSeverity);
+      const targetSpeed=baseTargetSpeed*lerp(1,lerp(.54,.78,turnAbility)*physical.turnFactor,turnSeverity);
       this.user.movementTargetSpeed=targetSpeed;
       const fatigueTurn=clamp(.55+this.user.stamina*.0045,.55,1);
       const dribbleTurnBoost=hasBall?lerp(.84,1.14,dribbling/99):1;
-      const response = (moving ? 4.5 + this.user.attrs.acceleration * .040 + this.user.attrs.agility * .017 + turnAngle*lerp(.72,1.28,turnAbility) : 11.2 + this.user.attrs.balance * .045) * MATCH_ACCELERATION_RESPONSE_SCALE * injuryMotion.accelerationFactor * fatigueTurn * dribbleTurnBoost;
+      const response = (moving ? 4.5 + this.user.attrs.acceleration * .040 + this.user.attrs.agility * .017 + turnAngle*lerp(.72,1.28,turnAbility) : 11.2 + this.user.attrs.balance * .045) * MATCH_ACCELERATION_RESPONSE_SCALE * injuryMotion.accelerationFactor * fatigueTurn * dribbleTurnBoost * (moving?physical.accelerationResponseFactor:physical.decelerationFactor);
       const blend = 1 - Math.exp(-Math.max(1.8,response) * dt);
 
       if (moving) {
@@ -13281,7 +14265,7 @@
         if (this.user.actionTimer <= 0) this.user.dir = angleLerp(this.user.dir, this.user.moveDir, clamp(.1 + this.user.attrs.agility * .0017, .15, .29));
         this.user.anim += dt * (sprint ? 13.2 : jockey?6.6:8.2) * (.75 + targetSpeed / 310) * (injuryMotion.active?lerp(.86,.62,injuryMotion.severity):1);
         this.stats.distance += targetSpeed * dt;
-        const drain=(this.positionAssistActive?.08:sprint?(6.2-this.user.attrs.stamina*.027):jockey?.85:shield?.55:.16)*(injuryMotion.active?1+injuryMotion.severity*.32:1)*matchCareerFatigue(this).drain;
+        const drain=(this.positionAssistActive?.08:sprint?(6.2-this.user.attrs.stamina*.027):jockey?.85:shield?.55:.16)*(injuryMotion.active?1+injuryMotion.severity*.32:1)*matchCareerFatigue(this).drain*physical.staminaDrainFactor;
         this.user.stamina = Math.max(0, this.user.stamina - dt * drain);
       } else {
         this.user.vx = lerp(this.user.vx, 0, blend);
@@ -13443,11 +14427,24 @@
       const target=mates.filter(m=>['ST','RW','LW','AM'].includes(m.position)).sort((a,b)=>(b.x-a.x)*attackDir)[0]||mates[0];if(target){const dx=target.x-gk.x,dy=target.y-gk.y,d=Math.hypot(dx,dy)||1;this.beginKick(gk,'goalKick',.68,Math.atan2(dy,dx),dx/d*520,dy/d*520,target,{lift:145});this.telemetry.gkDistributions[team]++;this.showCue(gk,'LONG');return true;}return false;
     }
 
+    // How many matches a user injury costs. A moderate knock used to be able to cost the
+    // full six-match maximum, and landing that on a player's opening fixtures left them with
+    // no gameplay at all - training is locked while injured, so the only option is to
+    // simulate. Early in a career the layoff is capped so the player keeps playing.
+    userInjuryMatches(severity){
+      // A knock should be able to cost a single match. The old curve started at 1+severity*5,
+      // so even a trivial injury took two games and a moderate one could take the full six.
+      const raw=Math.max(1,Math.round(severity*4+rand(0,1.2)));
+      const appearances=Number(career?.fixtureHistory?.length)||0;
+      const earlyCareerCap=appearances<5?2:appearances<10?3:6;
+      return clamp(raw,1,earlyCareerCap);
+    }
+
     checkInjury(p,severity=.4,cause='contact'){
-      if(!p||p.sentOff)return false;const energy=clamp((p.stamina??80)/100,0,1),staminaAttr=clamp(Number(p.attrs?.stamina||55),1,99),base=(p.injuryRisk||.05)*.14,contact=severity*.024,fatigueResistance=lerp(1.16,.68,staminaAttr/99),fatigue=(energy<=.01?.14+severity*.04:Math.pow(1-energy,2)*.035)*fatigueResistance,landing=cause==='landing'?.012:0,risk=clamp((base+contact+fatigue+landing)*(p.isUser?matchCareerFatigue(this).injury:1),.002,.2);if(Math.random()<risk){
+      if(!p||p.sentOff)return false;const energy=clamp((p.stamina??80)/100,0,1),staminaAttr=clamp(Number(p.attrs?.stamina||55),1,99),base=(p.injuryRisk||.05)*.14,contact=severity*.024,fatigueResistance=lerp(1.16,.68,staminaAttr/99),fatigue=(energy<=.01?.14+severity*.04:Math.pow(1-energy,2)*.035)*fatigueResistance,landing=cause==='landing'?.012:0,risk=clamp((base+contact+fatigue+landing)*(p.isUser?matchCareerFatigue(this).injury:1)*MATCH_INJURY_CALIBRATION,.0004,.05);if(Math.random()<risk){
         p.injuredTimer=Math.max(p.injuredTimer||0,Math.max(4.5,rand(9,16)*severity));p.injurySeverity=clamp(severity,.2,1);p.injuryActive=true;p.isLimping=true;p.injuryLeg=Math.random()<.5?'left':'right';p.injuryCause=cause;
         if(p.actionTimer<=0)this.setAction(p,'injured',.62,p.dir);
-        p.commandIcon='LIMP';p.commandTimer=2.2;this.showCue(p,'INJURED',1.05);this.telemetry.injuries[p.team]++;this.recordEvent('injury',p.team,{player:p.id,cause,severity,risk:+risk.toFixed(3),energy:+(energy*100).toFixed(1),leg:p.injuryLeg});if(p===this.user){const matches=clamp(Math.ceil(1+severity*5+rand(0,2)),1,6),name=severity>.78?'Serious knee injury':severity>.68?'Hamstring strain':severity>.44?'Ankle sprain':'Muscle injury';this.userInjury={name,matches,totalMatches:matches,severity:+severity.toFixed(2),cause,leg:p.injuryLeg};const triage=this.injuryTriageProfile(name,severity,cause,p.injuryLeg);this.userInjury.treatment=triage.treatment;this.userInjury.bodyPart=triage.bodyPart;if(triage.requiresRemoval)this.startMedicalCutscene(p,this.userInjury,triage);else this.feedback(`${name} \u00b7 movement is restricted and you are visibly limping`,-.05);}return true;}return false;
+        p.commandIcon='LIMP';p.commandTimer=2.2;this.showCue(p,'INJURED',1.05);this.telemetry.injuries[p.team]++;this.recordEvent('injury',p.team,{player:p.id,cause,severity,risk:+risk.toFixed(3),energy:+(energy*100).toFixed(1),leg:p.injuryLeg});if(p===this.user){const matches=this.userInjuryMatches(severity),name=severity>.78?'Serious knee injury':severity>.68?'Hamstring strain':severity>.44?'Ankle sprain':'Muscle injury';this.userInjury={name,matches,totalMatches:matches,severity:+severity.toFixed(2),cause,leg:p.injuryLeg};const triage=this.injuryTriageProfile(name,severity,cause,p.injuryLeg);this.userInjury.treatment=triage.treatment;this.userInjury.bodyPart=triage.bodyPart;if(triage.requiresRemoval)this.startMedicalCutscene(p,this.userInjury,triage);else this.feedback(`${name} \u00b7 movement is restricted and you are visibly limping`,-.05);}return true;}return false;
     }
 
     injuryTriageProfile(name,severity,cause='contact',leg='right'){
@@ -13781,23 +14778,23 @@
       if(!corner&&!loser)return false;
       winner.aerialCooldown=.48;if(loser)loser.aerialCooldown=.48;this.ball.aerialDuelCooldown=.42;
       if(loser){this.telemetry.aerialDuels[0]++;this.telemetry.aerialDuels[1]++;}this.telemetry.aerialWins[winner.team]++;
-      if(winner===this.user){this.stats.aerialDuels++;this.stats.aerialWins++;this.adjustRating(.045);this.feedback('Aerial duel won',.045)}else if(loser===this.user){this.stats.aerialDuels++;}
+      if(winner===this.user){this.stats.aerialDuels++;this.stats.aerialWins++;this.adjustRating(.045,'duel');this.feedback('Aerial duel won',.045)}else if(loser===this.user){this.stats.aerialDuels++;}
       if(corner){
         corner.firstContact=true;corner.phase='second';corner.secondPhaseAge=0;
         if(winner.team===corner.team){
           const goalX=corner.goalX,keeper=this.players.find(p=>p.team===corner.defendingTeam&&p.position==='GK'&&!p.sentOff),heading=winner.attrs.heading||55,technique=winner.attrs.technique||55,composure=winner.attrs.composure||55,pressure=loser?1:0;
           const quality=clamp((heading*.45+technique*.2+composure*.17+(winner.attrs.anticipation||55)*.1+(winner.attrs.balance||55)*.08)/100-pressure*.08,.2,.96);
           let headerType='placed',goalY=(this.goalTop+this.goalBottom)/2;
-          if(winner.cornerRole==='near-post'){headerType='glancing';goalY=corner.top?this.goalBottom-15:this.goalTop+15;}
-          else if(winner.cornerRole==='far-post'){headerType='downward';goalY=corner.top?this.goalTop+22:this.goalBottom-22;}
-          else if((winner.attrs.strength||55)>72&&quality>.68){headerType='powered';goalY=keeper&&keeper.y<(this.goalTop+this.goalBottom)/2?this.goalBottom-18:this.goalTop+18;}
-          else goalY=keeper&&keeper.y<(this.goalTop+this.goalBottom)/2?this.goalBottom-20:this.goalTop+20;
-          const error=gaussianRandom()*lerp(38,5,quality);goalY=clamp(goalY+error,this.goalTop-24,this.goalBottom+24);
+          if(winner.cornerRole==='near-post'){headerType='glancing';goalY=corner.top?this.goalBottom-15*GOAL_GEOMETRY_SCALE:this.goalTop+15*GOAL_GEOMETRY_SCALE;}
+          else if(winner.cornerRole==='far-post'){headerType='downward';goalY=corner.top?this.goalTop+22*GOAL_GEOMETRY_SCALE:this.goalBottom-22*GOAL_GEOMETRY_SCALE;}
+          else if((winner.attrs.strength||55)>72&&quality>.68){headerType='powered';goalY=keeper&&keeper.y<(this.goalTop+this.goalBottom)/2?this.goalBottom-18*GOAL_GEOMETRY_SCALE:this.goalTop+18*GOAL_GEOMETRY_SCALE;}
+          else goalY=keeper&&keeper.y<(this.goalTop+this.goalBottom)/2?this.goalBottom-20*GOAL_GEOMETRY_SCALE:this.goalTop+20*GOAL_GEOMETRY_SCALE;
+          const error=gaussianRandom()*lerp(38,5,quality);goalY=clamp(goalY+error,this.goalTop-24*GOAL_GEOMETRY_SCALE,this.goalBottom+24*GOAL_GEOMETRY_SCALE);
           const target={x:goalX+(goalX===this.W?24:-24),y:goalY},dx=target.x-winner.x,dy=target.y-winner.y,d=Math.hypot(dx,dy)||1,contactSpeed=clamp(speed*(headerType==='powered'?.72:headerType==='glancing'?.58:.64),190,430)*lerp(.82,1.12,quality);
           this.setAction(winner,'header',.38,Math.atan2(dy,dx));if(loser)this.setAction(loser,'stumble',.28,Math.atan2(winner.y-loser.y,winner.x-loser.x));
           this.consumeOffsideRestartProtection(winner);this.offsideSnapshot=null;
           this.ball.owner=null;this.ball.x=winner.x+dx/d*8;this.ball.y=winner.y+dy/d*8;this.ball.z=headerType==='downward'?24:21;this.ball.vx=dx/d*contactSpeed;this.ball.vy=dy/d*contactSpeed;this.ball.vz=headerType==='downward'?-24:headerType==='glancing'?5:12;this.ball.lastTouchTeam=winner.team;this.ball.lastTouch=winner;this.ball.intended=null;this.ball.lastActionType='header';this.ball.flight=null;
-          const xg=clamp(this.calculateXG(winner,{x:goalX,y:goalY},pressure,0)*1.08,.04,.82);this.ball.lastShotXG=xg;this.telemetry.shots[winner.team]++;this.telemetry.xG[winner.team]+=xg;this.telemetry.cornerHeaders[winner.team]++;this.recordEvent('shot',winner.team,{player:winner.id,xg,kind:'corner-header',headerType,uncontested:!loser});this.recordEvent('aerialDuel',winner.team,{winner:winner.id,loser:loser?.id||null,kind:'corner-header'});this.showCue(winner,headerType==='glancing'?'GLANCE':headerType==='downward'?'DOWNWARD HEADER':'HEADER');if(winner===this.user){this.stats.shots++;this.stats.xG+=xg;this.feedback(`${headerType==='glancing'?'Glancing':headerType==='downward'?'Downward':'Powerful'} header!`,.03)}
+          const xg=clamp(this.calculateXG(winner,{x:goalX,y:goalY},pressure,0)*1.08,.04,.82);this.ball.lastShotXG=xg;this.ball.shotTelemetryCounted=true;this.telemetry.shots[winner.team]++;this.telemetry.xG[winner.team]+=xg;this.telemetry.cornerHeaders[winner.team]++;this.recordEvent('shot',winner.team,{player:winner.id,xg,kind:'corner-header',headerType,uncontested:!loser});this.recordEvent('aerialDuel',winner.team,{winner:winner.id,loser:loser?.id||null,kind:'corner-header'});this.showCue(winner,headerType==='glancing'?'GLANCE':headerType==='downward'?'DOWNWARD HEADER':'HEADER');if(winner===this.user){this.stats.shots++;this.stats.xG+=xg;this.feedback(`${headerType==='glancing'?'Glancing':headerType==='downward'?'Downward':'Powerful'} header!`,.03)}
           return true;
         }
         const clearX=winner.team===0?winner.x+175:winner.x-175,clearY=clamp(winner.y+(winner.y<this.H/2?85:-85),28,this.H-28),dx=clearX-winner.x,dy=clearY-winner.y,d=Math.hypot(dx,dy)||1;
@@ -13875,6 +14872,10 @@
 
     showSubOffScreen(reason,replacement=null){
       if(!Number.isFinite(this.userMatchEndMinute))this.userMatchEndMinute=this.clockMinute();
+      // The overlay ends with "Continue to Full Time", which reads as though the match is
+      // waiting. It wasn't: the simulation kept running behind the modal, so stepping away
+      // for a moment burned ten minutes of the match before the button was ever pressed.
+      this.paused=true;
       const overlay=$('#subOffOverlay'),injury=reason==='injury',minute=this.userMatchEndMinute,inj=this.userInjury||{};
       overlay?.classList.toggle('injury-mode',injury);overlay?.classList.toggle('dismissal-mode',reason==='red');
       const eyebrow=$('#subOffEyebrow'),icon=$('#subOffIcon'),details=$('#subOffDetails'),swap=$('#subOffSwap');
@@ -14027,7 +15028,7 @@
 
         if (p.position === 'GK') {
           tx = p.team === 0 ? 46 : this.W-46;
-          ty = clamp(lerp(this.H/2,this.ball.y,.45),this.goalTop-38,this.goalBottom+38);
+          ty = clamp(lerp(this.H/2,this.ball.y,.45),this.goalTop-38*GOAL_GEOMETRY_SCALE,this.goalBottom+38*GOAL_GEOMETRY_SCALE);
           if(owner&&owner.team!==p.team&&((p.team===0&&owner.x<235)||(p.team===1&&owner.x>this.W-235))){tx=lerp(tx,owner.x,.34*this.difficulty.keeper);ty=lerp(ty,owner.y,.48*this.difficulty.keeper);}
           if(this.ball.flight?.lofted&&this.ball.z>12&&((p.team===0&&this.ball.x<220)||(p.team===1&&this.ball.x>this.W-220))){const target=this.ball.flight.target||this.ball;const claim=(p.attrs.anticipation+p.attrs.decisions+p.attrs.positioning)/300;if(claim>.56){tx=lerp(tx,target.x,.72);ty=lerp(ty,target.y,.82);p.aiIntent='claimCross';p.aiIntentTimer=.5;}}
           if (looseBall && dist(p,this.ball)<(72+this.difficulty.keeper*26) && ((p.team===0&&this.ball.x<180)||(p.team===1&&this.ball.x>this.W-180))) { tx=this.ball.x; ty=this.ball.y; }
@@ -14122,16 +15123,16 @@
         // after movement (which can destabilise acceleration). Opponents get a small extra
         // competitive boost while Pace/Acceleration attributes still define the hierarchy.
         const aiSidePace=p.team===this.user?.team?AI_TEAMMATE_PACE_BOOST:AI_OPPONENT_PACE_BOOST;
-        let sp=(64+p.attrs.pace*1.15)*MATCH_PACE_SCALE*this.matchTempo*clamp(.52+p.stamina*.0048,.52,1)*injuryMotion.speedFactor*aiSidePace;
+        const physical=p.physicalProfile||applyPhysicalProfileToRuntime(p);let sp=(64+p.attrs.pace*1.15)*MATCH_PACE_SCALE*this.matchTempo*clamp(.52+p.stamina*.0048,.52,1)*injuryMotion.speedFactor*aiSidePace*physical.topSpeedFactor;
         if (owner===p || primaryChaser[p.team]===p) sp*=injuryMotion.active?1.03:1.1;
         const oldSpeed=Math.hypot(p.vx,p.vy);
         const aiAccelBoost=p.team===this.user?.team?1.02:1.06;
-        const response=(2.62+p.attrs.acceleration*.0245)*MATCH_ACCELERATION_RESPONSE_SCALE*injuryMotion.accelerationFactor*aiAccelBoost;
+        const response=(2.62+p.attrs.acceleration*.0245)*MATCH_ACCELERATION_RESPONSE_SCALE*injuryMotion.accelerationFactor*aiAccelBoost*physical.accelerationResponseFactor;
         const blend=1-Math.exp(-response*dt);
         p.vx=lerp(p.vx,dx/d*sp,blend);p.vy=lerp(p.vy,dy/d*sp,blend);
         p.moveDir=Math.atan2(p.vy,p.vx);
         if(p.actionTimer<=0){
-          p.dir=angleLerp(p.dir,p.moveDir,.09+p.attrs.agility*.00075);
+          p.dir=angleLerp(p.dir,p.moveDir,(.09+p.attrs.agility*.00075)*physical.turnFactor);
           let focus=p.moveDir;
           if(!teamHas&&dist(p,this.ball)<205)focus=Math.atan2(this.ball.y-p.y,this.ball.x-p.x);
           p.upperDir=angleLerp(p.upperDir??p.dir,focus,.12);
@@ -14140,7 +15141,7 @@
         p.accelVisual=lerp(p.accelVisual||0,clamp((currentSpeed-oldSpeed)/Math.max(dt,.001)/820,-.2,.25),.12);
         p.prevSpeed=currentSpeed;
         p.x=clamp(p.x+p.vx*dt,8,this.W-8);p.y=clamp(p.y+p.vy*dt,8,this.H-8);
-        p.anim+=dt*(5.25+currentSpeed*.013)*(injuryMotion.active?lerp(.88,.64,injuryMotion.severity):1);p.stamina=clamp(p.stamina-dt*(currentSpeed>185?.34:.07)*(injuryMotion.active?1+injuryMotion.severity*.26:1)+dt*(currentSpeed<45?.08:0),0,100);
+        p.anim+=dt*(5.25+currentSpeed*.013)*(injuryMotion.active?lerp(.88,.64,injuryMotion.severity):1);p.stamina=clamp(p.stamina-dt*(currentSpeed>185?.34:.07)*(injuryMotion.active?1+injuryMotion.severity*.26:1)*physical.staminaDrainFactor+dt*(currentSpeed<45?.08:0),0,100);
         if(owner&&owner.team!==p.team&&primaryChaser[p.team]===p&&dist(p,owner)<23&&p.duelCooldown<=0)this.aiChallenge(p,owner);
       });
       if(owner&&!owner.isUser&&!owner.sentOff){
@@ -14169,7 +15170,14 @@
       const possessionTime=p.possessionTime||0;const shotLane=opponents.filter(o=>this.distanceToSegment(o.x,o.y,p.x,p.y,goalX,goalY)<24&&dist(o,p)<goalDist).length;
       const angleQuality=clamp(1-Math.abs(p.y-goalY)/290,.2,1);const distanceQuality=clamp(1-goalDist/520,0,1);
       const xg=this.calculateXG(p,{x:goalX,y:goalY},pressure,shotLane);const tendencyShot=p.tendencies?.shootsFromDistance&&goalDist>250?.08:0;
-      const shootScore=distanceQuality*.32+angleQuality*.15+intelligence*.15+awareness*.1+(p.attrs.finishing||55)/100*.18+xg*.55+tendencyShot-shotLane*.16-pressure*.075;
+      // Congestion penalties used to scale without limit: `pressure` counts every opponent
+      // within 9.2 m, which in the final third is routinely three or four, so a good chance
+      // lost 0.3 or more and fell under the shooting threshold. Real forwards shoot from
+      // inside a crowded box. Both penalties now saturate, so traffic discourages a shot
+      // without ever vetoing one outright.
+      const pressurePenalty=Math.min(pressure,SHOT_PRESSURE_CAP)*.06;
+      const lanePenalty=Math.min(shotLane,SHOT_LANE_CAP)*.14;
+      const shootScore=distanceQuality*.32+angleQuality*.15+intelligence*.15+awareness*.1+(p.attrs.finishing||55)/100*.18+xg*.55+tendencyShot-lanePenalty-pressurePenalty;
       this.telemetry.decisionCount[p.team]++;
 
       // Requests from the controlled player are evaluated first and stay influential for the whole call window.
@@ -14189,7 +15197,11 @@
       const activeCorner=this.cornerPhase?.active&&this.cornerPhase.team===p.team?this.cornerPhase:null;
       if(activeCorner&&activeCorner.phase==='delivery'&&((this.ball.z||0)>8||activeCorner.age<1.55)){p.aiIntent='attack-corner';p.aiIntentTimer=.3;p.aiDecisionTimer=.18;return false;}
       // Good chances should produce shots without waiting for a user command.
-      if((goalDist<325&&shootScore>.42&&shotLane<2)||(goalDist<235&&shootScore>.3)||(forced&&goalDist<370&&shotLane===0)){
+      // A match was producing four to eleven shots between both teams against a real-world
+      // twenty-five. The last clause is the one that was missing: inside the penalty area with
+      // any sight of goal, a forward shoots. It does not deliberate.
+      const inBoxChance=goalDist<SHOT_BOX_RANGE&&shotLane<2;
+      if((goalDist<325&&shootScore>SHOT_SCORE_RANGED&&shotLane<2)||(goalDist<235&&shootScore>SHOT_SCORE_CLOSE)||inBoxChance||(forced&&goalDist<370&&shotLane===0)){
         this.telemetry.goodDecisions[p.team]+=shootScore>.52?1:0;this.aiShoot(p,clamp(.48+shootScore*.43,.46,.9));p.aiIntent='shooting';p.aiIntentTimer=.7;p.aiDecisionTimer=.55;return true;
       }
 
@@ -14211,6 +15223,30 @@
       }).sort((a,b)=>b.score-a.score);
       if(this.maybeExecuteCombination(p,candidates))return true;
       const best=candidates[0];const mustRelease=pressure>0||possessionTime>1.75||nearestPressure<48||forced;
+      // v77.15: crosses used to happen only when the user asked for one with I, so wide
+      // play almost never produced a delivery. A carrier who is wide and in the final
+      // third now looks for a runner in the box first.
+      {
+        const dirAttack=p.team===0?1:-1;
+        const finalThird=dirAttack>0?p.x>this.W*.54:p.x<this.W*.46;
+        const wide=Math.abs(p.y-this.H/2)>this.H*.13;
+        const boxMate=candidates.find(c=>{
+          const m=c&&c.m;if(!m||m===p)return false;
+          const deep=dirAttack>0?m.x>this.W*.60:m.x<this.W*.40;
+          return deep&&Math.abs(m.y-this.H/2)<this.H*.36;
+        });
+        if(finalThird&&wide&&boxMate&&(p.crossCooldown||0)<=0&&Math.random()<.55){
+          const m=boxMate.m;
+          const lead=dirAttack*34;
+          const point={x:clamp(m.x+lead,24,this.W-24),y:clamp(m.y+(m.vy||0)*.18,30,this.H-30)};
+          p.crossCooldown=.95;
+          if(this.aiCrossToPoint(p,point,m,.62)!==false){
+            this.showCue(p,'CROSS');p.aiIntent='cross';p.aiIntentTimer=.6;p.aiDecisionTimer=.42;
+            this.telemetry.goodDecisions[p.team]+=boxMate.score>.30?1:0;
+            return true;
+          }
+        }
+      }
       const passThreshold=mustRelease?-.28:.15-intelligence*.15;
       if(best&&best.score>passThreshold&&(mustRelease||Math.random()<.48+intelligence*.28)){
         const through=best.forward>60&&best.space>45&&best.lane===0&&Math.random()<.22+intelligence*.27;
@@ -14275,11 +15311,11 @@
       const gx=p.team===0?this.W+15:-15,goalCentre=(this.goalTop+this.goalBottom)/2;
       const keeper=this.players.find(q=>q.team!==p.team&&q.position==='GK'&&!q.sentOff);
       const goalDistance=Math.hypot(gx-p.x,goalCentre-p.y);
-      const baseAimY=keeper?(keeper.y<goalCentre?this.goalBottom-18:this.goalTop+18):goalCentre;
+      const baseAimY=keeper?(keeper.y<goalCentre?this.goalBottom-18*GOAL_GEOMETRY_SCALE:this.goalTop+18*GOAL_GEOMETRY_SCALE):goalCentre;
       const info=this.effectiveActionQuality(p,'shot',Math.atan2(baseAimY-p.y,gx-p.x),goalDistance),q=info.effective/100;
       const openBlend=clamp((q-.5)*.52,0,.24),intentY=lerp(goalCentre,baseAimY,openBlend+.35);
       const miss=Math.tan(info.directionErrorDeg*Math.PI/180)*Math.min(goalDistance,360);
-      const gy=clamp(intentY+gaussianRandom()*miss,this.goalTop-30,this.goalBottom+30);
+      const gy=clamp(intentY+gaussianRandom()*miss,this.goalTop-30*GOAL_GEOMETRY_SCALE,this.goalBottom+30*GOAL_GEOMETRY_SCALE);
       const pressure=this.players.filter(o=>o.team!==p.team&&dist(o,p)<72).length;
       const lane=this.players.filter(o=>o.team!==p.team&&this.distanceToSegment(o.x,o.y,p.x,p.y,gx,gy)<24).length;
       const xg=this.calculateXG(p,{x:gx,y:gy},pressure,lane);
@@ -14296,7 +15332,7 @@
       const knuckle=shotVariant==='knuckle',outside=shotVariant==='outside-foot-shot';
       const contextualCurve=knuckle?0:outside?(p.actionFoot==='Left'?-1:1)*lerp(105,215,q)*(p.team===0?1:-1):curveValue;
       const ok=this.beginKick(p,action,lerp(.46,.59,power),Math.atan2(dy,dx),dx/d*speed,dy/d*speed,null,{lift:finesseChoice?28:knuckle?12:rand(4,18),topspin:finesseChoice?62:knuckle?5:34,dip:finesseChoice?48:knuckle?70:24,curve:contextualCurve,curveProfile:finesseChoice?{kind:'finesse',side:p.y>=goalCentre?'right':'left',duration:clamp(.84+goalDistance/780,.92,1.32),lateDip:.32}:outside?{kind:'outside-foot',side:p.y>=goalCentre?'right':'left',duration:clamp(.8+goalDistance/800,.88,1.26),lateDip:.22}:knuckle?{kind:'knuckle',side:'centre',duration:clamp(.74+goalDistance/900,.82,1.18),lateDip:.4}:null,shotProfile:shotVariant,power,target:{x:gx,y:gy},distance:goalDistance,variant:shotVariant});
-      if(ok){p.possessionTime=0;p.aiDribbleTarget=null;this.ball.lastShotXG=xg;this.telemetry.shots[p.team]++;this.telemetry.xG[p.team]+=xg;this.recordEvent('shot',p.team,{player:p.id,xg});if(p===this.user)this.stats.xG+=xg;}
+      if(ok){p.possessionTime=0;p.aiDribbleTarget=null;this.ball.lastShotXG=xg;this.ball.shotTelemetryCounted=true;this.telemetry.shots[p.team]++;this.telemetry.xG[p.team]+=xg;this.recordEvent('shot',p.team,{player:p.id,xg});if(p===this.user)this.stats.xG+=xg;}
       return ok;
     }
 
@@ -14462,7 +15498,7 @@
           const speedBefore=Math.max(1,currentSpeed),normal=Math.atan2(dy,dx),deflect=normal+Math.PI+(Math.random()-.5)*.8;
           this.ball.vx=Math.cos(deflect)*speedBefore*rand(.26,.48);this.ball.vy=Math.sin(deflect)*speedBefore*rand(.26,.48);this.ball.vz=Math.max(12,Math.min(58,height+rand(14,42)));
           this.ball.lastTouchTeam=this.user.team;this.ball.lastTouch=this.user;this.ball.intended=null;this.ball.flight=null;this.ball.curve*=.35;
-          this.stats.blocks++;this.adjustRating(.07);this.showCue(this.user,'BLOCK',.62);this.feedback('Body block · ball deflected',.07);playMatchSound('tackle','block',.72);return;
+          this.stats.blocks++;this.adjustRating(.07,'block');this.showCue(this.user,'BLOCK',.62);this.feedback('Body block · ball deflected',.07);playMatchSound('tackle','block',.72);return;
         }
       }
       if(this.tryUserHeader(currentSpeed))return;
@@ -14470,7 +15506,7 @@
       for(const p of this.players){
         if(p.sentOff||p.onPitch===false||p.substituted)continue;const d=dist(p,this.ball);const pendingSnap=this.offsideSnapshot,pendingReason=this.offsideInterferenceReason(p,pendingSnap);if(pendingReason&&d<42){this.callOffside(p,pendingSnap,pendingReason);return}const intendedReception=this.ball.intended===p&&this.ball.lastPasser?.team===p.team;const assistedUserReception=p===this.user&&intendedReception;const manualGoalkeeperDive=p===this.user&&p.position==='GK'&&this.gkSaveIntent&&this.elapsed<=this.gkSaveIntent.expiresAt,setPieceThreat=p.position==='GK'&&['penalty','freeKick'].includes(this.ball.restartSource)?clamp(Number(this.ball.setPieceThreat)||0,0,1):0,setPieceReachPenalty=setPieceThreat*clamp(this.ball.restartSource==='penalty'?7.4:5.8,0,8);const control=17+(p.attrs.firstTouch||55)*.085+(intendedReception?4.5:0)+(assistedUserReception?2.5:0)+(manualGoalkeeperDive?15:0)+(p.v40AnticipationReach||0)-setPieceReachPenalty;
         const intendedAerial=p===this.ball.intended&&this.ball.flight?.lofted;
-        const aerialReach=p.position==='GK'?(manualGoalkeeperDive?(this.gkSaveIntent.height==='high'?68:this.gkSaveIntent.height==='mid'?56:50):48):intendedAerial?(assistedUserReception?37:intendedReception?34:31):p.queuedAction?27:assistedUserReception?19:intendedReception?17:14;
+        const bodyReach=p.physicalProfile||calculatePhysicalProfile(p),aerialReach=(p.position==='GK'?(manualGoalkeeperDive?(this.gkSaveIntent.height==='high'?68:this.gkSaveIntent.height==='mid'?56:50):48):intendedAerial?(assistedUserReception?37:intendedReception?34:31):p.queuedAction?27:assistedUserReception?19:intendedReception?17:14)*clamp(bodyReach.aerialFactor*(bodyReach.heightCm/180),.90,1.12);
         const reachable=this.ball.z<aerialReach;
         if(d<control&&reachable){
           const snap=this.offsideSnapshot,interference=this.offsideInterferenceReason(p,snap);if(this.isPendingOffsidePlayer(p,snap)){this.callOffside(p,snap,interference||'playing the ball');return}
@@ -14500,12 +15536,12 @@
       const crossbarHeight=43;
       if(this.ball.x>this.W){
         if(previousX<=this.W&&this.resolveGoalFrameCollision('right',previousX,previousY,previousZ,currentSpeed,crossbarHeight))return;
-        if(previousX<=this.W&&this.ball.y>this.goalTop+5&&this.ball.y<this.goalBottom-5&&this.ball.z<crossbarHeight-3){this.goal(0,'right',currentSpeed);return}
+        if(previousX<=this.W&&this.ball.y>this.goalTop+5*GOAL_GEOMETRY_SCALE&&this.ball.y<this.goalBottom-5*GOAL_GEOMETRY_SCALE&&this.ball.z<crossbarHeight-3){this.goal(0,'right',currentSpeed);return}
         if(previousX<=this.W)this.registerMissedNetContact('right',currentSpeed,crossbarHeight);
         const defending=1,last=this.ball.lastTouchTeam;if(last===defending)this.startRestart('corner',0,{x:this.W,y:this.ball.y},{goalSide:'right',cornerSide:this.ball.y<this.H/2?'top':'bottom'});else{if(this.user&&last===this.user.team)this.registerUserMissedShot();this.startRestart('goalKick',defending,{x:this.W-64,y:this.H/2},{goalSide:'right'});}
       }else if(this.ball.x<0){
         if(previousX>=0&&this.resolveGoalFrameCollision('left',previousX,previousY,previousZ,currentSpeed,crossbarHeight))return;
-        if(previousX>=0&&this.ball.y>this.goalTop+5&&this.ball.y<this.goalBottom-5&&this.ball.z<crossbarHeight-3){this.goal(1,'left',currentSpeed);return}
+        if(previousX>=0&&this.ball.y>this.goalTop+5*GOAL_GEOMETRY_SCALE&&this.ball.y<this.goalBottom-5*GOAL_GEOMETRY_SCALE&&this.ball.z<crossbarHeight-3){this.goal(1,'left',currentSpeed);return}
         if(previousX>=0)this.registerMissedNetContact('left',currentSpeed,crossbarHeight);
         const defending=0,last=this.ball.lastTouchTeam;if(last===defending)this.startRestart('corner',1,{x:0,y:this.ball.y},{goalSide:'left',cornerSide:this.ball.y<this.H/2?'top':'bottom'});else{if(this.user&&last===this.user.team)this.registerUserMissedShot();this.startRestart('goalKick',defending,{x:64,y:this.H/2},{goalSide:'left'});}
       }else if(this.ball.y<0||this.ball.y>this.H){const side=this.ball.y<0?'top':'bottom';this.startRestart('throw',this.ball.lastTouchTeam===0?1:0,{x:clamp(this.ball.x,22,this.W-22),y:this.ball.y<0?0:this.H},{side})}
@@ -14578,10 +15614,10 @@
       const gk=this.players.find(p=>p.team===1-team&&p.position==='GK'&&!p.sentOff&&p.onPitch!==false);if(!gk)return;
       const shot=this.ball.shotOrigin||{},goalX=side==='right'?this.W:0,distance=Math.hypot((shot.x??this.ball.x)-goalX,(shot.y??this.ball.y)-this.H/2),lateral=this.ball.y-gk.y,height=(this.ball.z||0)>27?'high':(this.ball.z||0)>10?'mid':'low';
       const finesse=this.ball.lastActionType==='finesse',longShot=distance>260,chip=this.ball.lastActionType==='chip',rounded=this.lastRoundedKeeperAt&&this.elapsed-this.lastRoundedKeeperAt<10,screenSide=Math.sign(lateral||1),goalward=side==='right'?1:-1;
-      const reactionDelay=longShot?.06:finesse?.03:rounded?.1:0,diveReach=chip?22:finesse?(height==='high'?44:39):longShot?42:34,duration=chip?.96:longShot?.93:finesse?.88:.8;
+      const reactionDelay=longShot?.06:finesse?.03:rounded?.1:0,keeperPhysical=gk.physicalProfile||calculatePhysicalProfile(gk),diveReach=(chip?22:finesse?(height==='high'?44:39):longShot?42:34)*GOAL_GEOMETRY_SCALE*clamp(keeperPhysical.aerialFactor*(keeperPhysical.heightCm/190),.92,1.10),duration=chip?.96:longShot?.93:finesse?.88:.8;
       gk.gkDiveSide=screenSide;gk.gkDiveHeight=height;gk.dir=gk.upperDir=Math.atan2(lateral,(team===0?1:-1)*80);
       gk.actionVariant=rounded?'smother':chip?'overhead-tip':finesse?(height==='high'?'top-corner':'low-fingertip'):longShot?(height==='high'?'cross-hand':'wrist-parry'):(height==='low'?'low-one-hand-parry':'fingertip');
-      const targetY=clamp(gk.y+screenSide*diveReach,this.goalTop-28,this.goalBottom+28),targetX=clamp(gk.x+goalward*(chip?5:longShot?8:4),18,this.W-18);
+      const targetY=clamp(gk.y+screenSide*diveReach,this.goalTop-28*GOAL_GEOMETRY_SCALE,this.goalBottom+28*GOAL_GEOMETRY_SCALE),targetX=clamp(gk.x+goalward*(chip?5:longShot?8:4),18,this.W-18);
       gk.goalReaction={age:0,reactionDelay,duration,startX:gk.x,startY:gk.y,targetX,targetY,landingAt:reactionDelay+duration*.72,finishAt:reactionDelay+duration+1.05,lookBack:false,goalX,impactY:this.ball.y,shotType:rounded?'rounded':chip?'chip':finesse?'finesse':longShot?'long-shot':'standard'};
       this.setAction(gk,rounded?'smother':chip?'parry':'dive',duration,gk.dir);
        gk.gkRecoveryAt=(this.elapsed||0)+duration*.85;gk.gkRecoveryType=rounded?'scramble':(chip?'upright':'scramble');gk.commandIcon=rounded?'SCRAMBLE':chip?'BACKPEDAL':finesse?'FULL STRETCH':longShot?'LATE DIVE':'REACH';gk.commandTimer=1.35;
@@ -14598,11 +15634,11 @@
       const scorer=this.ball.lastTouch?.team===team?this.ball.lastTouch:null,assister=this.resolveAssist(team,scorer);
       this.score[team]++;this.postGoalReset={pending:true,scoringTeam:team,kickTeam:1-team,score:[...this.score],scoredAt:this.elapsed};this.pendingKickoffTeam=1-team;if(scorer)scorer.matchGoals=(scorer.matchGoals||0)+1;if(assister)assister.matchAssists=(assister.matchAssists||0)+1;
       const cornerGoal=!!(this.cornerPhase?.active&&this.ball.lastActionType==='header'&&this.cornerPhase.team===team);if(cornerGoal)this.telemetry.cornerGoals[team]++;
-      this.recordEvent('goal',team,{xg:this.ball.lastShotXG||0,scorer:scorer?.id||null,assist:assister?.id||null,kind:cornerGoal?'corner-header':undefined});$('#scoreText').textContent=`${this.score[0]} \u2013 ${this.score[1]}`;this.updateScoreEvent(team,scorer,assister);
+      const goalXG=this.registerUncountedGoalShot(team,scorer);this.recordEvent('goal',team,{xg:goalXG,scorer:scorer?.id||null,assist:assister?.id||null,kind:cornerGoal?'corner-header':undefined});$('#scoreText').textContent=`${this.score[0]} \u2013 ${this.score[1]}`;this.updateScoreEvent(team,scorer,assister);
       if(team===0&&scorer===this.user){this.stats.goals++;if(!this.ball.shotCountedOnTarget){this.stats.shotsOnTarget++;this.ball.shotCountedOnTarget=true;}const origin=this.ball.shotOrigin||{};if(this.ball.lastActionType==='finesse')this.stats.finesseGoals++;if(this.ball.lastActionType==='chip')this.stats.chipGoals++;if(origin.x!=null&&Math.hypot((side==='right'?this.W:0)-origin.x,this.ball.y-origin.y)>260)this.stats.longShotGoals++;if(!this.isBothFooted(this.user)&&origin.foot&&origin.foot!==this.user.preferredFoot)this.stats.weakFootGoals++;if(this.lastRoundedKeeperAt&&this.elapsed-this.lastRoundedKeeperAt<10){this.stats.roundedKeeperGoals++;this.lastRoundedKeeperAt=-99;}this.adjustRating(.75);this.feedback('GOAL!',.75);beep(980,.25,.06)}
       else if(team===0&&assister===this.user){this.stats.assists++;this.adjustRating(.35);this.feedback('ASSIST!',.35)}
       else if(team===1){const direct=this.lastUserTurnover&&!this.lastUserTurnover.goalTagged&&this.elapsed-this.lastUserTurnover.elapsed<12;if(direct){this.lastUserTurnover.goalTagged=true;this.stats.errorsLeadingToGoal++;this.stats.goalsConcededResponsibility++;this.adjustRating(this.lastUserTurnover.dangerous?-.62:-.42,'mistake');this.feedback('Your mistake led to the goal',this.lastUserTurnover.dangerous?-.62:-.42);}else{const defensive=['GK','CB','LB','RB','DM'].includes(this.user.position),base=this.user.position==='GK'?-.16:defensive?-.12:['CM','AM'].includes(this.user.position)?-.075:-.04;this.adjustRating(base,'mistake');this.feedback('Goal conceded',base);}}
-      const impactY=clamp(this.ball.y,this.goalTop+3,this.goalBottom-3),shotOrigin=this.ball.shotOrigin||{},goalDistance=Math.hypot((side==='right'?this.W:0)-(shotOrigin.x??this.ball.x),impactY-(shotOrigin.y??impactY)),roundedGoal=!!(this.lastRoundedKeeperAt&&this.elapsed-this.lastRoundedKeeperAt<10),goalType=roundedGoal?'rounded':this.ball.lastActionType==='finesse'?'finesse':this.ball.lastActionType==='chip'?'chip':goalDistance>260?'long-shot':'standard',preCelebrate=goalType==='finesse'?.42:goalType==='long-shot'?.34:goalType==='chip'?.28:goalType==='rounded'?.2:.1;
+      const impactY=clamp(this.ball.y,this.goalTop+3*GOAL_GEOMETRY_SCALE,this.goalBottom-3*GOAL_GEOMETRY_SCALE),shotOrigin=this.ball.shotOrigin||{},goalDistance=Math.hypot((side==='right'?this.W:0)-(shotOrigin.x??this.ball.x),impactY-(shotOrigin.y??impactY)),roundedGoal=!!(this.lastRoundedKeeperAt&&this.elapsed-this.lastRoundedKeeperAt<10),goalType=roundedGoal?'rounded':this.ball.lastActionType==='finesse'?'finesse':this.ball.lastActionType==='chip'?'chip':goalDistance>260?'long-shot':'standard',preCelebrate=goalType==='finesse'?.42:goalType==='long-shot'?.34:goalType==='chip'?.28:goalType==='rounded'?.2:.1;
       const celebrationScorer=scorer||this.players.filter(p=>p.team===team&&!p.sentOff&&p.position!=='GK').sort((a,b)=>dist(a,this.ball)-dist(b,this.ball))[0];
       const late=this.elapsed/Math.max(1,this.duration)>.86,equaliser=this.score[0]===this.score[1],winningByOne=this.score[team]===this.score[1-team]+1,stillLosing=this.score[team]<this.score[1-team],hatTrick=(scorer?.matchGoals||0)>=3;
       const celebrationContext=late&&winningByOne?'last-minute-winner':equaliser?'equaliser':stillLosing?'consolation':hatTrick?'hat-trick':'normal';
@@ -14621,7 +15657,8 @@
           return dist(a,celebrationScorer)+keeperPenalty(a)-dist(b,celebrationScorer)-keeperPenalty(b);
         }).slice(0,8);
         const variants=celebrationContext==='last-minute-winner'?['wild','huddle','jump','armsSpread','fistPump','wild','huddle','dance']:['huddle','armsUp','fistPump','point','badgeKiss','jump','earCup','heart'];
-        const scorerCelebrationVariant=celebrationContext==='last-minute-winner'?'wild':celebrationContext==='equaliser'?'armsSpread':celebrationContext==='consolation'?'point':hatTrick?'fistPump':({ 'corner-run':'armsUp','knee-slide':'kneeSlide','team-huddle':'jump','arms-wide':'armsSpread','fist-pump':'fistPump','badge-point':'badgeKiss'}[celebrationStyle]||'armsUp');
+        const preferredUserCelebration=scorer===this.user?({'Arms Out':'armsSpread','Knee Slide':'kneeSlide','Point to Sky':'point','Calm Walk':'badgeKiss','Team Huddle':'huddle','Signature Slide':'slide','Crowd Salute':'earCup','Icon Pose':'heart'}[career?.player?.goalCelebration]||null):null;
+        const scorerCelebrationVariant=celebrationContext==='last-minute-winner'?'wild':celebrationContext==='equaliser'?'armsSpread':celebrationContext==='consolation'?'point':hatTrick?'fistPump':preferredUserCelebration||({ 'corner-run':'armsUp','knee-slide':'kneeSlide','team-huddle':'jump','arms-wide':'armsSpread','fist-pump':'fistPump','badge-point':'badgeKiss'}[celebrationStyle]||'armsUp');
         celebrationScorer.celebrationVariant=preCelebrate>.15?'watch-shot':scorerCelebrationVariant;
         this.setAction(celebrationScorer,'celebrate',1.05+preCelebrate,Math.atan2(impactY-celebrationScorer.y,(side==='right'?this.W:0)-celebrationScorer.x));
         celebrationParticipants=[{player:celebrationScorer,role:'scorer',target:anchor,arrived:true,variant:scorerCelebrationVariant}];
@@ -14676,7 +15713,7 @@
       this.ball.lastActionType=action;
       this.registerAssistPass(owner,intended,action);
       if(['shoot','finesse','chip','volley','header','freeKick','penaltyKick'].includes(action)){this.ball.shotOrigin={x:owner.x,y:owner.y,foot:owner.actionFoot||owner.preferredFoot,variant:owner.actionVariant||action,action};this.ball.shotCountedOnTarget=false;this.ball.shotMissRated=false;if(owner.team!==this.user.team&&this.lastUserTurnover&&!this.lastUserTurnover.shotTagged&&this.elapsed-this.lastUserTurnover.elapsed<10){this.lastUserTurnover.shotTagged=true;this.stats.errorsLeadingToShot++;this.adjustRating(this.lastUserTurnover.dangerous?-.22:-.12,'mistake');this.feedback('Your turnover led to a shot',this.lastUserTurnover.dangerous?-.22:-.12);}}
-      if(['shoot','finesse','chip','volley','header','freeKick','penaltyKick'].includes(action)&&owner.isUser){const gx=owner.team===0?this.W:0,gy=(this.goalTop+this.goalBottom)/2,pressure=this.players.filter(o=>o.team!==owner.team&&dist(o,owner)<72).length,lane=this.players.filter(o=>o.team!==owner.team&&this.distanceToSegment(o.x,o.y,owner.x,owner.y,gx,gy)<24).length,xg=this.calculateXG(owner,{x:gx,y:gy},pressure,lane);this.ball.lastShotXG=xg;this.stats.xG+=xg;this.telemetry.shots[owner.team]++;this.telemetry.xG[owner.team]+=xg;this.recordEvent('shot',owner.team,{player:owner.id,xg});}
+      if(['shoot','finesse','chip','volley','header','freeKick','penaltyKick'].includes(action)&&owner.isUser){const gx=owner.team===0?this.W:0,gy=(this.goalTop+this.goalBottom)/2,pressure=this.players.filter(o=>o.team!==owner.team&&dist(o,owner)<72).length,lane=this.players.filter(o=>o.team!==owner.team&&this.distanceToSegment(o.x,o.y,owner.x,owner.y,gx,gy)<24).length,xg=this.calculateXG(owner,{x:gx,y:gy},pressure,lane);this.ball.lastShotXG=xg;this.ball.shotTelemetryCounted=true;this.stats.xG+=xg;this.telemetry.shots[owner.team]++;this.telemetry.xG[owner.team]+=xg;this.recordEvent('shot',owner.team,{player:owner.id,xg});}
       owner.hasBall=false;owner.pendingKick=null;owner.gkHoldingBall=false;owner.gkHoldTimer=0;this.ball.owner=null;this.ball.releaseImmunity=.18;this.ball.releasedById=owner.id;
       if(['pass','drivenPass','through','loftedPass','cross','cutback','backheel'].includes(action)){this.telemetry.passes[owner.team]++;this.recordEvent('pass',owner.team,{from:owner.id,to:intended?.id||null,action});}
       const facing=owner.upperDir??owner.dir;const side=(owner.actionFoot||owner.preferredFoot)==='Left'?-1:1;const lateral=owner.position==='GK'?0:side*5.4;
@@ -14694,9 +15731,43 @@
       const force=Math.hypot(vx,vy),soundAction=action==='shoot'?(owner.actionVariant==='driven'?'drivenShot':owner.actionVariant==='standard'&&force<330?'placedShot':owner.actionVariant==='standard'&&force>610?'powerShot':'standardShot'):action;playMatchSound('kick',soundAction,clamp(force/560,.25,1.2));this.spawnTurfEffect(owner.x,owner.y,facing,['shoot','finesse','penaltyKick','freeKick'].includes(action)?10:5,clamp(force/520,.6,1.15));if(restartRelease)this.completeRestart();
     }
 
+    // Not every way of scoring runs through a path that books a shot into team telemetry -
+    // an AI set piece, for instance, is gated behind `owner.isUser`. Those goals left
+    // telemetry.shots and telemetry.xG untouched, so the post-match panel could report
+    // "Team xG 1.99 - 0" for a team that had scored, while the goal event itself carried a
+    // stale xG left over from somebody else's earlier shot. Book the missing shot here and
+    // return an xG that belongs to this goal.
+    registerUncountedGoalShot(team,scorer){
+      if(this.ball.shotTelemetryCounted){
+        this.ball.shotTelemetryCounted=false;
+        return this.ball.lastShotXG||0;
+      }
+      let xg=0.3;
+      if(scorer){
+        const gx=team===0?this.W:0,gy=(this.goalTop+this.goalBottom)/2;
+        const pressure=this.players.filter(o=>o.team!==team&&dist(o,scorer)<72).length;
+        const computed=this.calculateXG(scorer,{x:gx,y:gy},pressure,0);
+        if(Number.isFinite(computed))xg=clamp(computed,.04,.95);
+      }
+      this.telemetry.shots[team]++;this.telemetry.xG[team]+=xg;
+      // The player's own card has to agree with the scoreline too: scoring through one of these
+      // paths otherwise produced the nonsense of "1 goal, 0 shots" on the post-match panel.
+      if(scorer===this.user){this.stats.shots++;this.stats.xG+=xg;}
+      // Emit the shot into the event stream as well, so the log and the telemetry totals tell
+      // the same story. Without this a goal appears in the timeline with no shot preceding it.
+      this.recordEvent('shot',team,{player:scorer?.id||null,xg,inferred:true});
+      this.ball.lastShotXG=xg;
+      return xg;
+    }
+
     giveBall(p){
       if(!p||p.sentOff)return;
       if((this.ball.releaseImmunity||0)>0&&this.ball.releasedById===p.id&&this.ball.owner!==p)return;
+      // A shot that was saved or went wide leaves shotTelemetryCounted set, because only a goal
+      // consumes it. Left standing, the next goal scored through a path that books no shot would
+      // see a stale `true` and skip its own booking - the exact bug this flag exists to catch.
+      // Taking control of the ball ends the previous attempt, so the flag clears here.
+      this.ball.shotTelemetryCounted=false;
       this.consumeOffsideRestartProtection(p);
       const wasThrowRestart=this.ball.restartSource==='throw';
       const previousOwner=this.ball.owner,previousTeam=previousOwner?.team??this.ball.lastTouchTeam,passer=this.ball.lastPasser;
@@ -14785,7 +15856,42 @@
       if(ui.possession)ui.possession.classList.toggle('active',this.ball.owner===this.user&&!this.restart&&!this.goalCelebration);
       const showGuide=this.user.position==='GK'&&!this.restart&&!this.goalCelebration&&this.ball.owner!==this.user&&settings.guide;if(ui.guide){ui.guide.classList.toggle('hidden',!showGuide);ui.guide.classList.toggle('input-pending',!!this.gkInputSequence?.keys?.size);if(showGuide)ui.guide.querySelectorAll('[data-gk-key]').forEach(el=>{const keys=el.dataset.gkKey.split('+');el.classList.toggle('pressed',keys.every(key=>this.keys[key]||this.gkInputSequence?.keys?.has(key)));});}
     }
-    adjustRating(v,category='general'){const hard=settings.difficulty==='Hard',easy=settings.difficulty==='Easy',mult=v<0?(hard?(category==='mistake'?1.62:1.34):easy?.72:1):1;this.matchRating=clamp(this.matchRating+v*mult,1,10)}
+    // stats.distance accumulates raw pitch units, and a match is compressed into a few real
+    // minutes rather than ninety. Reporting it as `units / 1000` therefore did two things
+    // wrong at once: it treated a unit (0.1 m) as a metre, and it ignored the compression.
+    // An 18-minute cameo came out as "4.6 km", a 23 km/90 pace. This converts to real metres
+    // and scales the sample up to a full ninety minutes.
+    reportedDistanceMetres(){
+      const metres=(this.stats.distance||0)/PITCH_UNITS_PER_METRE;
+      const compression=(90*60)/Math.max(1,this.regulationDuration||this.duration||360);
+      // Correcting the unit scale was necessary but not sufficient. Controlling a single player
+      // means holding a direction almost continuously, where a real footballer walks or jogs for
+      // most of a match, so mapping raw travel straight onto ninety minutes reported 26 km - past
+      // the ~14 km human record. This calibration maps sustained arcade movement onto a
+      // believable per-90 figure. It is a presentation mapping, not a physical measurement:
+      // the compressed clock makes a literal one impossible either way.
+      const perNinety=metres*compression*DISTANCE_INTENSITY_CALIBRATION;
+      return Math.round(clamp(perNinety,0,DISTANCE_REPORT_CEILING));
+    }
+
+    adjustRating(v,category='general'){
+      const hard=settings.difficulty==='Hard',easy=settings.difficulty==='Easy',mult=v<0?(hard?(category==='mistake'?1.62:1.34):easy?.72:1):1;
+      let delta=v*mult;
+      // Positive rewards are capped per category. A rating built from an uncapped running sum
+      // let one repeatable event (interceptions) supply +2 to +3 on its own, which is how a
+      // 0-goal, 0-assist, 0%-passing cameo scored 8.7 "Excellent".
+      if(delta>0){
+        const cap=RATING_CATEGORY_CAP[category];
+        if(cap!==undefined){
+          this.ratingCategoryTotals=this.ratingCategoryTotals||{};
+          const used=this.ratingCategoryTotals[category]||0;
+          if(used>=cap)return;
+          delta=Math.min(delta,cap-used);
+          this.ratingCategoryTotals[category]=used+delta;
+        }
+      }
+      this.matchRating=clamp(this.matchRating+delta,1,10);
+    }
     isUserAttacker(){const p=(this.user?.position||'').toUpperCase();return ['ST','CF','RW','LW','SS'].includes(p)}
     isUserMidfielder(){const p=(this.user?.position||'').toUpperCase();return ['CM','DM','AM','CAM','CDM','LM','RM','WM'].includes(p)}
     isUserAttackingMid(){const p=(this.user?.position||'').toUpperCase();return ['AM','CAM'].includes(p)}
@@ -15570,21 +16676,24 @@
     }
 
     createNetPhysics(){
-      // Cleaner, lower-density mesh for clearer 2D goal rendering
-      const rows=9,cols=17,makeSide=side=>{
-        const right=side==='right',sign=right?1:-1,frontX=right?this.W:0,backX=frontX+sign*38;
+      // Higher-fidelity net model: denser mesh, deeper bag, more cloth-like response
+      const rows=11,cols=21,makeSide=side=>{
+        const right=side==='right',sign=right?1:-1,frontX=right?this.W:0,backX=frontX+sign*44;
         const nodes=[];
         for(let r=0;r<rows;r++){
           const depth=r/(rows-1),row=[];
-          const rowTop=lerp(this.goalTop,this.goalTop+11,depth),rowBottom=lerp(this.goalBottom,this.goalBottom-11,depth);
+          // Deeper bag taper for more realistic net volume
+          const rowTop=lerp(this.goalTop,this.goalTop+14*GOAL_GEOMETRY_SCALE,depth),rowBottom=lerp(this.goalBottom,this.goalBottom-14*GOAL_GEOMETRY_SCALE,depth);
           for(let c=0;c<cols;c++){
             const across=c/(cols-1);
+            // Slight parabolic hang so the bag looks weighted
+            const hang = depth * depth * 3.2 * Math.sin(across * Math.PI);
             row.push({
               baseX:lerp(frontX,backX,depth),
-              baseY:lerp(rowTop,rowBottom,across),
+              baseY:lerp(rowTop,rowBottom,across) + hang,
               dx:0,dy:0,vx:0,vy:0,
               fixed:(r===0||r===rows-1)&&(c===0||c===cols-1),
-              mass:1 + depth * .28 + (c===0||c===cols-1 ? .18 : 0)
+              mass:1 + depth * .35 + (c===0||c===cols-1 ? .22 : 0) + (r===0 ? .15 : 0)
             });
           }
           nodes.push(row);
@@ -15631,8 +16740,8 @@
       if(external&&z>37)return 'roof';
       if(external)return 'side';
       if(z>30||/chip|loft/i.test(shotType))return 'roof';
-      if(impactY<this.goalTop+28)return 'upperCorner';
-      if(impactY>this.goalBottom-28)return 'lowerCorner';
+      if(impactY<this.goalTop+28*GOAL_GEOMETRY_SCALE)return 'upperCorner';
+      if(impactY>this.goalBottom-28*GOAL_GEOMETRY_SCALE)return 'lowerCorner';
       if(z<8)return 'lower';
       return 'back';
     }
@@ -15698,8 +16807,8 @@
 
     registerMissedNetContact(side,speed,crossbarHeight=43){
       const y=this.ball.y,z=this.ball.z||0;
-      const nearSide=y>=this.goalTop-27&&y<=this.goalBottom+27&&(y<=this.goalTop+5||y>=this.goalBottom-5)&&z<crossbarHeight+18;
-      const overRoof=y>this.goalTop+4&&y<this.goalBottom-4&&z>=crossbarHeight-3&&z<crossbarHeight+42;
+      const nearSide=y>=this.goalTop-27*GOAL_GEOMETRY_SCALE&&y<=this.goalBottom+27*GOAL_GEOMETRY_SCALE&&(y<=this.goalTop+5*GOAL_GEOMETRY_SCALE||y>=this.goalBottom-5*GOAL_GEOMETRY_SCALE)&&z<crossbarHeight+18;
+      const overRoof=y>this.goalTop+4*GOAL_GEOMETRY_SCALE&&y<this.goalBottom-4*GOAL_GEOMETRY_SCALE&&z>=crossbarHeight-3&&z<crossbarHeight+42;
       if(!nearSide&&!overRoof)return false;
       this.triggerNetImpact(side,clamp(y,this.goalTop,this.goalBottom),speed,{z,shotType:this.ball.lastActionType||'shot',external:true,section:overRoof?'roof':'side',affectBall:false,incomingVy:this.ball.vy});
       return true;
@@ -15722,20 +16831,20 @@
             // Spring toward neighbour's current offset (travelling wave) + rest length bias toward zero relative stretch
             fx+=(q.dx-n.dx)*stiffness;fy+=(q.dy-n.dy)*stiffness;count++;
           };
-          if(r>0)pull(r-1,c,48);if(r<state.rows-1)pull(r+1,c,48);
-          if(c>0)pull(r,c-1,52);if(c<state.cols-1)pull(r,c+1,52);
-          // Shear (diagonal) for cloth-like folds
-          if(r>0&&c>0)pull(r-1,c-1,18);if(r>0&&c<state.cols-1)pull(r-1,c+1,18);
-          if(r<state.rows-1&&c>0)pull(r+1,c-1,18);if(r<state.rows-1&&c<state.cols-1)pull(r+1,c+1,18);
+          if(r>0)pull(r-1,c,42);if(r<state.rows-1)pull(r+1,c,42);
+          if(c>0)pull(r,c-1,46);if(c<state.cols-1)pull(r,c+1,46);
+          // Shear (diagonal) for richer cloth-like folds
+          if(r>0&&c>0)pull(r-1,c-1,16);if(r>0&&c<state.cols-1)pull(r-1,c+1,16);
+          if(r<state.rows-1&&c>0)pull(r+1,c-1,16);if(r<state.rows-1&&c<state.cols-1)pull(r+1,c+1,16);
           const boundary=(r===0||r===state.rows-1||c===0||c===state.cols-1);
           const depth=r/(state.rows-1);
-          // Anchor to rest pose \u2014 softer in the bag so the net can billow
-          const anchor=boundary?78:(38+depth*22);
+          // Softer anchor in the bag for deeper, more satisfying billow
+          const anchor=boundary?72:(32+depth*18);
           fx+=-anchor*n.dx;fy+=-anchor*n.dy;
-          // Gravity hang: deeper mesh settles slightly downward when active
-          fy+=depth*14*(state.energy>0.02?1:.15);
-          // Damping: lower interior damping so ripples travel; stronger at edges
-          const damp=boundary?11.5:(6.2+depth*2.4);
+          // Stronger gravity hang so the net sags naturally when active
+          fy+=depth*18*(state.energy>0.02?1:.18);
+          // Slightly lower interior damping so ripples travel further
+          const damp=boundary?10.8:(5.6+depth*2.1);
           fx+=-damp*n.vx;fy+=-damp*n.vy;
           const ax=fx/mass,ay=fy/mass;
           out.vx=(n.vx+ax*step)*.9985;out.vy=(n.vy+ay*step)*.9985;
@@ -15781,7 +16890,7 @@
     updateGoalCelebration(dt){
       const g=this.goalCelebration;if(!g)return;g.timer-=dt;g.age=(g.age||0)+dt;this.updateGoalkeeperGoalReactions(dt);
       const participants=g.participants||[],preCelebrate=g.preCelebrate||0;
-      if(g.context==='equaliser'&&g.scorer){const scorerEntry=participants.find(e=>e.role==='scorer');if(g.age<.62){scorerEntry.target={x:g.side==='right'?this.W+10:-10,y:clamp(this.ball.y,this.goalTop+10,this.goalBottom-10)};}else{if(!g.ballCollected){g.ballCollected=true;this.ball.vx=this.ball.vy=0;}scorerEntry.target={x:this.W/2,y:this.H/2};this.ball.x=g.scorer.x+Math.cos(g.scorer.dir||0)*8;this.ball.y=g.scorer.y+Math.sin(g.scorer.dir||0)*8;this.ball.z=8;}}
+      if(g.context==='equaliser'&&g.scorer){const scorerEntry=participants.find(e=>e.role==='scorer');if(g.age<.62){scorerEntry.target={x:g.side==='right'?this.W+10:-10,y:clamp(this.ball.y,this.goalTop+10*GOAL_GEOMETRY_SCALE,this.goalBottom-10*GOAL_GEOMETRY_SCALE)};}else{if(!g.ballCollected){g.ballCollected=true;this.ball.vx=this.ball.vy=0;}scorerEntry.target={x:this.W/2,y:this.H/2};this.ball.x=g.scorer.x+Math.cos(g.scorer.dir||0)*8;this.ball.y=g.scorer.y+Math.sin(g.scorer.dir||0)*8;this.ball.z=8;}}
       // User-controlled celebration: free run + poses + combos + zones
       const userScorer=g.userControlled&&g.scorer===this.user;
       if(userScorer&&g.age>=preCelebrate){
@@ -15943,7 +17052,7 @@
         }
         p.x=clamp(p.x,8,this.W-8);p.y=clamp(p.y,8,this.H-8);
       }
-      if(!(g.context==='equaliser'&&g.ballCollected)){this.ball.x+=this.ball.vx*dt;this.ball.y+=this.ball.vy*dt;this.ball.vx*=Math.pow(this.netContactState?.caught?.84:.92,dt*60);this.ball.vy*=Math.pow(this.netContactState?.caught?.88:.9,dt*60);this.ball.y=clamp(this.ball.y,this.goalTop+8,this.goalBottom-8);this.ball.x=g.side==='right'?clamp(this.ball.x,this.W+5,this.W+31):clamp(this.ball.x,-31,-5);}
+      if(!(g.context==='equaliser'&&g.ballCollected)){this.ball.x+=this.ball.vx*dt;this.ball.y+=this.ball.vy*dt;this.ball.vx*=Math.pow(this.netContactState?.caught?.84:.92,dt*60);this.ball.vy*=Math.pow(this.netContactState?.caught?.88:.9,dt*60);this.ball.y=clamp(this.ball.y,this.goalTop+8*GOAL_GEOMETRY_SCALE,this.goalBottom-8*GOAL_GEOMETRY_SCALE);this.ball.x=g.side==='right'?clamp(this.ball.x,this.W+5,this.W+31):clamp(this.ball.x,-31,-5);}
       if(g.timer<=0){g.timer=0;this.showGoalReplayPrompt(1-g.kickTeam,g.scorer,g.assister)}
     }
 
@@ -15996,7 +17105,7 @@
       const state=this.netPhysics?.[side];if(!state)return;
       const right=side==='right',sign=right?1:-1,frontX=right?this.W:0;
       const p00=this.netMeshPoint(side,0,0),p01=this.netMeshPoint(side,0,state.cols-1),p10=this.netMeshPoint(side,state.rows-1,0),p11=this.netMeshPoint(side,state.rows-1,state.cols-1);
-      const bagX=frontX+sign*38,activity=clamp((state.energy||0)/1.5,0,1),shake=this.goalFrameShake[side]||0;
+      const bagX=frontX+sign*44,activity=clamp((state.energy||0)/1.5,0,1),shake=this.goalFrameShake[side]||0;
       ctx.save();
       if(shake>0)ctx.translate(Math.sin((performance.now()||0)*.08)*shake*1.4,Math.cos((performance.now()||0)*.07)*shake*.9);
 
@@ -16058,36 +17167,62 @@
     }
 
     drawGoalFront(ctx,side){
-      const right=side==='right',sign=right?1:-1,frontX=right?this.W:0,backX=frontX+sign*38,top=this.goalTop,bottom=this.goalBottom,backTop=top+11,backBottom=bottom-11;
+      const right=side==='right',sign=right?1:-1,frontX=right?this.W:0,backX=frontX+sign*44,top=this.goalTop,bottom=this.goalBottom,backTop=top+14,backBottom=bottom-14;
       ctx.save();
       const shake=this.goalFrameShake[side]||0;
       if(shake>0)ctx.translate(Math.sin((performance.now()||0)*.08)*shake*1.6,Math.cos((performance.now()||0)*.07)*shake*1.05);
-      ctx.lineCap='round';ctx.lineJoin='round';ctx.shadowColor='rgba(0,0,0,.28)';ctx.shadowBlur=4;ctx.shadowOffsetY=2;
+      ctx.lineCap='round';ctx.lineJoin='round';ctx.shadowColor='rgba(0,0,0,.32)';ctx.shadowBlur=5;ctx.shadowOffsetY=2.5;
 
-      const frame=ctx.createLinearGradient(frontX-sign*7,0,frontX+sign*7,0);
-      frame.addColorStop(0,'#b8c3bc');frame.addColorStop(.28,'#eef5ef');frame.addColorStop(.56,'#ffffff');frame.addColorStop(.78,'#ecf2ed');frame.addColorStop(1,'#98a59f');
-      const support='rgba(240,244,241,.58)';
+      // Richer metallic frame gradient (anodised aluminium / white goal look)
+      const frame=ctx.createLinearGradient(frontX-sign*8,0,frontX+sign*8,0);
+      frame.addColorStop(0,'#8a9590');frame.addColorStop(.18,'#d5ddd7');frame.addColorStop(.42,'#ffffff');frame.addColorStop(.58,'#f4f7f5');frame.addColorStop(.82,'#d0d8d2');frame.addColorStop(1,'#7d8983');
+      const frameDark=ctx.createLinearGradient(frontX-sign*6,0,frontX+sign*6,0);
+      frameDark.addColorStop(0,'#6b7570');frameDark.addColorStop(.5,'#9aa59f');frameDark.addColorStop(1,'#5f6964');
+      const support='rgba(236,242,238,.62)';
 
-      // back frame hints
-      ctx.strokeStyle='rgba(248,250,252,.42)';ctx.lineWidth=1.6;
+      // Subtle ground plate / stanchion base under each post
+      ctx.fillStyle='rgba(15,23,42,.22)';
+      ctx.beginPath();ctx.ellipse(frontX,bottom+3.5,9,2.8,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='rgba(226,232,240,.35)';
+      ctx.beginPath();ctx.ellipse(frontX,bottom+2.2,6.5,1.8,0,0,Math.PI*2);ctx.fill();
+
+      // back frame hints (deeper bag silhouette)
+      ctx.strokeStyle='rgba(248,250,252,.38)';ctx.lineWidth=1.7;
       ctx.beginPath();ctx.moveTo(backX,backTop);ctx.lineTo(backX,backBottom);ctx.stroke();
       ctx.beginPath();ctx.moveTo(frontX,top);ctx.lineTo(backX,backTop);ctx.moveTo(frontX,bottom);ctx.lineTo(backX,backBottom);ctx.stroke();
 
-      // front frame
-      ctx.strokeStyle=frame;ctx.lineWidth=5.3;ctx.beginPath();ctx.moveTo(frontX,top);ctx.lineTo(frontX,bottom);ctx.stroke();
-      ctx.lineWidth=5.0;ctx.beginPath();ctx.moveTo(frontX,top);ctx.lineTo(backX,backTop);ctx.moveTo(frontX,bottom);ctx.lineTo(backX,backBottom);ctx.stroke();
+      // rear stanchion legs (angled supports)
+      ctx.strokeStyle='rgba(226,232,240,.48)';ctx.lineWidth=2.4;
+      ctx.beginPath();ctx.moveTo(frontX+sign*2,bottom-2);ctx.lineTo(backX-sign*4,backBottom+2);ctx.stroke();
+      ctx.beginPath();ctx.moveTo(frontX+sign*2,top+2);ctx.lineTo(backX-sign*4,backTop-2);ctx.stroke();
 
-      // clean support rails across the goal mouth to aid 2D readability
-      ctx.strokeStyle=support;ctx.lineWidth=1.15;
-      for(let t=0;t<4;t++){
-        const py=lerp(top,bottom,t/3),qy=lerp(backTop,backBottom,t/3);
+      // front post (thicker, more solid)
+      ctx.strokeStyle=frameDark;ctx.lineWidth=6.8;
+      ctx.beginPath();ctx.moveTo(frontX,top);ctx.lineTo(frontX,bottom);ctx.stroke();
+      ctx.strokeStyle=frame;ctx.lineWidth=5.4;
+      ctx.beginPath();ctx.moveTo(frontX,top);ctx.lineTo(frontX,bottom);ctx.stroke();
+
+      // top rail / crossbar depth lines
+      ctx.strokeStyle=frame;ctx.lineWidth=5.1;
+      ctx.beginPath();ctx.moveTo(frontX,top);ctx.lineTo(backX,backTop);ctx.stroke();
+      ctx.strokeStyle=frame;ctx.lineWidth=4.9;
+      ctx.beginPath();ctx.moveTo(frontX,bottom);ctx.lineTo(backX,backBottom);ctx.stroke();
+
+      // support rails for depth readability (fewer, cleaner)
+      ctx.strokeStyle=support;ctx.lineWidth=1.05;
+      for(let t=1;t<4;t++){
+        const py=lerp(top,bottom,t/4),qy=lerp(backTop,backBottom,t/4);
         ctx.beginPath();ctx.moveTo(frontX,py);ctx.lineTo(backX,qy);ctx.stroke();
       }
 
-      // top and bottom caps
+      // joint / collar caps at post ends (more realistic)
       for(const y of [top,bottom]){
-        ctx.fillStyle='#f8fafc';ctx.beginPath();ctx.arc(frontX,y,4.8,0,Math.PI*2);ctx.fill();
-        ctx.fillStyle='rgba(148,163,184,.78)';ctx.beginPath();ctx.arc(frontX-sign*1.2,y+1,1.3,0,Math.PI*2);ctx.fill();
+        // outer ring
+        ctx.fillStyle='#e8eee9';ctx.beginPath();ctx.arc(frontX,y,5.6,0,Math.PI*2);ctx.fill();
+        // highlight
+        ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(frontX-sign*1.4,y-1.1,2.4,0,Math.PI*2);ctx.fill();
+        // shadow edge
+        ctx.fillStyle='rgba(100,116,110,.55)';ctx.beginPath();ctx.arc(frontX+sign*1.6,y+1.4,1.6,0,Math.PI*2);ctx.fill();
       }
 
       // More obvious post/crossbar reactions
@@ -16417,7 +17552,7 @@
       if(!this.running)return;this.running=false;this.destroy();
       if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
       const posScore=this.stats.totalPosition?this.stats.goodPosition/this.stats.totalPosition*100:0;
-      const result={score:[...this.score],rating:+this.matchRating.toFixed(1),minutesPlayed:Math.max(1,Math.round(Number.isFinite(this.userMatchEndMinute)?this.userMatchEndMinute:this.currentMatchMinute())),afterExtraTime:!!this.extraTimeStarted,matchDecision:this.matchDecision?{...this.matchDecision,shootoutScore:this.matchDecision.shootoutScore?[...this.matchDecision.shootoutScore]:null}:null,...this.stats,userInjury:this.userInjury?{...this.userInjury}:null,playerPosition:this.user.position,staminaEnd:+this.user.stamina.toFixed(1),managerInstructions:Object.values(this.instructionTracking).map(item=>({...item,score:item.checks?Math.round(item.followed/item.checks*100):0})),competition:{type:this.competition.type,id:this.competition.id,name:this.competition.name,round:this.competition.round,format:this.competition?.cup?.format||null,continental:!!this.competition?.cup?.continental},goalTimeline:this.goalTimeline.map(e=>({...e})),positionScore:Math.round(posScore),instructionScore:this.stats.instructionChecks?Math.round(this.stats.instructions/this.stats.instructionChecks*100):0,passPct:this.stats.passes?Math.round(this.stats.completed/this.stats.passes*100):0,teamXG:this.telemetry.xG.map(v=>+v.toFixed(2)),teamPasses:[...this.telemetry.passes],teamShots:[...this.telemetry.shots],possession:this.possessionPercentages(),phaseSummary:this.phaseSummary(),combinations:[...this.telemetry.combinations],turnovers:[...this.telemetry.turnovers],pressingTraps:[...this.telemetry.pressingTraps],balanceReport:this.balanceReport,opponent:this.opponent};
+      const result={score:[...this.score],rating:+this.matchRating.toFixed(1),minutesPlayed:Math.max(1,Math.round(Number.isFinite(this.userMatchEndMinute)?this.userMatchEndMinute:this.currentMatchMinute())),afterExtraTime:!!this.extraTimeStarted,matchDecision:this.matchDecision?{...this.matchDecision,shootoutScore:this.matchDecision.shootoutScore?[...this.matchDecision.shootoutScore]:null}:null,...this.stats,distance:this.reportedDistanceMetres(),userInjury:this.userInjury?{...this.userInjury}:null,playerPosition:this.user.position,staminaEnd:+this.user.stamina.toFixed(1),managerInstructions:Object.values(this.instructionTracking).map(item=>({...item,score:item.checks?Math.round(item.followed/item.checks*100):0})),competition:{type:this.competition.type,id:this.competition.id,name:this.competition.name,round:this.competition.round,format:this.competition?.cup?.format||null,continental:!!this.competition?.cup?.continental,window:!!this.competition?.window,confederationId:this.competition?.confederationId||this.competition?.cup?.confederationId||null},goalTimeline:this.goalTimeline.map(e=>({...e})),positionScore:Math.round(posScore),instructionScore:this.stats.instructionChecks?Math.round(this.stats.instructions/this.stats.instructionChecks*100):0,passPct:this.stats.passes?Math.round(this.stats.completed/this.stats.passes*100):0,teamXG:this.telemetry.xG.map(v=>+v.toFixed(2)),teamPasses:[...this.telemetry.passes],teamShots:[...this.telemetry.shots],possession:this.possessionPercentages(),phaseSummary:this.phaseSummary(),combinations:[...this.telemetry.combinations],turnovers:[...this.telemetry.turnovers],pressingTraps:[...this.telemetry.pressingTraps],balanceReport:this.balanceReport,opponent:this.opponent};
       if(career&&!this.quick)this.applyCareerResult(result);renderPostMatch(result);navigate('postMatch');
     }
 
@@ -16439,29 +17574,26 @@
           const round=competitionRoundLabel(cup),decided=penalties?` after penalties${shootout?` (${shootout[0]}–${shootout[1]})`:''}`:extraTime?' after extra time':'';
           cup.history.unshift({week:career.week,round,opponent:r.opponent.name,score:[...r.score],shootoutScore:shootout?[...shootout]:null,advanced,afterExtraTime:extraTime,decided:penalties?'penalties':extraTime?'extraTime':'normal'});
           if(cup.format==='qualifying-to-league-phase'){
-            if(advanced){cup.format='league-phase';cup.qualificationStage='league-phase';cup.leaguePhasePlayed=0;cup.leaguePhasePoints=0;cup.nextWeek=career.week+3;career.messages.unshift({title:`${cup.name} league phase reached`,body:`Victory over ${r.opponent.name}${decided} sends ${career.club.name} into the ${cup.leaguePhaseMatches}-match league phase.`,new:true});}
-            else{cup.eliminated=true;const drop=cup.id==='champions-league'?'europa-league':cup.id==='europa-league'?'conference-league':null;if(drop){career.europeanQualification=drop==='europa-league'?'uel-league-phase':'uecl-playoff';career.messages.unshift({title:`Transferred to ${CXI_UEFA_DEFS[drop].name}`,body:`The ${cup.name} qualifying defeat moves the club into the next UEFA competition route.`,new:true});}else career.messages.unshift({title:`Eliminated from ${cup.name}`,body:`${r.opponent.name} advance${decided}.`,new:true});}
+            if(advanced){cup.format='league-phase';cup.qualificationStage='league-phase';cup.leaguePhasePlayed=0;cup.leaguePhasePoints=0;cup.nextWeek=cxiNextCupSlot(career,career.week+3);career.messages.unshift({title:`${cup.name} ${cup.stageLabel||'league phase'} reached`,body:`Victory over ${r.opponent.name}${decided} sends ${career.club.name} into the ${cup.leaguePhaseMatches}-match league phase.`,new:true});}
+            else{cup.eliminated=true;const confed=CXI_CONFEDERATIONS[cup.confederationId],drop=confed?.club?.find(d=>d.tier===Number(cup.tier||1)+1)||null;if(drop){career.continentalQualification=cxiQualificationObject({...drop,confederationId:cup.confederationId});career.messages.unshift({title:`Transferred to ${drop.name}`,body:`The ${cup.name} qualifying defeat moves the club into the next ${confed.name} competition route.`,new:true});}else career.messages.unshift({title:`Eliminated from ${cup.name}`,body:`${r.opponent.name} advance${decided}.`,new:true});}
           }else if(cup.format==='league-phase'&&cup.leaguePhasePlayed<(cup.leaguePhaseMatches||8)){
             cup.leaguePhasePlayed++;cup.leaguePhaseGF+=r.score[0];cup.leaguePhaseGA+=r.score[1];cup.leaguePhasePoints+=r.score[0]>r.score[1]?3:r.score[0]===r.score[1]?1:0;
-            if(cup.leaguePhasePlayed<(cup.leaguePhaseMatches||8)){cup.nextWeek=career.week+3;career.messages.unshift({title:`${cup.name} · ${cup.leaguePhasePoints} pts`,body:`League phase match ${cup.leaguePhasePlayed}/${cup.leaguePhaseMatches} complete.`,new:true});}
-            else{const maxPts=(cup.leaguePhaseMatches||8)*3,ratio=cup.leaguePhasePoints/maxPts,seedRank=ratio>=.68?Math.ceil(8*(1-ratio)+1):ratio>=.38?Math.ceil(24-(ratio-.38)*25):25+Math.floor((.38-ratio)*28);cup.leaguePhaseRank=clamp(seedRank,1,36);if(cup.leaguePhaseRank>24){cup.eliminated=true;career.messages.unshift({title:`${cup.name} league phase complete`,body:`${cup.leaguePhasePoints} points · estimated rank ${cup.leaguePhaseRank}. The European run ends here.`,new:true});}else{cup.format='knockout';cup.roundIndex=cup.leaguePhaseRank<=8?1:0;cup.nextWeek=career.week+4;career.messages.unshift({title:`Qualified from ${cup.name} league phase`,body:`${cup.leaguePhasePoints} points · estimated rank ${cup.leaguePhaseRank}. ${cup.leaguePhaseRank<=8?'Direct Round of 16 place secured.':'Knockout phase play-off secured.'}`,new:true});}}
+            if(cup.leaguePhasePlayed<(cup.leaguePhaseMatches||8)){cup.nextWeek=cxiNextCupSlot(career,career.week+3);career.messages.unshift({title:`${cup.name} · ${cup.leaguePhasePoints} pts`,body:`League phase match ${cup.leaguePhasePlayed}/${cup.leaguePhaseMatches} complete.`,new:true});}
+            else{const maxPts=(cup.leaguePhaseMatches||8)*3,ratio=cup.leaguePhasePoints/maxPts,size=Number(cup.leaguePhaseSize)||36,cutoff=Number(cup.knockoutFrom)||Math.min(24,size),automatic=Number(cup.automaticTop)||Math.min(cutoff,8),seedRank=clamp(Math.round(1+(1-ratio)*(size-1)),1,size),rounds=cxiContinentalKnockoutRounds(cup);cup.leaguePhaseRank=seedRank;if(cup.leaguePhaseRank>cutoff){cup.eliminated=true;career.messages.unshift({title:`${cup.name} ${String(cup.stageLabel||'league phase').toLowerCase()} complete`,body:`${cup.leaguePhasePoints} points · estimated rank ${cup.leaguePhaseRank}/${size}. The continental run ends here.`,new:true});}else{cup.format='knockout';cup.roundIndex=(rounds[0]==='Knockout phase play-off'&&cup.leaguePhaseRank<=automatic)?1:0;cup.nextWeek=cxiNextCupSlot(career,career.week+4);career.messages.unshift({title:`Qualified from ${cup.name} ${String(cup.stageLabel||'league phase').toLowerCase()}`,body:`${cup.leaguePhasePoints} points · estimated rank ${cup.leaguePhaseRank}/${size}. ${rounds[cup.roundIndex]||'Knockout stage'} secured.`,new:true});}}
           }else{
             if(!advanced){cup.eliminated=true;career.messages.unshift({title:`Eliminated from ${cup.name}`,body:`${r.opponent.name} advance${decided}. Your cup run ends in the ${round}.`,new:true});}
-            else{const rounds=cup.continental?UEFA_KNOCKOUT_ROUNDS:CUP_ROUNDS;if(cup.roundIndex>=rounds.length-1){cup.eliminated=true;cup.winner=true;addCareerHonour('team',cup.name,'Cup winners',career.week,'gold',`team-${cup.id}-season-${career.season||1}`);career.messages.unshift({title:`${cup.name} winners!`,body:`You lift the trophy after defeating ${r.opponent.name}${decided}. It is now displayed in your career cabinet.`,new:true});}else{cup.roundIndex++;cup.nextWeek=career.week+(cup.continental?3:4);career.messages.unshift({title:`Through to the ${competitionRoundLabel(cup)}`,body:`Victory over ${r.opponent.name}${decided} keeps the ${cup.name} run alive.`,new:true});}}
+            else{const rounds=cup.continental?cxiContinentalKnockoutRounds(cup):CUP_ROUNDS;if(cup.roundIndex>=rounds.length-1){cup.eliminated=true;cup.winner=true;addCareerHonour('team',cup.name,'Cup winners',career.week,'gold',`team-${cup.id}-season-${career.season||1}`);career.messages.unshift({title:`${cup.name} winners!`,body:`You lift the trophy after defeating ${r.opponent.name}${decided}. It is now displayed in your career cabinet.`,new:true});}else{cup.roundIndex++;cup.nextWeek=cxiNextCupSlot(career,career.week+(cup.continental?3:4));career.messages.unshift({title:`Through to the ${competitionRoundLabel(cup)}`,body:`Victory over ${r.opponent.name}${decided} keeps the ${cup.name} run alive.`,new:true});}}
           }
         }
       }
       if(missed&&career.injury){career.injury.remainingMatches--;if(career.injury.remainingMatches<=0){const injName=career.injury.name,sev=career.injury.severity||.4;career.injuryDoubt={name:injName,severity:sev,sessionsLeft:2,matchesLeft:2};career.messages.unshift({title:'Fit to return',body:`You have recovered from the ${injName} and are available for the next fixture. Medical staff still urge caution in training for a couple of sessions.`,new:true});career.injury=null;}}
       if(!missed&&career.injuryDoubt){career.injuryDoubt.matchesLeft=(career.injuryDoubt.matchesLeft||1)-1;if(career.injuryDoubt.matchesLeft<=0&&(career.injuryDoubt.sessionsLeft||0)<=0){career.injuryDoubt=null;}else if(career.injuryDoubt.matchesLeft<=0&&career.injuryDoubt.sessionsLeft>0){/* sessions still needed */}}
-      const seasonEnded=leagueMatch&&career.leagueMatchesPlayed>=careerLeagueMatchTotal(career);
+      const seasonEnded=career.leagueMatchesPlayed>=careerLeagueMatchTotal(career)&&ensureCupCompetitions(career).filter(c=>!c.superCup).every(c=>c.eliminated||c.winner);
       if(internationalMatch){
-        const intl=ensureInternationalCareer(career),t=intl.tournament,index=t?.matchIndex||0,knockout=index>=3,draw=r.score[0]===r.score[1],advanced=!knockout||r.score[0]>r.score[1]||(draw&&Math.random()<clamp(.5+((missed?6.5:r.rating)-6.5)*.06,.3,.72));
-        if(t){t.history.push({week:career.week,round:INTERNATIONAL_ROUNDS[index],opponent:r.opponent.name,score:[...r.score],advanced,rating:missed?null:r.rating});t.fixtures[index].status='played';
-          if(!advanced){t.eliminated=true;t.completed=true;career.messages.unshift({title:`Eliminated from ${t.name}`,body:`${r.opponent.name} advance from the ${INTERNATIONAL_ROUNDS[index]}. Your international summer is over.`,new:true});completeCareerSeason(home);}
-          else if(index>=t.totalMatches-1){t.winner=true;t.completed=true;addCareerHonour('team',t.name,`${intl.countryName} international champions`,career.week,'platinum',`international-${career.season||1}`);career.messages.unshift({title:`${t.name} champions!`,body:`${intl.countryName} lift the international trophy in July. It has been added to your career cabinet.`,new:true});completeCareerSeason(home);}
-          else{t.matchIndex++;career.week=t.fixtures[t.matchIndex].week;career.trainingAvailable=false;}
-        }
-      }else if(seasonEnded)beginInternationalSummer(home);else{career.week++;do{career.nextOpponent=(career.nextOpponent+1)%career.league.length}while(career.league.length>1&&career.nextOpponent===career.clubIndex);career.trainingAvailable=!career.retired&&!career.injury;}
+        const intl=ensureInternationalCareer(career);
+        if(r.competition?.window){const fixture=cxiInternationalWindowFixture(career,career.week);if(fixture){fixture.status='played';intl.windowHistory=Array.isArray(intl.windowHistory)?intl.windowHistory:[];intl.windowHistory.push({week:career.week,competition:r.competition.name,opponent:r.opponent.name,score:[...r.score],rating:missed?null:r.rating});career.messages.unshift({title:`International window complete`,body:`${intl.countryName} ${r.score[0]}–${r.score[1]} ${r.opponent.name} · ${r.competition.name}.`,new:true})}career.phase='club';career.week++;cxiAdvancePastUnusedInternationalWindow(career);career.trainingAvailable=!career.retired&&!career.injury;}
+        else{const t=intl.tournament,index=t?.matchIndex||0,fixture=t?.fixtures?.[index],knockout=!!t?.championship&&index>=3,draw=r.score[0]===r.score[1],advanced=!knockout||r.score[0]>r.score[1]||(draw&&Math.random()<clamp(.5+((missed?6.5:r.rating)-6.5)*.06,.3,.72));if(t&&fixture){t.history.push({week:career.week,round:fixture.round,opponent:r.opponent.name,score:[...r.score],advanced,rating:missed?null:r.rating});fixture.status='played';if(t.championship&&!advanced){t.eliminated=true;t.completed=true;career.messages.unshift({title:`Eliminated from ${t.name}`,body:`${r.opponent.name} advance from the ${fixture.round}. Your international campaign is over.`,new:true});completeCareerSeason(home)}else if(index>=t.totalMatches-1){t.completed=true;if(t.championship){t.winner=true;addCareerHonour('team',t.name,`${intl.countryName} international champions`,career.week,'platinum',`international-${career.season||1}-${t.competitionId}`);career.messages.unshift({title:`${t.name} champions!`,body:`${intl.countryName} lift the international trophy. It has been added to your career cabinet.`,new:true})}else career.messages.unshift({title:`${t.name} campaign complete`,body:`The ${t.totalMatches}-match international qualifying programme has finished.`,new:true});completeCareerSeason(home)}else{t.matchIndex++;career.week=t.fixtures[t.matchIndex].week;career.trainingAvailable=false}}}
+      }else if(seasonEnded)beginInternationalSummer(home);else{career.week++;cxiAdvancePastUnusedInternationalWindow(career);do{career.nextOpponent=(career.nextOpponent+1)%career.league.length}while(career.league.length>1&&career.nextOpponent===career.clubIndex);career.trainingAvailable=!career.retired&&!career.injury;}
       activeCalendarMonth=careerMonthIndex(careerDateForWeek(career.week));selectedCalendarWeek=career.week;
       career.messages.unshift(missed?{title:`Fixture missed: ${r.competition?.name||'Match'}`,body:`You watched the ${r.score[0]}\u2013${r.score[1]} result while recovering. No appearance or match rating was recorded.`,new:true}:{title:`${r.competition?.name||'Match'} report: ${r.rating.toFixed(1)} rating`,body:r.rating>=7.5?'The manager praised your influence on the match.':r.rating<6?'The coaching staff want a sharper response next week.':'A steady performance with clear areas to develop.',new:true});
       if(!missed&&p.managerTrust>62&&Math.random()<.25)career.messages.unshift({title:'Contract interest',body:'Your agent says the club is monitoring your progress towards improved terms.',new:true});
@@ -16492,6 +17624,7 @@
     save.player.roleTraits ||= [];
     save.player.trainingFocus ||= 'Balanced';
     save.player.returnToPlay ||= save.injury?'Unavailable':'Available';
+    ensureV76CareerSystems(save);
     return save;
   }
 
@@ -16554,7 +17687,7 @@
     ensureAdvancedCareerSystems(career);const choices=career.careerChoices,p=career.player,rel=career.relationships;
     if(action==='shirt'){const requested=prompt('Enter your preferred shirt number (1\u201399):',String(choices.shirtNumber||p.shirtNumber||8));const number=clamp(Math.round(Number(requested)||0),1,99);if(!number)return;choices.shirtNumber=number;p.shirtNumber=number;career.messages.unshift({title:'Shirt number request accepted',body:`You will use number ${number} from the next registered squad update.`,new:true});}
     if(action==='captain'){const score=(rel.manager+rel.teamMates+rel.captain+(p.managerTrust||50))/4;if(score>=76){choices.captaincyStatus='Leadership group';career.messages.unshift({title:'Leadership role earned',body:'The manager has added you to the leadership group. Strong performances can lead to the captaincy.',new:true});}else career.messages.unshift({title:'Captaincy discussion',body:'The manager wants stronger trust with the squad and more consistent performances before changing the leadership group.',new:true});}
-    if(action==='sponsor'){const reputation=(p.overall||60)+(career.stats?.goals||0)*.15+(career.stats?.assists||0)*.12;if(reputation>=78){choices.sponsor=pick(['Apex Boots','Velocity Sports','Crown Performance','Pulse Athletic']);career.finances&&(career.finances.balance=(career.finances.balance||0)+2500);career.messages.unshift({title:'Personal sponsor signed',body:`${choices.sponsor} have agreed a performance partnership and \u00a32,500 signing payment.`,new:true});}else career.messages.unshift({title:'Sponsor review',body:'Your agent says a sustained run of strong performances will attract personal endorsement offers.',new:true});}
+    if(action==='sponsor'){ensureV76CareerSystems(career);const reputation=career.v76?.reputation?.score||v76ReputationScore(career),tier=career.v76?.reputation?.level||'Local Prospect';if(reputation>=74){choices.sponsor=pick(['Apex Boots','Velocity Sports','Crown Performance','Pulse Athletic']);const fee=reputation>=86?6500:reputation>=80?4000:2500;career.finances&&(career.finances.balance=(career.finances.balance||0)+fee);career.messages.unshift({title:'Personal sponsor signed',body:`${choices.sponsor} have agreed a ${tier} performance partnership and £${fee.toLocaleString()} signing payment. Higher reputation unlocks stronger renewals.`,new:true});}else career.messages.unshift({title:'Sponsor review',body:`Your current ${tier} reputation is ${reputation}. Reach International Star level (74+) through form, minutes, trophies and supporter growth to unlock endorsement offers.`,new:true});}
     if(action==='nation')career.messages.unshift({title:'International pathway',body:`You remain committed to ${choices.nationalAllegiance}. Club form, minutes and manager trust determine future call ups.`,new:true,category:'Manager'});
     if(action==='media'){const styles=['Balanced','Team first','Confident','Private'];choices.mediaProfile=styles[(styles.indexOf(choices.mediaProfile)+1)%styles.length];career.messages.unshift({title:'Media profile updated',body:`Your interview approach is now ${choices.mediaProfile.toLowerCase()}.`,new:true});}
     if(action==='retirement'){const plans=['Undecided','Coaching pathway','Management pathway','Retire from football'];choices.retirementPlan=plans[(plans.indexOf(choices.retirementPlan)+1)%plans.length];career.messages.unshift({title:'Future plan updated',body:`Your long term plan is now: ${choices.retirementPlan}.`,new:true});}
@@ -16640,7 +17773,7 @@
   };
 
   MatchGame.prototype.drawGoalkeeperCareerGuide=function(ctx){
-    if(this.user?.position!=='GK'||this.user.sentOff||this.goalCelebration||this.matchCeremony)return;const goalX=this.user.team===0?0:this.W,ball=this.ball.owner||this.ball,targetY=clamp(ball.y,this.goalTop+10,this.goalBottom-10),idealX=this.user.team===0?clamp(30+Math.abs(ball.y-this.H/2)*.05,28,72):this.W-clamp(30+Math.abs(ball.y-this.H/2)*.05,28,72),idealY=lerp(this.H/2,targetY,.68),distance=Math.hypot(this.user.x-idealX,this.user.y-idealY),tone=distance<22?'#4ade80':distance<52?'#facc15':'#fb7185';ctx.save();ctx.globalAlpha=.72;ctx.strokeStyle=tone;ctx.lineWidth=1.5;ctx.setLineDash([5,4]);ctx.beginPath();ctx.arc(idealX,idealY,11,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=tone;ctx.font='900 8px system-ui';ctx.textAlign='center';ctx.fillText(distance<22?'SET':'POSITION',idealX,idealY-16);ctx.restore();
+    if(this.user?.position!=='GK'||this.user.sentOff||this.goalCelebration||this.matchCeremony)return;const goalX=this.user.team===0?0:this.W,ball=this.ball.owner||this.ball,targetY=clamp(ball.y,this.goalTop+10*GOAL_GEOMETRY_SCALE,this.goalBottom-10*GOAL_GEOMETRY_SCALE),idealX=this.user.team===0?clamp(30+Math.abs(ball.y-this.H/2)*.05,28,72):this.W-clamp(30+Math.abs(ball.y-this.H/2)*.05,28,72),idealY=lerp(this.H/2,targetY,.68),distance=Math.hypot(this.user.x-idealX,this.user.y-idealY),tone=distance<22?'#4ade80':distance<52?'#facc15':'#fb7185';ctx.save();ctx.globalAlpha=.72;ctx.strokeStyle=tone;ctx.lineWidth=1.5;ctx.setLineDash([5,4]);ctx.beginPath();ctx.arc(idealX,idealY,11,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=tone;ctx.font='900 8px system-ui';ctx.textAlign='center';ctx.fillText(distance<22?'SET':'POSITION',idealX,idealY-16);ctx.restore();
   };
 
   const originalMatchDrawAdvanced=MatchGame.prototype.draw;
@@ -16659,9 +17792,16 @@
   const originalAwardDrillAdvanced=awardDrillResult;
   awardDrillResult=function(drillId,score,manual=true){ensureAdvancedCareerSystems(career);const before=career?.player?.attrs?cloneData(career.player.attrs):null,result=originalAwardDrillAdvanced(drillId,score,manual);if(career&&before){const facility=(career.facilities.training+career.facilities.coaching)/200,staff=(career.staff.headCoach.rating+career.staff.fitnessCoach.rating)/200,bonus=clamp((facility+staff-1)*.16,0,.15);if(bonus>0&&result?.gains){Object.keys(result.gains).forEach(key=>{if(key in career.player.attrs)career.player.attrs[key]=clamp(career.player.attrs[key]+result.gains[key]*bonus,1,99)});career.player.overall=calcOverall(career.player.attrs,career.player.position);}}return result;};
 
+  const originalApplyCareerResultV76=MatchGame.prototype.applyCareerResult;
+  MatchGame.prototype.applyCareerResult=function(result){if(career)ensureV76CareerSystems(career);const pre=career?cloneData(career.v76.matchPrep.objectives||[]):[];const value=originalApplyCareerResultV76.call(this,result);if(career&&!result.missedByInjury)v76ProcessMatchResult(career,result,pre);return value;};
+
+  const originalAwardDrillV76=awardDrillResult;
+  awardDrillResult=function(drillId,score,manual=true){const value=originalAwardDrillV76(drillId,score,manual);if(career&&manual)v76RecordTrainingImpact(drillId,score);return value;};
+
   const originalSaveCareerAdvanced=saveCareer;
   saveCareer=function(reason='autosave'){if(career){ensureAdvancedCareerSystems(career);try{const snapshot=JSON.stringify(career);if(snapshot.length<4_500_000){career.safety.recoveryCopies||=[];if(['manual-backup','career-switch','new-career'].includes(reason)){career.safety.recoveryCopies.unshift({date:new Date().toISOString(),reason,data:snapshot});career.safety.recoveryCopies=career.safety.recoveryCopies.slice(0,2);}}}catch(error){career.safety.errorLog.unshift({date:new Date().toISOString(),message:String(error?.message||error)});career.safety.errorLog=career.safety.errorLog.slice(0,8);}}return originalSaveCareerAdvanced(reason);};
 
+  window.__circleXIGlobalCompetitions={version:CXI_GLOBAL_COMPETITION_VERSION,confederations:CXI_CONFEDERATIONS,calendar:CXI_GLOBAL_CALENDAR,confederationForCountry:id=>cxiConfederationForCountry(id).id,qualificationForPosition:(countryId,position,leagueSize)=>cxiQualificationForPosition(countryId,position,leagueSize),competitionDef:id=>cxiCompetitionDefById(id),clubRoute:()=>({confederation:cxiClubConfederation(career).id,qualification:career?.continentalQualification,active:ensureCupCompetitions(career).filter(c=>c.continental&&!c.eliminated).map(c=>c.name)}),nationalRoute:()=>({confederation:cxiNationalConfederation(career).id,plan:cxiInternationalCompetitionPlan(career),selected:ensureInternationalCareer(career)?.selected}),audit:()=>cxiGlobalCalendarAudit(career),events:()=>career?[...careerCalendarEvents(career.club||career.league?.[career.clubIndex||0]).values()].map(e=>({week:e.week,date:e.date.toISOString(),type:e.type,name:e.competition?.name,opponent:e.club?.name})):[]};
   function initialiseCompleteUpgrade(){
     applyAccessibilitySettings();if(career){ensureAdvancedCareerSystems(career);originalSaveCareerAdvanced('migration');}
     window.__circleXIAdvancedUpgrade={version:ADVANCED_SYSTEM_VERSION,excludedOptions:[8,9,16,21,22],includedOptions:[1,2,3,4,5,6,7,10,11,12,13,14,15,17,18,19,20,23,24,25,26,27,28],ensureCareer:ensureAdvancedCareerSystems,render:renderDevelopmentCentre};
@@ -16675,7 +17815,7 @@
     const competition=career&&!quick?currentCareerCompetition(career):{type:'friendly',id:'friendly',name:'Circle XI Manager Friendly',icon:'\u25c6',round:'Exhibition match'};
     const internationalMatch=competition.type==='international',internationalFixture=internationalMatch?currentInternationalFixture(career):null;
     const home=internationalMatch?nationalTeamClub(careerCountry(career)||ensureInternationalCareer(career).countryName,ensureInternationalCareer(career).teamRating):(career?.club||careerLeague[career?.clubIndex||0]||clubs[0]);
-    const away=internationalFixture?.opponent||careerLeague[(career?.nextOpponent??1)%careerLeague.length]||careerLeague.find(c=>c.id!==home.id)||clubs[1];
+    const continentalCup=competition?.type==='cup'&&competition?.cup?.continental?competition.cup:null,continentalPool=continentalCup?cxiContinentalParticipantPool(continentalCup,career).filter(c=>c.name!==home.name):[],continentalOpponent=continentalPool.length?continentalPool[((career?.week||1)+(continentalCup?.leaguePhasePlayed||0)+(continentalCup?.roundIndex||0))%continentalPool.length]:null;const away=internationalFixture?.opponent||continentalOpponent||careerLeague[(career?.nextOpponent??1)%careerLeague.length]||careerLeague.find(c=>c.id!==home.id)||clubs[1];
     return {home,away,competition};
   }
   function kitShirtMarkup(kit,label){return `<div class="kit-room-shirt" style="--shirt:${kit.primary};--shirt-trim:${kit.secondary};--shirt-text:${contrastTextColour(kit.primary)}"><i></i><b>${label}</b><small>${kit.icon||'\ud83d\udc55'} ${kit.name}</small></div>`}
@@ -16708,7 +17848,7 @@
     if(!career?.injury||career.retired)return;const competition=currentCareerCompetition(career),international=competition.type==='international',home=international?nationalTeamClub(careerCountry(career)||ensureInternationalCareer(career).countryName,ensureInternationalCareer(career).teamRating):(career.club||career.league[career.clubIndex||0]),opponent=international?currentInternationalFixture(career)?.opponent:(career.league[career.nextOpponent%career.league.length]||career.league.find(c=>c!==home));
     const sim=simulateRatingDrivenMatch(home,opponent,{remainingFraction:1,currentScore:[0,0],teamCounts:[11,11],fromMinute:0,toMinute:90}),homeStrength=sim.ratings[0].overall,awayStrength=sim.ratings[1].overall;let finalHome=sim.score[0],finalAway=sim.score[1],afterExtraTime=false,matchDecision=null;
     if(competition.type==='cup'&&competition?.cup?.format!=='league-phase'&&finalHome===finalAway){afterExtraTime=true;const et=simulateRatingDrivenMatch(home,opponent,{remainingFraction:1/3,currentScore:[finalHome,finalAway],teamCounts:[11,11],fromMinute:90,toMinute:120,homeAdvantage:.04});finalHome=et.score[0];finalAway=et.score[1];if(finalHome!==finalAway)matchDecision={method:'extraTime',winner:finalHome>finalAway?0:1,afterExtraTime:true};else matchDecision=simulateRatingDrivenShootout(home,opponent);}
-    const result={score:[finalHome,finalAway],rating:0,goals:0,assists:0,passes:0,completed:0,keyPasses:0,saves:0,tackles:0,interceptions:0,shots:0,successfulDribbles:0,progressiveCarries:0,blocks:0,duelsWon:0,positionScore:0,instructionScore:0,minutesPlayed:0,missedByInjury:true,afterExtraTime,matchDecision,teamXG:sim.expectedGoals.map(v=>+v.toFixed(2)),simulationRatings:[homeStrength,awayStrength],competition:{type:competition.type,id:competition.id,name:competition.name,round:competition.round},opponent};
+    const result={score:[finalHome,finalAway],rating:0,goals:0,assists:0,passes:0,completed:0,keyPasses:0,saves:0,tackles:0,interceptions:0,shots:0,successfulDribbles:0,progressiveCarries:0,blocks:0,duelsWon:0,positionScore:0,instructionScore:0,minutesPlayed:0,missedByInjury:true,afterExtraTime,matchDecision,teamXG:sim.expectedGoals.map(v=>+v.toFixed(2)),simulationRatings:[homeStrength,awayStrength],competition:{type:competition.type,id:competition.id,name:competition.name,round:competition.round,window:!!competition.window,confederationId:competition.confederationId||null},opponent};
     MatchGame.prototype.applyCareerResult.call({},result);renderHub();navigate('hub');
   }
 
@@ -16754,7 +17894,15 @@
       {icon:'chart', cat:'attack', label:'Expected goals', value:Number(r.xG||0).toFixed(2)},
       {icon:'zigzag', cat:'attack', label:'Dribbles won', value:`${r.successfulDribbles}/${r.dribbles}`, tone: dribbleRate==null?null:statTone(dribbleRate,60,35)},
       {icon:'forward', cat:'attack', label:'Progressive carries', value:r.progressiveCarries||0},
-      {icon:'check', cat:'pass', label:'Pass completion', value:r.passPct+'%', tone:statTone(r.passPct,80,60)},
+      // A percentage over one or two passes is noise - it only ever reads 0% or 100%, which
+      // looks broken next to a normal-looking match. Below a usable sample show the raw count
+      // alone; above it show both, because "18/22" and "82%" answer different questions and a
+      // bare percentage hides how much work the number is actually resting on.
+      {icon:'check', cat:'pass', label:'Pass completion',
+       value:(Number(r.passes)||0)>=5
+         ? `${Number(r.completed)||0}/${Number(r.passes)||0} · ${r.passPct}%`
+         : `${Number(r.completed)||0}/${Number(r.passes)||0}`,
+       tone:(Number(r.passes)||0)>=5?statTone(r.passPct,80,60):null},
       {icon:'key', cat:'pass', label:'Key passes', value:r.keyPasses},
       {icon:'hand', cat:'pass', label:'First touches', value:r.firstTouches},
       {icon:'shield', cat:'defend', label:'Tackles', value:r.tackles},
@@ -16812,7 +17960,25 @@
   function renderPostMatch(r){
     const decisionLabel=r.matchDecision?.method==='penalties'?` \u00b7 ${r.matchDecision.shootoutScore?.[0]||0}\u2013${r.matchDecision.shootoutScore?.[1]||0} on penalties`:r.afterExtraTime?' \u00b7 AET':'';$('#postScore').textContent=`${career?.club?.name||'South London Athletic'} ${r.score[0]} \u2013 ${r.score[1]} ${r.opponent.name}${decisionLabel}`;
     const headline=r.rating>=8?'A performance that supporters will remember.':r.rating>=7?'A strong contribution to the team.':r.rating>=6?'A steady display with useful moments.':'A difficult day, but another lesson in your development.';
-    const events=(r.goalTimeline||[]).map(e=>`${e.minute}' ${e.scorer}${e.assister?` (assist: ${e.assister})`:''}`).join(' \u00b7 ');
+    // goalTimeline carries the scoring team on every entry, but the feed used to print a flat
+    // list of names, so a 4-2 read as six scorers with no way to tell the sides apart.
+    // Two further things it needs: goals simulated after the player leaves the pitch are pushed
+    // on with randomised minutes, so the list has to be sorted rather than trusted in push
+    // order; and a running score after each goal is what makes a scorer list readable as a
+    // match report rather than a pile of names.
+    const clubTag=(club,fallback)=>{
+      const raw=club?.abbr||club?.short||club?.shortName||club?.name||fallback;
+      return String(raw).slice(0,4).toUpperCase();
+    };
+    const homeTag=clubTag(career?.club,'HOME'),awayTag=clubTag(r.opponent,'AWAY');
+    const tally=[0,0];
+    const events=[...(r.goalTimeline||[])]
+      .sort((a,b)=>(Number(a.minute)||0)-(Number(b.minute)||0))
+      .map(e=>{
+        const away=e.team===1;
+        tally[away?1:0]++;
+        return `${e.minute}' ${e.scorer} (${away?awayTag:homeTag}) ${tally[0]}\u2013${tally[1]}${e.assister?` \u00b7 assist ${e.assister}`:''}`;
+      }).join(' \u00b7 ');
     $('#postHeadline').innerHTML=`<small class="post-competition">${r.competition?.name||'Match'} \u00b7 ${r.competition?.round||'Full time'}${r.matchDecision?.method==='penalties'?' \u00b7 PENALTIES':r.afterExtraTime?' \u00b7 EXTRA TIME':''}</small>${headline}${events?`<span class="post-goal-events">${events}</span>`:''}`;
     $('#postRating').innerHTML=`<div class="panel-title"><h3>Match Rating</h3><span>${r.rating>=7.5?'Excellent':r.rating>=6.5?'Solid':'Needs work'}</span></div><div class="rating-circle">${r.rating.toFixed(1)}</div>`;
     $('#postStats').innerHTML=`<div class="panel-title"><h3>Your Performance</h3><span>Full time</span></div><div class="stat-grid">${postMatchStatTiles(r).map(renderStatTile).join('')}</div>`;
@@ -16820,6 +17986,7 @@
     const positiveRows=(review.positives||[]).map(item=>`<div class="manager-event-row positive"><span>\u2713</span><div><b>${escapeMarkup(item.text)}</b><small>${escapeMarkup(item.detail||'Positive contribution')}</small></div></div>`).join('');
     const negativeRows=(review.negatives||[]).map(item=>`<div class="manager-event-row negative"><span>!</span><div><b>${escapeMarkup(item.text)}</b><small>${escapeMarkup(item.detail||'Area to improve')}</small></div></div>`).join('');
     $('#managerFeedback').innerHTML=`${developmentRowsMarkup(r.developmentRows||[],`Match development${Number(r.developmentTotal)>0?` \u00b7 ${Number(r.developmentTotal).toFixed(2)} points`:''}`)}<div class="panel-title"><h3>Smart Manager Feedback</h3><span>${career?Math.round(trust)+'% trust':'Quick match'}</span></div><div class="manager-verdict tone-${review.tone||'balanced'}"><span>${review.tone==='very-positive'?'\ud83c\udf1f':review.tone==='critical'?'\u26a0\ufe0f':'\ud83d\udccb'}</span><div><small>${review.position} PERFORMANCE REVIEW</small><b>${review.instructionVerdict}</b><p>${escapeMarkup(review.summary)}</p></div></div><div class="instruction-review-list">${instructionRows}</div><div class="manager-feedback-columns"><section><small>WHAT WENT WELL</small>${positiveRows||`<div class="manager-event-row positive"><span>\u2713</span><div><b>${escapeMarkup(review.strength.good)}</b></div></div>`}</section><section><small>WHAT NEEDS WORK</small>${negativeRows||`<div class="manager-event-row neutral"><span>\u25b3</span><div><b>${escapeMarkup(review.weakness.advice)}</b></div></div>`}</section></div>`;
+    if(career&&r.v76)$('#managerFeedback').insertAdjacentHTML('beforeend',v76PostMatchMarkup(r));
   }
 
   function positionObjective(pos){if(['CB','RB','LB','DM'].includes(pos))return'Protect the defensive shape';if(['RW','LW','AM'].includes(pos))return'Find space between the lines';if(pos==='ST')return'Occupy the centre-backs';if(pos==='GK')return'Command your area';return'Offer a safe passing option'}
@@ -16839,8 +18006,8 @@
   $('#squadBtn').onclick=()=>navigate('squad'); $('#contractBtn').onclick=()=>navigate('contract'); $('#attributeEditorBtn').onclick=()=>navigate('attributeEditor'); $('#developmentCentreBtn')&&($('#developmentCentreBtn').onclick=()=>navigate('development')); $('#manageSavesBtn').onclick=()=>navigate('saves');
   $('#resetCareerBtn').onclick=()=>{if(!career)return;if(confirm(`Delete ${career.careerName||career.player.name+' Career'}? This only removes the current save slot.`)){const id=career.careerId;deleteCareerSlot(id);navigate(career?'hub':'menu')}};
   $('#saveSettingsBtn').onclick=()=>{settings={difficulty:$('#difficultySetting').value,matchLength:+$('#matchLengthSetting').value,zoom:+$('#zoomSetting').value,guide:$('#guideSetting').checked,sound:$('#soundSetting').checked,feedback:$('#feedbackSetting')?$('#feedbackSetting').checked:true,aimSensitivity:$('#aimSensitivitySetting')?$('#aimSensitivitySetting').value:'Normal',aerialAssist:$('#aerialAssistSetting')?$('#aerialAssistSetting').value:'Standard',formationNotifications:$('#formationNotificationsSetting')?$('#formationNotificationsSetting').value:'Important',matchPresentation:$('#matchPresentationSetting')?$('#matchPresentationSetting').value:'Full',debugEngine:$('#debugEngineSetting')?$('#debugEngineSetting').checked:false,deterministicSeed:$('#deterministicSeedSetting')?$('#deterministicSeedSetting').checked:false,performanceMode:$('#performanceModeSetting')?.value||'Auto',crowdDetail:$('#crowdDetailSetting')?.value||'High',particleDetail:$('#particleDetailSetting')?.value||'High',reducedMotion:!!$('#reducedMotionSetting')?.checked,colourBlindMode:$('#colourBlindModeSetting')?.value||'Off',interfaceScale:$('#interfaceScaleSetting')?.value||'Normal',passAssist:$('#passAssistSetting')?.value||'Standard',shotAssist:$('#shotAssistSetting')?.value||'Standard',screenShake:$('#screenShakeSetting')?.checked!==false,touchLayout:$('#touchLayoutSetting')?.value||'Default',masterVolume:+($('#masterVolumeSetting')?.value||100),crowdVolume:+($('#crowdVolumeSetting')?.value||85),effectsVolume:+($('#effectsVolumeSetting')?.value||90)};applyAccessibilitySettings();saveSettings();beep(640,.08);navigate(career?'hub':'menu')};
-  $('#muteBtn').onclick=()=>{settings.sound=!settings.sound;$('#muteBtn').textContent=settings.sound?'\ud83d\udd0a':'\ud83d\udd07';saveSettings();if(game){if(settings.sound&&!game.crowdAmbience)game.crowdAmbience=startCrowdAmbience();else if(!settings.sound&&game.crowdAmbience){stopCrowdAmbience(game.crowdAmbience);game.crowdAmbience=null;}}if(settings.sound)beep(600)};
-  $('#muteBtn').textContent=settings.sound?'\ud83d\udd0a':'\ud83d\udd07';
+  if($('#muteBtn'))$('#muteBtn').onclick=()=>{settings.sound=!settings.sound;if($('#muteBtn'))$('#muteBtn').textContent=settings.sound?'\ud83d\udd0a':'\ud83d\udd07';saveSettings();if(game){if(settings.sound&&!game.crowdAmbience)game.crowdAmbience=startCrowdAmbience();else if(!settings.sound&&game.crowdAmbience){stopCrowdAmbience(game.crowdAmbience);game.crowdAmbience=null;}}if(settings.sound)beep(600)};
+  if($('#muteBtn'))$('#muteBtn').textContent=settings.sound?'\ud83d\udd0a':'\ud83d\udd07';
 
   function addAccuracyDemoPanel(title,subtitle,stats,notes=''){
     const old=document.querySelector('.accuracy-demo-panel');if(old)old.remove();
@@ -16954,7 +18121,8 @@
   trainingInjuryChance=function(p,intensityName=null){let chance=coreTrainingInjuryChance(p,intensityName);if(career?.player===p){if(hasInvestment('nutritionist'))chance*=.82;if(hasInvestment('recovery-specialist'))chance*=.68;}return clamp(chance,.0005,.075)};
 
   function clubRatingSnapshot(club){const rep=clamp(Number(club?.reputation||club?.seed||60),40,96),j=k=>Math.round((seededUnit(`${club?.id||club?.name}-${k}`)-.5)*12),attack=clamp(Math.round(rep+j('attack')),42,97),midfield=clamp(Math.round(rep+j('midfield')),42,97),defence=clamp(Math.round(rep+j('defence')),42,97),goalkeeper=clamp(Math.round(rep+j('goalkeeper')),42,97),overall=Math.round((attack+midfield+defence+goalkeeper)/4);return{attack,midfield,defence,goalkeeper,overall}}
-  let leagueBrowserState={continent:null,countryId:null,leagueId:null,clubId:null,search:''};
+  window.__CLUB_COMPARISON_VERSION='v75.20-persistent-side-by-side-club-compare';
+  let leagueBrowserState={continent:null,countryId:null,leagueId:null,clubId:null,search:''},leagueComparisonOpen=false;
   function initialiseLeagueBrowser(){
     const countries=circleXIManagerCore?.COUNTRIES||[];let country=countries.find(c=>c.id===career?.world?.countryId)||countries.find(c=>c.name===career?.player?.nationality)||countries[0];if(!country)return null;
     if(!leagueBrowserState.continent)leagueBrowserState.continent=career?.world?.continent||country.elementId||country.continent;if(!leagueBrowserState.countryId)leagueBrowserState.countryId=career?.world?.countryId||country.id;
@@ -16964,15 +18132,32 @@
     const isCurrent=career?.world?.leagueId===league?.id&&career?.world?.countryId===league?.clubs?.[0]?.countryId;if(isCurrent&&career?.league?.length)return [...career.league].map(r=>{const p=Number(r.p||career.leagueMatchesPlayed||0),w=Number(r.w??Math.min(p,Math.floor((r.pts||0)/3))),d=Number(r.d??Math.max(0,(r.pts||0)-w*3)),l=Number(r.l??Math.max(0,p-w-d)),gf=Number(r.gf??Math.max(0,Math.round(p*1.25+(r.gd||0)/2))),ga=Number(r.ga??Math.max(0,gf-(r.gd||0)));return{...r,p,w,d,l,gf,ga}}).sort((a,b)=>b.pts-a.pts||b.gd-a.gd);
     const played=clamp(Number(career?.leagueMatchesPlayed||24),8,34);return (league?.clubs||[]).map((club,index)=>{const rt=clubRatingSnapshot(club),strength=(rt.overall-45)/52,noise=(seededUnit(`${league.id}-${club.id}-table`)-.5)*.18,w=clamp(Math.round(played*(.21+strength*.39+noise)),2,played),d=clamp(Math.round(played*(.18+(seededUnit(club.id+'draw')-.5)*.12)),2,played-w),l=Math.max(0,played-w-d),gf=Math.max(8,Math.round(w*1.9+d*.65+rt.attack/13)),ga=Math.max(6,Math.round(l*1.65+d*.62+(98-rt.defence)/10)),gd=gf-ga,pts=w*3+d;return{...club,p:played,w,d,l,gf,ga,gd,pts}}).sort((a,b)=>b.pts-a.pts||b.gd-a.gd);
   }
-  function clubProfileMarkup(club,rows){
-    if(!club)return'<div class="league-club-empty"><span>\ud83c\udfdf\ufe0f</span><b>Select a club</b><p>Click any team to open its detailed profile.</p></div>';const rating=clubRatingSnapshot(club),position=rows.findIndex(r=>(r.id&&r.id===club.id)||r.abbr===club.abbr)+1,row=rows[position-1]||club,form=Array.from({length:5},(_,i)=>{const n=seededUnit(`${club.id}-form-${i}`);return n>.59?'W':n>.31?'D':'L'});
-    return `<section class="league-club-profile" style="--club:${club.primary||'#2563eb'};--trim:${club.secondary||'#f8fafc'}"><div class="club-profile-banner"><div>${crestMarkup(club)}</div><span><small>CLUB PROFILE</small><h3>${escapeMarkup(club.name)}</h3><p>${escapeMarkup(club.stadium||`${club.shortName||club.name} Arena`)}</p></span><b>${rating.overall}<small>OVR</small></b></div><div class="club-standing-summary"><span><b>${position||'\u2014'}</b><small>POSITION</small></span><span><b>${row.pts||0}</b><small>POINTS</small></span><span><b>${row.gd>0?'+':''}${row.gd||0}</b><small>GOAL DIFF</small></span><span><b>${Math.round(club.reputation||60)}</b><small>REPUTATION</small></span></div><div class="club-rating-bars">${[['\u26a1','Attack',rating.attack],['\ud83e\udde0','Midfield',rating.midfield],['\ud83d\udee1','Defence',rating.defence],['\ud83e\udde4','Goalkeeper',rating.goalkeeper]].map(([icon,label,value])=>`<div><span>${icon} ${label}</span><b>${value}</b><i><em style="width:${value}%"></em></i></div>`).join('')}</div><div class="club-form-strip"><small>RECENT FORM</small>${form.map(x=>`<b class="${x==='W'?'win':x==='D'?'draw':'loss'}">${x}</b>`).join('')}</div><button type="button" class="secondary-btn full" data-compare-current="${club.id}">\u21c4 Compare with your club</button></section>`;
+  function isCareerClub(club){
+    const mine=career?.club;if(!mine||!club)return false;
+    return Boolean((mine.id&&club.id&&mine.id===club.id)||(mine.name&&club.name&&String(mine.name).toLowerCase()===String(club.name).toLowerCase())||(mine.abbr&&club.abbr&&mine.abbr===club.abbr));
   }
-  function renderClubComparison(club){const root=$('#leagueClubProfile');if(!root||!career?.club)return;const a=clubRatingSnapshot(career.club),b=clubRatingSnapshot(club);root.insertAdjacentHTML('beforeend',`<div class="club-comparison"><header><small>CLUB COMPARISON</small><b>${escapeMarkup(career.club.shortName||career.club.name)} v ${escapeMarkup(club.shortName||club.name)}</b></header>${[['Overall','overall'],['Attack','attack'],['Midfield','midfield'],['Defence','defence'],['Goalkeeper','goalkeeper']].map(([label,key])=>`<div><b>${a[key]}</b><span>${label}</span><b>${b[key]}</b><i><em style="width:${a[key]}%"></em><strong style="width:${b[key]}%"></strong></i></div>`).join('')}</div>`)}
+  function clubLeaguePosition(club,rows){
+    const i=(rows||[]).findIndex(r=>(club?.id&&r.id===club.id)||(club?.name&&r.name===club.name)||(club?.abbr&&r.abbr===club.abbr));return i>=0?i+1:null;
+  }
+  function clubProfileMarkup(club,rows){
+    if(!club)return'<div class="league-club-empty"><span>🏟️</span><b>Select a club</b><p>Click any team to open its detailed profile.</p></div>';
+    const rating=clubRatingSnapshot(club),position=clubLeaguePosition(club,rows),row=position?rows[position-1]:club,form=Array.from({length:5},(_,i)=>{const n=seededUnit(`${club.id}-form-${i}`);return n>.59?'W':n>.31?'D':'L'}),own=isCareerClub(club);
+    return `<section class="league-club-profile" style="--club:${club.primary||'#2563eb'};--trim:${club.secondary||'#f8fafc'}"><div class="club-profile-banner"><div>${crestMarkup(club)}</div><span><small>CLUB PROFILE</small><h3>${escapeMarkup(club.name)}</h3><p>${escapeMarkup(club.stadium||`${club.shortName||club.name} Arena`)}</p></span><b>${rating.overall}<small>OVR</small></b></div><div class="club-standing-summary"><span><b>${position||'—'}</b><small>POSITION</small></span><span><b>${row.pts||0}</b><small>POINTS</small></span><span><b>${row.gd>0?'+':''}${row.gd||0}</b><small>GOAL DIFF</small></span><span><b>${Math.round(club.reputation||60)}</b><small>REPUTATION</small></span></div><div class="club-rating-bars">${[['⚡','Attack',rating.attack],['🧠','Midfield',rating.midfield],['🛡','Defence',rating.defence],['🧤','Goalkeeper',rating.goalkeeper]].map(([icon,label,value])=>`<div><span>${icon} ${label}</span><b>${value}</b><i><em style="width:${value}%"></em></i></div>`).join('')}</div><div class="club-form-strip"><small>RECENT FORM</small>${form.map(x=>`<b class="${x==='W'?'win':x==='D'?'draw':'loss'}">${x}</b>`).join('')}</div><button type="button" class="secondary-btn full" data-compare-current="${club.id}" ${own?'disabled aria-disabled="true"':''}>${own?'★ This is your club':'⇄ Compare with your club'}</button></section>`;
+  }
+  function clubComparisonMarkup(club,rows){
+    const mine=career?.club;
+    if(!club||!mine)return clubProfileMarkup(club,rows);
+    if(isCareerClub(club))return `<section class="league-club-profile club-compare-view" style="--club:${club.primary||'#2563eb'};--trim:${club.secondary||'#f8fafc'}"><div class="club-compare-header"><button type="button" data-close-club-comparison>← Club profile</button><small>CLUB COMPARISON</small><h3>Select another club</h3><p>You are currently viewing ${escapeMarkup(mine.name)}. Choose another team from the table to compare it with your club.</p></div><div class="club-compare-same">${crestMarkup(mine)}<b>${escapeMarkup(mine.name)}</b><span>YOUR CLUB</span></div></section>`;
+    const a=clubRatingSnapshot(mine),b=clubRatingSnapshot(club),minePos=clubLeaguePosition(mine,rows),otherPos=clubLeaguePosition(club,rows);
+    const metrics=[['Overall','overall'],['Attack','attack'],['Midfield','midfield'],['Defence','defence'],['Goalkeeper','goalkeeper']];
+    const score=metrics.reduce((sum,[,key])=>sum+(a[key]>b[key]?1:a[key]<b[key]?-1:0),0),verdict=score>0?`${mine.shortName||mine.name} have the stronger profile`:score<0?`${club.shortName||club.name} have the stronger profile`:'The clubs are evenly matched';
+    const maxGap=Math.max(...metrics.map(([,key])=>Math.abs(a[key]-b[key]))),closest=metrics.slice().sort((x,y)=>Math.abs(a[x[1]]-b[x[1]])-Math.abs(a[y[1]]-b[y[1]]))[0]?.[0]||'Overall';
+    return `<section class="league-club-profile club-compare-view" style="--club:${club.primary||'#2563eb'};--trim:${club.secondary||'#f8fafc'}"><div class="club-compare-header"><button type="button" data-close-club-comparison>← Club profile</button><small>CLUB COMPARISON</small><h3>${escapeMarkup(mine.shortName||mine.name)} <em>vs</em> ${escapeMarkup(club.shortName||club.name)}</h3><p>Comparison mode stays active while you select other clubs from the table.</p></div><div class="club-compare-teams"><article class="mine">${crestMarkup(mine)}<span><small>YOUR CLUB</small><b>${escapeMarkup(mine.shortName||mine.name)}</b><em>${minePos?`#${minePos} in this league`:'Current club'}</em></span><strong>${a.overall}<small>OVR</small></strong></article><i>VS</i><article class="target">${crestMarkup(club)}<span><small>SELECTED CLUB</small><b>${escapeMarkup(club.shortName||club.name)}</b><em>${otherPos?`#${otherPos} in league`:'Selected club'}</em></span><strong>${b.overall}<small>OVR</small></strong></article></div><div class="club-compare-metrics">${metrics.map(([label,key])=>{const left=a[key],right=b[key],delta=left-right,leftClass=delta>0?'winner':delta<0?'':'level',rightClass=delta<0?'winner':delta>0?'':'level';return`<div><b class="${leftClass}">${left}</b><span>${label}<small>${delta===0?'EVEN':`${Math.abs(delta)} PT GAP`}</small></span><b class="${rightClass}">${right}</b><i><em style="width:${left}%"></em><strong style="width:${right}%"></strong></i></div>`}).join('')}</div><div class="club-compare-verdict"><span>${score>0?'↗':score<0?'↘':'↔'}</span><div><small>QUICK VERDICT</small><b>${escapeMarkup(verdict)}</b><p>Largest attribute gap: ${maxGap} · closest unit: ${closest}. Ratings use the same club model shown throughout Career Mode.</p></div></div><button type="button" class="secondary-btn full" data-close-club-comparison>← Back to ${escapeMarkup(club.shortName||club.name)} profile</button></section>`;
+  }
   renderFullLeague=function(){
     const root=$('#fullLeaguePanel');if(!root||!career)return;const setup=initialiseLeagueBrowser();if(!setup?.league)return;const {countries,country,db,league}=setup,rows=deterministicLeagueRows(league),filtered=rows.filter(r=>!leagueBrowserState.search||r.name.toLowerCase().includes(leagueBrowserState.search.toLowerCase())),selected=rows.find(r=>r.id===leagueBrowserState.clubId)||rows.find(r=>career.club&&((r.id&&r.id===career.club.id)||(r.name&&r.name===career.club.name)))||rows[0];leagueBrowserState.clubId=selected?.id;
-    const availableCountries=countries.filter(c=>(c.elementId||c.continent)===leagueBrowserState.continent),browserRules=leagueRules({league:rows,world:{countryId:country.id,leagueLevel:league.level}});root.innerHTML=`<div class="world-league-browser"><header class="league-browser-head"><div><small>WORLD FOOTBALL DATABASE</small><h3>${circleXIElements.profile(leagueBrowserState.continent).icon} ${escapeMarkup(league.name)} <em class="db-season-badge ${db?.verified?'verified':'generated'}">${db?.verified?'2026/27 VERIFIED':'GENERATED'}</em></h3><p>${db?.verified?`Verified ${db.databaseSeason} club membership, league sizes and kit identities.`:'Generated fallback pyramid · not part of the verified 2026/27 club database.'}</p></div><div class="league-browser-head-actions"><button type="button" data-db-audit class="secondary-btn">✓ Database Audit</button><button type="button" data-my-league class="primary-btn">\u2605 My League</button></div></header><div class="league-browser-toolbar"><label>Continent<select id="leagueBrowserContinent">${circleXIElements.ELEMENT_ORDER.map(id=>`<option value="${id}" ${id===leagueBrowserState.continent?'selected':''}>${circleXIElements.profile(id).icon} ${id}</option>`).join('')}</select></label><label>Country<select id="leagueBrowserCountry">${availableCountries.map(c=>`<option value="${c.id}" ${c.id===country.id?'selected':''}>${c.elementIcon||'\u25ce'} ${c.name}${CXI_VERIFIED_FOOTBALL_2026[c.id]?' · VERIFIED':' · GENERATED'}</option>`).join('')}</select></label><label>Division<select id="leagueBrowserDivision">${(db?.leagues||[]).map(l=>`<option value="${l.id}" ${l.id===league.id?'selected':''}>${l.name}</option>`).join('')}</select></label><label class="league-search">Search club<input id="leagueBrowserSearch" value="${escapeMarkup(leagueBrowserState.search)}" placeholder="Type a team name"></label></div><div class="league-browser-layout"><section><div class="league-colour-legend"><span class="champion">\ud83c\udfc6 Champions</span><span class="continental">◆ Champions League</span><span class="secondary">◇ Europa League</span><span class="conference">○ Conference League</span><span class="promotion">⬆ Promotion</span><span class="relegation">\u2b07 Relegation</span><span class="you">\u2605 Your club</span></div><div class="browser-league-table"><div class="browser-league-row head"><span>#</span><span>Club</span><span>P</span><span>W</span><span>D</span><span>L</span><span>GD</span><b>PTS</b><strong>OVR</strong></div>${filtered.map((r,i)=>{const actual=rows.indexOf(r)+1,you=career.club&&((r.id&&r.id===career.club.id)||(r.name&&r.name===career.club.name)),zone=leagueZoneFor(actual,browserRules).key;return`<button type="button" class="browser-league-row zone-${zone} ${you?'you':''} ${r.id===selected?.id?'selected':''}" data-league-club="${r.id}"><span>${actual}</span><span class="club-cell">${crestMarkup(r,'tiny')}<b>${escapeMarkup(r.name)}</b>${you?'<em>YOU</em>':''}</span><span>${r.p}</span><span>${r.w}</span><span>${r.d}</span><span>${r.l}</span><span>${r.gd>0?'+':''}${r.gd}</span><b>${r.pts}</b><strong>${clubRatingSnapshot(r).overall}</strong></button>`}).join('')||'<div class="league-no-results">No clubs match this search.</div>'}</div></section><aside id="leagueClubProfile">${clubProfileMarkup(selected,rows)}</aside></div></div>`;
-    $('#leagueBrowserContinent').onchange=e=>{leagueBrowserState={continent:e.target.value,countryId:null,leagueId:null,clubId:null,search:''};renderFullLeague()};$('#leagueBrowserCountry').onchange=e=>{leagueBrowserState.countryId=e.target.value;leagueBrowserState.leagueId=null;leagueBrowserState.clubId=null;renderFullLeague()};$('#leagueBrowserDivision').onchange=e=>{leagueBrowserState.leagueId=e.target.value;leagueBrowserState.clubId=null;renderFullLeague()};$('#leagueBrowserSearch').oninput=e=>{leagueBrowserState.search=e.target.value;renderFullLeague()};$('[data-my-league]').onclick=()=>{leagueBrowserState={continent:career.world?.continent||leagueBrowserState.continent,countryId:career.world?.countryId||leagueBrowserState.countryId,leagueId:career.world?.leagueId||leagueBrowserState.leagueId,clubId:career.club?.id||null,search:''};renderFullLeague()};$$('[data-league-club]').forEach(btn=>btn.onclick=()=>{leagueBrowserState.clubId=btn.dataset.leagueClub;renderFullLeague()});$('[data-compare-current]')?.addEventListener('click',()=>renderClubComparison(selected));
+    const availableCountries=countries.filter(c=>(c.elementId||c.continent)===leagueBrowserState.continent),browserRules=leagueRules({league:rows,world:{countryId:country.id,leagueLevel:league.level}}),browserConfed=cxiConfederationForCountry(country.id),browserTier1=cxiConfedClubDef(browserConfed.id,1,country.id),browserTier2=cxiConfedClubDef(browserConfed.id,2,country.id),browserTier3=cxiConfedClubDef(browserConfed.id,3,country.id);root.innerHTML=`<div class="world-league-browser"><header class="league-browser-head"><div><small>WORLD FOOTBALL DATABASE</small><h3>${circleXIElements.profile(leagueBrowserState.continent).icon} ${escapeMarkup(league.name)} <em class="db-season-badge ${db?.verified?'verified':'generated'}">${db?.verified?'2026/27 VERIFIED':'GENERATED'}</em></h3><p>${db?.verified?`Verified ${db.databaseSeason} club membership, league sizes and kit identities.`:'Generated fallback pyramid · not part of the verified 2026/27 club database.'}</p></div><div class="league-browser-head-actions"><button type="button" data-db-audit class="secondary-btn">✓ Database Audit</button><button type="button" data-my-league class="primary-btn">\u2605 My League</button></div></header><div class="league-browser-toolbar"><label>Continent<select id="leagueBrowserContinent">${circleXIElements.ELEMENT_ORDER.map(id=>`<option value="${id}" ${id===leagueBrowserState.continent?'selected':''}>${circleXIElements.profile(id).icon} ${id}</option>`).join('')}</select></label><label>Country<select id="leagueBrowserCountry">${availableCountries.map(c=>`<option value="${c.id}" ${c.id===country.id?'selected':''}>${c.elementIcon||'\u25ce'} ${c.name}${CXI_VERIFIED_FOOTBALL_2026[c.id]?' · VERIFIED':' · GENERATED'}</option>`).join('')}</select></label><label>Division<select id="leagueBrowserDivision">${(db?.leagues||[]).map(l=>`<option value="${l.id}" ${l.id===league.id?'selected':''}>${l.name}</option>`).join('')}</select></label><label class="league-search">Search club<input id="leagueBrowserSearch" value="${escapeMarkup(leagueBrowserState.search)}" placeholder="Type a team name"></label></div><div class="league-browser-layout"><section><div class="league-colour-legend"><span class="champion">\ud83c\udfc6 Champions</span>${browserTier1?`<span class="continental">◆ ${escapeMarkup(browserTier1.shortName||browserTier1.name)}</span>`:''}${browserTier2?`<span class="secondary">◇ ${escapeMarkup(browserTier2.shortName||browserTier2.name)}</span>`:''}${browserTier3?`<span class="conference">○ ${escapeMarkup(browserTier3.shortName||browserTier3.name)}</span>`:''}<span class="promotion">⬆ Promotion</span><span class="relegation">\u2b07 Relegation</span><span class="you">\u2605 Your club</span></div><div class="browser-league-table"><div class="browser-league-row head"><span>#</span><span>Club</span><span>P</span><span>W</span><span>D</span><span>L</span><span>GD</span><b>PTS</b><strong>OVR</strong></div>${filtered.map((r,i)=>{const actual=rows.indexOf(r)+1,you=career.club&&((r.id&&r.id===career.club.id)||(r.name&&r.name===career.club.name)),zone=leagueZoneFor(actual,browserRules).key;return`<button type="button" class="browser-league-row zone-${zone} ${you?'you':''} ${r.id===selected?.id?'selected':''}" data-league-club="${r.id}"><span>${actual}</span><span class="club-cell">${crestMarkup(r,'tiny')}<b>${escapeMarkup(r.name)}</b>${you?'<em>YOU</em>':''}</span><span>${r.p}</span><span>${r.w}</span><span>${r.d}</span><span>${r.l}</span><span>${r.gd>0?'+':''}${r.gd}</span><b>${r.pts}</b><strong>${clubRatingSnapshot(r).overall}</strong></button>`}).join('')||'<div class="league-no-results">No clubs match this search.</div>'}</div></section><aside id="leagueClubProfile">${leagueComparisonOpen?clubComparisonMarkup(selected,rows):clubProfileMarkup(selected,rows)}</aside></div></div>`;
+    $('#leagueBrowserContinent').onchange=e=>{leagueBrowserState={continent:e.target.value,countryId:null,leagueId:null,clubId:null,search:''};renderFullLeague()};$('#leagueBrowserCountry').onchange=e=>{leagueBrowserState.countryId=e.target.value;leagueBrowserState.leagueId=null;leagueBrowserState.clubId=null;renderFullLeague()};$('#leagueBrowserDivision').onchange=e=>{leagueBrowserState.leagueId=e.target.value;leagueBrowserState.clubId=null;renderFullLeague()};$('#leagueBrowserSearch').oninput=e=>{leagueBrowserState.search=e.target.value;renderFullLeague()};$('[data-my-league]').onclick=()=>{leagueBrowserState={continent:career.world?.continent||leagueBrowserState.continent,countryId:career.world?.countryId||leagueBrowserState.countryId,leagueId:career.world?.leagueId||leagueBrowserState.leagueId,clubId:career.club?.id||null,search:''};leagueComparisonOpen=false;renderFullLeague()};$$('[data-league-club]').forEach(btn=>btn.onclick=()=>{leagueBrowserState.clubId=btn.dataset.leagueClub;renderFullLeague()});$('[data-compare-current]')?.addEventListener('click',()=>{if(isCareerClub(selected))return;leagueComparisonOpen=true;renderFullLeague();requestAnimationFrame(()=>$('#leagueClubProfile')?.scrollIntoView({block:'center',behavior:'smooth'}))});$$('[data-close-club-comparison]').forEach(btn=>btn.onclick=()=>{leagueComparisonOpen=false;renderFullLeague()});
   };
 
   let activeCalendarView='month',activeCalendarCompetition='all';
@@ -16986,9 +18171,13 @@
     const events=[...careerCalendarEvents(home).values()].filter(e=>activeCalendarCompetition==='all'||e.type===activeCalendarCompetition).sort((a,b)=>a.week-b.week);
     return `<div class="fixture-calendar fixture-calendar-list">${controls}<div class="fixture-list-view">${events.map(event=>{const tone=event.status==='played'?resultTone(event.score,event.matchDecision):event.status,comp=event.competition||{name:'League'},date=event.date.toLocaleDateString('en-GB',{day:'numeric',month:'short'});return`<button type="button" data-calendar-week="${event.week}" class="fixture-list-item ${event.week===selectedCalendarWeek?'selected':''} ${tone}"><span><small>${date}</small><b>W${event.week}</b></span>${crestMarkup(event.club,'tiny')}<div><small>${escapeMarkup(comp.name)}</small><b>${escapeMarkup(event.club?.name||'Fixture')}</b></div><em>${event.status==='played'?`${event.score[0]}\u2013${event.score[1]}`:event.status==='next'?'NEXT':'UPCOMING'}</em><strong>\u203a</strong></button>`}).join('')}</div></div>`;
   };
+  window.__CIRCLE_XI_WORLD_ENGINE_UI_VISIBLE=false;
+  function globalCompetitionPanelMarkup(save=career){
+    const clubConfed=cxiClubConfederation(save),natConfed=cxiNationalConfederation(save),active=ensureCupCompetitions(save).find(c=>c.continental&&!c.eliminated),q=save.continentalQualification,clubDef=active||cxiCompetitionDefById(q?.competitionId),plan=cxiInternationalCompetitionPlan(save),audit=cxiGlobalCalendarAudit(save),country=careerCountry(save);return `<section class="global-football-route"><header><div><small>WORLD FOOTBALL ENGINE · ${CXI_GLOBAL_COMPETITION_VERSION}</small><h3>🌐 Club & International Route</h3><p>Club association controls continental club football. Player nationality controls international football.</p></div><span class="calendar-audit-badge ${audit.ok?'pass':'fail'}">${audit.ok?'✓ 0 conflicts':'⚠ '+audit.errors.length+' conflicts'}</span></header><div class="global-route-grid"><article><small>CLUB ROUTE</small><b>${escapeMarkup(save.world?.countryName||'Club country')} → ${clubConfed.name}</b><strong>${escapeMarkup(clubDef?.name||'No continental qualification')}</strong><p>${clubDef?`Tier ${clubDef.tier||1} · ${clubDef.stageLabel||'Knockout'} · next slot ${active?.nextWeek||'TBC'}`:'Qualify through your domestic league/cup position.'}</p></article><article><small>NATIONAL ROUTE</small><b>${escapeMarkup(country?.name||save.player?.nationality||'Nationality')} → ${natConfed.name}</b><strong>${escapeMarkup(plan.name)}</strong><p>${plan.championship?`${plan.year} championship cycle`:`${plan.year} qualifying cycle`} · ${ensureInternationalCareer(save).teamRating} OVR</p></article><article><small>CALENDAR SAFETY</small><b>${CXI_GLOBAL_CALENDAR.minRecoveryHours}h minimum recovery</b><strong>${CXI_GLOBAL_CALENDAR.internationalWindowSlots.length} reserved international slots</strong><p>League and continental fixtures are moved automatically if a slot is blocked.</p></article></div></section>`;
+  }
   const coreRenderFixturePanel=renderFixturePanel;
   renderFixturePanel=function(home){
-    coreRenderFixturePanel(home);const event=selectedCalendarEvent(home),opp=event?.club||career.league[career.nextOpponent%career.league.length],homeRating=clubRatingSnapshot(home),awayRating=clubRatingSnapshot(opp),homeRows=[...career.league].sort((a,b)=>b.pts-a.pts||b.gd-a.gd),homePos=homeRows.findIndex(r=>(home.id&&r.id===home.id)||r.abbr===home.abbr)+1,oppPos=homeRows.findIndex(r=>(opp?.id&&r.id===opp.id)||r.abbr===opp?.abbr)+1;const aside=$('#fixturePanel .fixture-detail-card');
+    coreRenderFixturePanel(home);/* v75.21: World Football Engine remains active but its developer routing card is intentionally not rendered in the player-facing fixture UI. */const event=selectedCalendarEvent(home),opp=event?.club||career.league[career.nextOpponent%career.league.length],homeRating=clubRatingSnapshot(home),awayRating=clubRatingSnapshot(opp),homeRows=[...career.league].sort((a,b)=>b.pts-a.pts||b.gd-a.gd),homePos=homeRows.findIndex(r=>(home.id&&r.id===home.id)||r.abbr===home.abbr)+1,oppPos=homeRows.findIndex(r=>(opp?.id&&r.id===opp.id)||r.abbr===opp?.abbr)+1;const aside=$('#fixturePanel .fixture-detail-card');
     aside?.insertAdjacentHTML('beforeend',`<div class="fixture-intelligence-card"><header><span>\ud83d\udcca</span><div><small>MATCH INTELLIGENCE</small><b>${hasInvestment('tactical-analyst')?'Full analyst report':'Quick comparison'}</b></div></header><div class="fixture-team-ratings"><span><b>${homeRating.overall}</b><small>${escapeMarkup(home.abbr||'HOME')} OVR</small><em>${homePos?`${homePos}${homePos===1?'st':homePos===2?'nd':homePos===3?'rd':'th'} in league`:'\u2014'}</em></span><i>VS</i><span><b>${awayRating.overall}</b><small>${escapeMarkup(opp?.abbr||'AWAY')} OVR</small><em>${oppPos?`${oppPos}${oppPos===1?'st':oppPos===2?'nd':oppPos===3?'rd':'th'} in league`:'Other competition'}</em></span></div>${hasInvestment('tactical-analyst')?`<div class="fixture-analyst-bars">${[['Attack',homeRating.attack,awayRating.attack],['Midfield',homeRating.midfield,awayRating.midfield],['Defence',homeRating.defence,awayRating.defence],['Goalkeeper',homeRating.goalkeeper,awayRating.goalkeeper]].map(([label,a,b])=>`<div><b>${a}</b><span>${label}</span><b>${b}</b></div>`).join('')}</div>`:'<p>Hire a Tactical Analyst from the Profile tab to unlock detailed unit-by-unit comparisons.</p>'}</div>`);
     $$('[data-calendar-view]').forEach(btn=>btn.onclick=()=>{activeCalendarView=btn.dataset.calendarView;renderFixturePanel(home)});$('#calendarCompetitionFilter')?.addEventListener('change',e=>{activeCalendarCompetition=e.target.value;renderFixturePanel(home)});$$('.fixture-list-view [data-calendar-week]').forEach(btn=>btn.onclick=()=>{selectedCalendarWeek=Number(btn.dataset.calendarWeek);renderFixturePanel(home)});
   };
@@ -17428,6 +18617,9 @@
   } else if (demoMode === 'goalkeeper-saves-upgrade') {
     career=makeCareer({name:'Renny Appiah',nationality:'Ghana',age:20,foot:'Right',position:'GK',archetype:'Sweeper Keeper',skinTone:'#7b4b2a',hair:'Fade',bootColour:'#f8fafc',shirtNumber:1,build:'Athletic'});career.firstMatch=false;settings.zoom=.91;settings.guide=false;startMatch(true);
     setTimeout(()=>{if(!game)return;game.paused=true;game.matchCeremony=null;game.restart=null;const models=game.players.filter(p=>p.team===0).slice(0,4),poses=[['smother','low-collapse','LOW COLLAPSE'],['dive','top-corner','TOP CORNER'],['parry','fingertip','FINGERTIP'],['parry','leg-save','LEG SAVE']];models.forEach((p,i)=>{p.position='GK';p.primary=['#f59e0b','#22c55e','#38bdf8','#ec4899'][i];p.secondary='#111827';p.x=455+i*145;p.y=350+(i%2?35:-20);p.dir=0;p.upperDir=0;p.action=poses[i][0];p.actionVariant=poses[i][1];p.actionTimer=.35;p.actionLength=.72;p.actionBlend=1;p.commandIcon='\ud83e\udde4 '+poses[i][2];p.commandTimer=9;p.vx=p.vy=0});game.players.filter(p=>!models.includes(p)&&p.position!=='GK').forEach((p,i)=>{p.x=p.team===0?280:1040;p.y=90+(i%6)*105;p.vx=p.vy=0});game.restartBanner={text:'',timer:0};game.matchEventBanner=null;game.camera.x=680;game.camera.y=360;game.camera.zoom=1.02;const panel=document.createElement('div');panel.className='upgrade-demo-panel save-demo-panel';panel.innerHTML='<small>\ud83e\udde4 EXPANDED GOALKEEPER SAVES</small><b>The animation now matches shot height, speed and reach</b><div><span>Low collapse</span><span>Top-corner stretch</span><span>Fingertip parry</span><span>Reaction leg save</span></div>';document.querySelector('#matchScreen')?.appendChild(panel);$('#pauseOverlay').classList.add('hidden');$('#positionIndicator').style.display='none';$('#actionFeedback').classList.remove('show');$('#actionFeedback').textContent='';game.draw();},180);
+  } else if (demoMode === 'club-comparison-fix') {
+    career=makeCareer({name:'Renny Appiah',nationality:'Ghana',age:20,foot:'Right',position:'AM',archetype:'Playmaker',skinTone:'#7b4b2a',hair:'Fade',bootColour:'#f8fafc',shirtNumber:8,build:'Athletic'});career.recentRatings=[7.2,7.8,6.9,8.1,7.6];navigate('hub');
+    setTimeout(()=>{setCareerTab('league');renderHub();setCareerTab('league');setTimeout(()=>{const target=[...document.querySelectorAll('[data-league-club]')].find(btn=>!btn.classList.contains('you')&&!btn.classList.contains('selected'))||document.querySelector('[data-league-club]:not(.you)');target?.click();setTimeout(()=>{document.querySelector('[data-compare-current]')?.click();window.__clubComparisonReady=true},90)},90)},90);
   } else if (demoMode === 'career-overview' || demoMode === 'career-training' || demoMode === 'career-profile' || demoMode === 'career-form' || demoMode === 'career-fixtures' || demoMode === 'career-fixtures-clash') {
     career=makeCareer({name:'Renny Appiah',nationality:'Ghana',age:20,foot:'Right',position:'AM',archetype:'Playmaker',skinTone:'#7b4b2a',hair:'Fade',bootColour:'#f8fafc',shirtNumber:8,build:'Athletic'});
     career.recentRatings=[7.2,7.8,6.9,8.1,7.6];ensureDevelopmentSystem(career.player).lastSummary='Your recent performances are reinforcing technical development.';
@@ -17730,6 +18922,8 @@
     career=makeCareer({name:'Renny Appiah',nationality:'Ghana',age:20,foot:'Right',position:'AM',archetype:'Playmaker',skinTone:'#7b4b2a',hair:'Fade',bootColour:'#f8fafc',shirtNumber:10,build:'Athletic'});career.firstMatch=false;settings.zoom=.9;settings.guide=false;startMatch(true);setTimeout(()=>{if(!game)return;game.matchCeremony=null;game.restart=null;game.paused=true;game.replayLabel='GOAL';game.score=[2,1];$('#scoreText').textContent='2 \u2013 1';game.players.forEach((p,i)=>{p.x=p.team===0?300+(i%5)*90:760+(i%5)*78;p.y=105+(i%6)*92;p.dir=p.team===0?0:Math.PI;p.upperDir=p.dir;p.vx=p.vy=0});game.replayBuffer=[];for(let f=0;f<360;f++){const t=f/30;game.replayBuffer.push({t,ball:{x:460+t*45,y:380-Math.sin(t*.9)*120,z:Math.max(0,28*Math.sin(Math.min(Math.PI,t*.55))),vx:45,vy:0,vz:0,spin:1},players:game.players.map((p,i)=>({id:p.id,x:p.x+Math.sin(t*.7+i)*18,y:p.y+Math.cos(t*.6+i)*12,vx:0,vy:0,dir:p.dir,upperDir:p.dir,moveDir:p.dir,anim:t*7,action:i===0?'shoot':'run',actionTimer:.2,actionLength:.5})),nets:game.snapshotNetPhysics(),score:[2,1]})}game.startReplay();game.replayPlayback.playhead=5.4;game.replayPlayback.paused=true;game.playState='OPEN_PLAY';game.matchCeremony=null;game.restartBanner={text:'',timer:0};game.matchEventBanner=null;game.camera.x=650;game.camera.y=340;game.camera.zoom=.9;game.updateReplayPlayback(0);syncReplayControls(true);$('#pauseOverlay').classList.add('hidden');$('#positionIndicator').style.display='none';game.draw()},180);
   } else if (demoMode === 'systems-replay-gallery') {
     career=makeCareer({name:'Renny Appiah',nationality:'Ghana',age:20,foot:'Right',position:'AM',archetype:'Playmaker',skinTone:'#7b4b2a',hair:'Braids',bootColour:'#f8fafc',shirtNumber:10,build:'Lean'});ensureCareerRecords(career);const events=['GOAL','FINESSE','SAVE','TROPHY'];career.savedReplays=events.map((event,i)=>({id:'demo-'+i,title:["Top-corner winner","Curled free kick","One-handed save","League trophy lift"][i],event,competition:i===3?'Crown League':'Crown League',opponent:['Riverton FC','Northbridge','Aurelia City','Season Ceremony'][i],score:[3-i%2,1],week:12+i*5,season:1,createdAt:new Date(2026,7,i+1).toISOString(),duration:8+i*2,frames:Array.from({length:80},(_,f)=>({t:f/10,score:[2,1],ball:{x:300+f*5,y:330+Math.sin(f/8)*80,z:0},players:Array.from({length:22},(_,p)=>({id:p,x:250+(p%11)*55+f*.4,y:80+(p%6)*85,dir:0,action:'run',anim:f*.2}))}))}));navigate('hub');setTimeout(()=>{setCareerTab('replays');renderReplayGallery()},100);
+  } else if (demoMode === 'global-football-v75-19') {
+    const brazilDB=loadCircleXIManagerCountry('brazil'),league=brazilDB?.leagues?.find(l=>Number(l.level)===1)||brazilDB?.leagues?.[0],club=league?.clubs?.find(c=>/Flamengo/i.test(c.name))||league?.clubs?.[0],worldSelection=brazilDB&&league&&club?{continent:brazilDB.country.continent,country:brazilDB.country,league,club}:selectedCircleXIWorld();career=makeCareer({name:'Renny Appiah',nationality:'Ghana',nationalityId:'ghana',age:21,foot:'Right',position:'CM',archetype:'Playmaker',skinTone:'#7b4b2a',hair:'Fade',bootColour:'#f8fafc',shirtNumber:8,build:'Athletic',worldSelection});career.firstMatch=false;career.week=13;career.leagueMatchesPlayed=8;career.continentalQualification=cxiQualificationObject({...CXI_CONFEDERATIONS.CONMEBOL.club[0],confederationId:'CONMEBOL'});career.cups=[];ensureInternationalCareer(career);ensureCupCompetitions(career);navigate('hub');setTimeout(()=>{setCareerTab('fixtures');renderHub();setCareerTab('fixtures')},120);
   } else if (demoMode === 'systems-league-continental') {
     career=makeCareer({name:'Renny Appiah',nationality:'Ghana',age:21,foot:'Right',position:'CM',archetype:'Playmaker',skinTone:'#7b4b2a',hair:'Fade',bootColour:'#f8fafc',shirtNumber:8,build:'Athletic'});career.week=28;career.leagueMatchesPlayed=25;career.league.forEach((r,i)=>{r.p=25;r.w=Math.max(4,18-i);r.d=4+i%4;r.l=Math.max(1,25-r.w-r.d);r.pts=r.w*3+r.d;r.gd=24-i*4;r.gf=45-i;r.ga=r.gf-r.gd});const home=career.club||career.league[0],idx=career.league.findIndex(r=>r.id===home.id||r.abbr===home.abbr);if(idx>0)[career.league[0],career.league[idx]]=[career.league[idx],career.league[0]];career.league[0].pts=58;career.league[0].gd=28;navigate('hub');setTimeout(()=>{setCareerTab('league');renderFullLeague()},100);
   } else if (demoMode === 'systems-league-relegation') {
@@ -17753,7 +18947,7 @@
   } else if (demoMode === 'upgrade-create-identity') {
     navigate('create');setCreatorStep(0);creatorAttributeDraft=null;initialiseCreatorAttributes(true);const continent=$('#nationalityContinent');if(continent){continent.value=circleXIElements.ELEMENT_ORDER[0];continent.dispatchEvent(new Event('change',{bubbles:true}))}setTimeout(()=>{renderNationalityInsights();renderCreatorAttributeDashboard();updateCreationPreview()},80);
   } else if (demoMode === 'upgrade-player-id') {
-    career=makeCareer({name:'Renny Appiah',firstName:'Renny',surname:'Appiah',nationality:selectedNationalityCountry()?.name||'Montara',age:17,foot:'Right',position:'AM',archetype:'Playmaker',skinTone:'#7b4b2a',hair:'Braids',hairColour:'#21140d',bootColour:'#f8fafc',shirtNumber:10,build:'Athletic',worldSelection:selectedCircleXIWorld(),customAttrs:creatorBaseAttributes('AM','Playmaker')});career.player.overall=82;career.player.potential=94;career.player.status='Key Player';career.recentRatings=[7.8,8.2,8.5,8.0,8.7];navigate('hub');setTimeout(()=>{setCareerTab('profile');renderHub();setCareerTab('profile')},120);
+    career=makeCareer({name:'Renny Appiah',firstName:'Renny',surname:'Appiah',nationality:selectedNationalityCountry()?.name||'England',age:17,foot:'Right',position:'AM',archetype:'Playmaker',skinTone:'#7b4b2a',hair:'Braids',hairColour:'#21140d',bootColour:'#f8fafc',shirtNumber:10,build:'Athletic',worldSelection:selectedCircleXIWorld(),customAttrs:creatorBaseAttributes('AM','Playmaker')});career.player.overall=82;career.player.potential=94;career.player.status='Key Player';career.recentRatings=[7.8,8.2,8.5,8.0,8.7];navigate('hub');setTimeout(()=>{setCareerTab('profile');renderHub();setCareerTab('profile')},120);
   } else if (demoMode === 'upgrade-wages') {
     career=makeCareer({name:'Renny Appiah',firstName:'Renny',surname:'Appiah',nationality:selectedNationalityCountry()?.name||'Montara',age:18,foot:'Right',position:'CM',archetype:'Playmaker',skinTone:'#7b4b2a',hair:'Fade',hairColour:'#21140d',bootColour:'#f8fafc',shirtNumber:8,build:'Athletic',worldSelection:selectedCircleXIWorld()});const f=ensureCareerFinances(career);f.balance=28500;f.staff=['technical-coach','nutritionist'];f.ledger=[{type:'debit',label:'Performance Nutritionist',amount:-3800},{type:'debit',label:'Elite Technical Coach',amount:-6000},{type:'weekly',label:'Weekly wage and staff costs',amount:-10}];navigate('hub');setTimeout(()=>{setCareerTab('profile');renderHub();setCareerTab('profile');document.querySelector('.career-finance-centre')?.scrollIntoView({block:'start'})},150);
   } else if (demoMode === 'upgrade-training') {
@@ -17771,7 +18965,7 @@
     if(demoMode.includes('profile'))setTimeout(()=>{setCareerTab('profile');renderHub();setCareerTab('profile')},100);
     if(demoMode.includes('overview'))setTimeout(()=>{setCareerTab('overview');renderHub();setCareerTab('overview')},100);
   } else if (demoMode === 'home-redesign') {
-    career=makeCareer({name:'Renny Appiah',firstName:'Renny',surname:'Appiah',nationality:'Montara',age:20,foot:'Right',position:'AM',archetype:'Creative Midfielder',skinTone:'#7b4b2a',hair:'Curly Top',hairColour:'#21140d',bootColour:'#f8fafc',shirtNumber:10,build:'Athletic'});
+    career=makeCareer({name:'Renny Appiah',firstName:'Renny',surname:'Appiah',nationality:'England',age:20,foot:'Right',position:'AM',archetype:'Creative Midfielder',skinTone:'#7b4b2a',hair:'Curly Top',hairColour:'#21140d',bootColour:'#f8fafc',shirtNumber:10,build:'Athletic'});
     career.season=3;career.week=18;career.player.overall=78;career.player.level=12;career.player.xp=2450;career.player.status='Key Player';career.finances.balance=12890;career.objectives=[{label:'Complete match objectives',value:3,target:5}];
     Object.assign(career.player.attrs,{pace:78,acceleration:76,finishing:72,longShots:74,passing:82,vision:84,technique:81,tackling:61,marking:58,positioning:74,strength:69,stamina:80,balance:76});
     refreshContinue();navigate('menu');
@@ -17821,6 +19015,8 @@
     const mode=String(demoMode).replace('defensive-pitch-',''),drill=mode==='1v1'?'onevoneDef':mode==='3v3'?'threevthreeDef':'defending';career=makeCareer({name:'Renny Appiah',nationality:'Ghana',age:21,foot:'Right',position:'CM',archetype:'Box to Box',skinTone:'#7b4b2a',hair:'Fade',bootColour:'#38bdf8',shirtNumber:8,build:'Athletic'});career.firstMatch=false;career.trainingAvailable=true;Object.assign(career.player.attrs,{agility:86,positioning:84,anticipation:88,workRate:91,tackling:85,teamwork:87,decisions:86,passing:83,vision:84});ensureTrainingProgramme(career.player);navigate('hub');setTimeout(()=>{setCareerTab('training');renderHub();setCareerTab('training');openTrainingDrill(drill);setTimeout(()=>{if(new URLSearchParams(location.search).get('live')==='1'||window.__DEFENSIVE_DEMO_LIVE){startTrainingDrill();let flip=false;const move=setInterval(()=>{const s=window.__circleTraining;if(!s?.defensive){clearInterval(move);return}if(s.defensive.countdownUntil)return;flip=!flip;s.moveTarget=drill==='defending'?{x:flip?46:54,y:flip?48:55}:drill==='onevoneDef'?{x:flip?47:53,y:58}:{x:flip?44:56,y:52};},720)}},140)},150);
   } else if (String(demoMode||'').startsWith('performance-gym-')) {
     const station=String(demoMode).replace('performance-gym-',''),drill=station==='bench'?'gymBench':station==='treadmill'?'gymTreadmill':station==='race'?'repeatSprints':'gymBike';if(station==='race'){const demoDistance=Number(new URLSearchParams(location.search).get('distance'));if([100,200,500].includes(demoDistance))selectedRaceDistance=demoDistance;}career=makeCareer({name:'Renny Appiah',nationality:'Ghana',age:21,foot:'Right',position:'CM',archetype:'Box to Box',skinTone:'#7b4b2a',hair:'Fade',bootColour:'#38bdf8',shirtNumber:8,build:'Athletic'});career.firstMatch=false;career.trainingAvailable=true;Object.assign(career.player.attrs,{stamina:88,workRate:91,strength:82,pace:84,acceleration:82});ensureTrainingProgramme(career.player);navigate('hub');setTimeout(()=>{setCareerTab('training');renderHub();setCareerTab('training');openTrainingDrill(drill);setTimeout(()=>{if(new URLSearchParams(location.search).get('live')==='1'){startTrainingDrill();if(drill==='gymBike'){let n=0;const pulse=setInterval(()=>{if(!trainingGameState?.performanceGym||trainingGameState.station!=='bike'){clearInterval(pulse);return}performanceGymStroke(n++%2?'l':'j');if(n>30)clearInterval(pulse)},270)}else if(drill==='gymTreadmill'){let n=0;const run=setInterval(()=>{if(!trainingGameState?.performanceGym||trainingGameState.station!=='treadmill'){clearInterval(run);return}performanceGymTreadmillInput('down',n++%2?'l':'j');if(n>160)clearInterval(run)},92)}else if(drill==='repeatSprints'){let n=0;const raceRun=setInterval(()=>{if(!trainingGameState?.race){clearInterval(raceRun);return}raceInput(n++%2?'l':'j');if(trainingGameState.race.finished||n>420)clearInterval(raceRun)},92)}else{let n=0;const press=setInterval(()=>{if(!trainingGameState?.performanceGym||trainingGameState.station!=='bench'){clearInterval(press);return}if(trainingGameState.phase==='push')performanceGymBenchInput('down',n++%2?'l':'j');if(n>180)clearInterval(press)},82)}}},140)},150);
+  } else if (demoMode === 'v76-connected-career' || demoMode === 'v76-connected-training' || demoMode === 'v76-connected-inbox') {
+    career=makeCareer({name:'Renny Appiah',firstName:'Renny',surname:'Appiah',nationality:'Ghana',nationalityId:'ghana',age:20,foot:'Right',position:'CM',archetype:'Playmaker',careerBackground:'Local Academy Graduate',careerPersonality:'Leader',skinTone:'#7b4b2a',hair:'Fade',bootColour:'#38bdf8',shirtNumber:8,build:'Athletic'});career.firstMatch=false;career.week=18;career.leagueMatchesPlayed=12;career.player.managerTrust=76;career.player.morale=84;career.recentRatings=[7.2,7.8,8.1,7.4,8.3];career.stats.apps=13;career.stats.starts=9;career.stats.goals=4;career.stats.assists=8;ensureAdvancedCareerSystems(career);career.relationships.manager=78;career.relationships.teamMates=75;career.relationships.supporters=81;career.v76.narrative.timeline.unshift({icon:'⭐',title:'Named in the starting XI',detail:'Strong training earned a first-team run'},{icon:'🎯',title:'First senior goal',detail:'A composed finish in Week 8'});v76RecordTrainingImpact('passing',8200);v76EnsureWorldStory(career);v76EnsureInteractiveStory(career);navigate('hub');setTimeout(()=>{renderHub();if(demoMode==='v76-connected-training')setCareerTab('training');if(demoMode==='v76-connected-inbox')setCareerTab('inbox')},140);
   } else if (demoMode === 'free-kick-gui') {
     career=makeCareer({name:'Renny Appiah',nationality:'Ghana',age:21,foot:'Right',position:'AM',archetype:'Playmaker',skinTone:'#7b4b2a',hair:'Fade',bootColour:'#38bdf8',shirtNumber:10,build:'Athletic'});career.firstMatch=false;career.trainingAvailable=true;Object.assign(career.player.attrs,{freeKicks:94,curve:94,technique:92,composure:91,shotPower:88});ensureTrainingProgramme(career.player);const fkDrill=new URLSearchParams(location.search).get('drill')||'setpieces';navigate('hub');setTimeout(()=>{setCareerTab('training');renderHub();setCareerTab('training');openTrainingDrill(['setpieces','freeKickTargets','freeKickWall'].includes(fkDrill)?fkDrill:'setpieces');setTimeout(()=>{$('#trainingGameStage')?.classList.add('active');updateFreeKickHud()},100)},140);
   } else {
@@ -17855,6 +19051,1403 @@
       tick();
     })
   };
+
+
+  // ========================================================================
+  // V77 CREATE-A-PRO OVERHAUL
+  // Deep creator identity, positional archetypes, dual nationality, physical
+  // consequences, creator presets and connected-career persistence.
+  // ========================================================================
+  window.__CIRCLE_XI_CREATE_A_PRO_VERSION='v77.3.0';window.__V773_PHYSICAL_PROFILE_SYSTEM=true;
+  const V77_GAME_DATE=new Date(2026,7,24);
+  const V77_ARCHETYPES={
+    GK:['Traditional Keeper','Sweeper Keeper','Ball Playing Keeper'],
+    RB:['Defensive Full Back','Attacking Full Back','Inverted Full Back','Wing Back'],
+    LB:['Defensive Full Back','Attacking Full Back','Inverted Full Back','Wing Back'],
+    CB:['Stopper','Ball Playing Defender','Cover Defender','Aerial Defender'],
+    DM:['Anchor','Ball Winner','Deep Lying Playmaker','Half Back'],
+    CM:['Controller','Box-to-Box','Playmaker','Ball Winner','Mezzala'],
+    AM:['Advanced Playmaker','Shadow Runner','Creator','Second Striker'],
+    RW:['Touchline Winger','Inside Forward','Creator Winger','Direct Runner'],
+    LW:['Touchline Winger','Inside Forward','Creator Winger','Direct Runner'],
+    ST:['Poacher','Target Forward','Complete Forward','Pressing Forward','False Nine']
+  };
+  const V77_ARCHETYPE_META={
+    'Traditional Keeper':['Goal-line specialist','Reflexes, handling and safe distribution are prioritised.'],
+    'Sweeper Keeper':['Aggressive keeper','Higher positioning, one-on-ones and distribution; manager expects proactive decisions.'],
+    'Ball Playing Keeper':['Build-up goalkeeper','Distribution, kicking, composure and first touch shape your route into possession.'],
+    'Defensive Full Back':['Security first','Tackling, positioning and stamina are prioritised over final-third risk.'],
+    'Attacking Full Back':['Overlap threat','Pace, crossing, stamina and progressive dribbling drive your role.'],
+    'Inverted Full Back':['Midfield connector','Passing, decisions and positioning matter when stepping inside.'],
+    'Wing Back':['Touchline engine','Acceleration, crossing and stamina support repeated high-and-wide runs.'],
+    'Stopper':['Front-foot centre back','Tackling, strength and anticipation reward aggressive duels.'],
+    'Ball Playing Defender':['Build-up defender','Passing, technique and decisions matter alongside defensive positioning.'],
+    'Cover Defender':['Recovery defender','Pace, anticipation and positioning protect space behind the line.'],
+    'Aerial Defender':['Penalty-box defender','Height, strength, jumping and heading become especially valuable.'],
+    'Anchor':['Position holder','Positioning, anticipation and secure passing protect the defence.'],
+    'Ball Winner':['Duel hunter','Tackling, work rate, stamina and strength shape objectives and development.'],
+    'Deep Lying Playmaker':['Deep controller','Passing, vision and decisions dictate tempo from behind midfield.'],
+    'Half Back':['Defensive organiser','Positioning and passing support dropping between centre backs.'],
+    'Controller':['Tempo setter','Passing, first touch, decisions and vision are the core of your identity.'],
+    'Box-to-Box':['Two-way runner','Stamina, work rate, acceleration and balanced technique reward complete midfield play.'],
+    'Playmaker':['Creative midfielder','Vision, technique and passing produce higher-value chance-creation objectives.'],
+    'Mezzala':['Half-space runner','Dribbling, technique, movement and creative passing favour attacking channels.'],
+    'Advanced Playmaker':['Final-third creator','Vision, passing, technique and first touch drive chance creation.'],
+    'Shadow Runner':['Box-crashing midfielder','Acceleration, positioning and finishing reward late attacking runs.'],
+    'Creator':['Free creator','Vision, dribbling and technique encourage improvisation between the lines.'],
+    'Second Striker':['Goal-focused ten','Finishing, movement and composure make you a secondary scoring threat.'],
+    'Touchline Winger':['Width provider','Pace, dribbling and crossing favour beating the full back outside.'],
+    'Inside Forward':['Diagonal scorer','Dribbling, acceleration and finishing reward inside runs.'],
+    'Creator Winger':['Wide playmaker','Passing, vision and crossing prioritise assists over pure scoring.'],
+    'Direct Runner':['Transition threat','Acceleration, pace and dribbling reward carrying into open space.'],
+    'Poacher':['Penalty-box scorer','Finishing, positioning and composure dominate your match expectations.'],
+    'Target Forward':['Physical reference','Strength, heading, first touch and teamwork support hold-up play.'],
+    'Complete Forward':['All-round striker','Finishing, technique, strength and link play create a demanding balanced role.'],
+    'Pressing Forward':['Defensive striker','Work rate, stamina and acceleration support pressing before finishing.'],
+    'False Nine':['Dropping creator','First touch, passing and vision pull you away from the centre backs.']
+  };
+  const V77_ARCHETYPE_BASE={
+    'Traditional Keeper':'Sweeper Keeper','Sweeper Keeper':'Sweeper Keeper','Ball Playing Keeper':'Sweeper Keeper',
+    'Defensive Full Back':'Full Back','Attacking Full Back':'Full Back','Inverted Full Back':'Playmaker','Wing Back':'Full Back',
+    Stopper:'Ball Winner','Ball Playing Defender':'Playmaker','Cover Defender':'Ball Winner','Aerial Defender':'Target Forward',
+    Anchor:'Ball Winner','Ball Winner':'Ball Winner','Deep Lying Playmaker':'Playmaker','Half Back':'Ball Winner',
+    Controller:'Playmaker','Box-to-Box':'Box-to-Box',Playmaker:'Playmaker',Mezzala:'Box-to-Box',
+    'Advanced Playmaker':'Playmaker','Shadow Runner':'Poacher',Creator:'Playmaker','Second Striker':'Poacher',
+    'Touchline Winger':'Full Back','Inside Forward':'Inside Forward','Creator Winger':'Playmaker','Direct Runner':'Inside Forward',
+    Poacher:'Poacher','Target Forward':'Target Forward','Complete Forward':'Target Forward','Pressing Forward':'Box-to-Box','False Nine':'Playmaker'
+  };
+  const V77_ARCHETYPE_BOOSTS={
+    'Traditional Keeper':['reflexes','handling','positioning'], 'Sweeper Keeper':['oneOnOnes','positioning','distribution'], 'Ball Playing Keeper':['distribution','kicking','composure'],
+    'Defensive Full Back':['tackling','positioning','strength'],'Attacking Full Back':['crossing','pace','stamina'],'Inverted Full Back':['passing','decisions','firstTouch'],'Wing Back':['acceleration','crossing','stamina'],
+    Stopper:['tackling','strength','anticipation'],'Ball Playing Defender':['passing','technique','decisions'],'Cover Defender':['pace','positioning','anticipation'],'Aerial Defender':['heading','jumping','strength'],
+    Anchor:['positioning','anticipation','passing'],'Ball Winner':['tackling','workRate','stamina'],'Deep Lying Playmaker':['passing','vision','decisions'],'Half Back':['positioning','passing','tackling'],
+    Controller:['passing','firstTouch','decisions'], 'Box-to-Box':['stamina','workRate','acceleration'],Playmaker:['vision','passing','technique'],Mezzala:['dribbling','technique','acceleration'],
+    'Advanced Playmaker':['vision','passing','firstTouch'],'Shadow Runner':['acceleration','positioning','finishing'],Creator:['vision','dribbling','technique'],'Second Striker':['finishing','composure','positioning'],
+    'Touchline Winger':['pace','crossing','dribbling'],'Inside Forward':['dribbling','finishing','acceleration'],'Creator Winger':['passing','vision','crossing'],'Direct Runner':['pace','acceleration','dribbling'],
+    Poacher:['finishing','positioning','composure'],'Target Forward':['strength','heading','firstTouch'],'Complete Forward':['finishing','technique','strength'],'Pressing Forward':['workRate','stamina','acceleration'],'False Nine':['firstTouch','passing','vision']
+  };
+  const V77_SPECIALITIES=['First Touch','Long Passing','Short Passing','Finishing','Dribbling','Pace','Acceleration','Tackling','Strength','Crossing','Vision','Heading','Composure','Stamina','Positioning'];
+  const V77_SPECIALITY_ATTR={'First Touch':'firstTouch','Long Passing':'passing','Short Passing':'passing',Finishing:'finishing',Dribbling:'dribbling',Pace:'pace',Acceleration:'acceleration',Tackling:'tackling',Strength:'strength',Crossing:'crossing',Vision:'vision',Heading:'heading',Composure:'composure',Stamina:'stamina',Positioning:'positioning'};
+  const V77_KEY_ATTRS={
+    GK:['reflexes','handling','positioning','oneOnOnes','distribution','aerialReach'],CB:['tackling','marking','positioning','strength','anticipation','heading'],RB:['pace','stamina','crossing','tackling','workRate','passing'],LB:['pace','stamina','crossing','tackling','workRate','passing'],DM:['tackling','positioning','passing','decisions','stamina','anticipation'],CM:['passing','vision','firstTouch','decisions','stamina','technique'],AM:['passing','vision','technique','dribbling','firstTouch','finishing'],RW:['pace','dribbling','crossing','technique','acceleration','finishing'],LW:['pace','dribbling','crossing','technique','acceleration','finishing'],ST:['finishing','composure','pace','positioning','firstTouch','heading']
+  };
+  const V77_ATTR_WEIGHTS={
+    GK:{reflexes:.21,handling:.17,positioning:.17,oneOnOnes:.12,aerialReach:.10,distribution:.08,kicking:.05,agility:.05,composure:.05},
+    CB:{tackling:.18,marking:.16,positioning:.18,strength:.12,anticipation:.11,heading:.09,jumping:.06,passing:.05,pace:.05},
+    RB:{pace:.13,stamina:.13,crossing:.14,tackling:.13,workRate:.11,positioning:.10,passing:.09,dribbling:.08,acceleration:.09},LB:{pace:.13,stamina:.13,crossing:.14,tackling:.13,workRate:.11,positioning:.10,passing:.09,dribbling:.08,acceleration:.09},
+    DM:{tackling:.15,positioning:.16,passing:.15,decisions:.14,stamina:.10,anticipation:.11,vision:.07,firstTouch:.06,strength:.06},
+    CM:{passing:.17,vision:.15,firstTouch:.13,decisions:.13,stamina:.10,technique:.10,positioning:.06,dribbling:.06,workRate:.05,composure:.05},
+    AM:{passing:.15,vision:.16,technique:.14,dribbling:.12,firstTouch:.12,finishing:.08,decisions:.08,composure:.08,acceleration:.07},
+    RW:{pace:.14,dribbling:.16,crossing:.13,technique:.12,acceleration:.12,finishing:.10,firstTouch:.08,agility:.08,vision:.07},LW:{pace:.14,dribbling:.16,crossing:.13,technique:.12,acceleration:.12,finishing:.10,firstTouch:.08,agility:.08,vision:.07},
+    ST:{finishing:.20,composure:.14,pace:.11,positioning:.14,firstTouch:.10,heading:.08,strength:.07,acceleration:.07,technique:.05,anticipation:.04}
+  };
+
+  // Expand goalkeeper + aerial attributes in the creator and make OVR position weighted.
+  CREATOR_ATTRIBUTE_GROUPS.Technical.splice(5,0,'heading');
+  CREATOR_ATTRIBUTE_GROUPS.Physical.push('jumping');
+  CREATOR_ATTRIBUTE_GROUPS.Goalkeeping=['diving','handling','reflexes','gkPositioning','kicking','oneOnOnes','aerialReach','distribution'];
+  Object.assign(CREATOR_ATTRIBUTE_ICONS,{heading:'⬆️',jumping:'🪽',diving:'↔️',handling:'🧤',reflexes:'⚡',gkPositioning:'📍',kicking:'🥾',oneOnOnes:'🚧',aerialReach:'🪽',distribution:'🎯'});
+  const v77BaseCalcOverall=calcOverall;
+  calcOverall=function(attrs,position){
+    const weights=V77_ATTR_WEIGHTS[position];if(!weights)return v77BaseCalcOverall(attrs,position);
+    let total=0,sum=0;for(const [k,w] of Object.entries(weights)){let key=k;if(k==='gkPositioning')key='positioning';const v=Number(attrs?.[key]??attrs?.[k]??50);total+=v*w;sum+=w}return Math.round(total/Math.max(.001,sum));
+  };
+  const v77BaseCreatorBaseAttributes=creatorBaseAttributes;
+  creatorBaseAttributes=function(position,archetype){
+    const mapped=V77_ARCHETYPE_BASE[archetype]||archetype||'Playmaker';const a=v77BaseCreatorBaseAttributes(position,mapped);
+    a.heading=clamp(Math.round((a.strength+a.positioning)/2)+(position==='ST'||position==='CB'?6:0),35,82);a.jumping=clamp(Math.round((a.agility+a.strength)/2),35,82);
+    if(position==='GK'){Object.assign(a,{diving:68,handling:67,reflexes:69,gkPositioning:a.positioning||68,kicking:63,oneOnOnes:66,aerialReach:67,distribution:a.passing||64});}
+    (V77_ARCHETYPE_BOOSTS[archetype]||[]).forEach(k=>{const key=k==='gkPositioning'?'positioning':k;a[key]=clamp(Number(a[key]??55)+3,35,86)});return a;
+  };
+  const v77BasePlayerBuildScale=playerBuildScale;
+  playerBuildScale=function(build){return({Lean:.90,Slim:.94,Balanced:1,Athletic:1.05,Powerful:1.16,Stocky:1.22}[build]??v77BasePlayerBuildScale(build))};
+
+  // Extra hairstyles. These map to the closest existing detailed renderer while retaining
+  // their own creator thumbnails and save identity.
+  ['Low Fade','High Fade','Taper','Waves','Buzz Cut','Curls','Long Hair'].forEach(style=>{if(!HAIR_STYLES.includes(style))HAIR_STYLES.push(style);if(!STARTER_HAIR_STYLES.includes(style))STARTER_HAIR_STYLES.push(style)});
+  const v77BaseDrawPortraitHair=drawPortraitHair;
+  drawPortraitHair=function(ctx,style,...rest){const mapped={'Low Fade':'Fade','High Fade':'Fade','Taper':'Fade','Waves':'Fade','Buzz Cut':'Shaved','Curls':'Curly Top','Pony Tail':'Braids','Long Hair':'Locs'}[style]||style;return v77BaseDrawPortraitHair(ctx,mapped,...rest)};
+  V76_CREATOR_PERSONALITIES.Temperamental={icon:'🌋',text:'Confidence can spike quickly, but poor form or selection frustration creates sharper manager swings.',effects:'Morale volatility · Trust changes are stronger'};
+
+  function v77AgeFromDOB(value){const d=new Date(`${value}T12:00:00`);if(!Number.isFinite(d.getTime()))return 17;let age=V77_GAME_DATE.getFullYear()-d.getFullYear();if(V77_GAME_DATE<new Date(V77_GAME_DATE.getFullYear(),d.getMonth(),d.getDate()))age--;return clamp(age,16,35)}
+  function v77PopulateSelect(select,items,selected){if(!select)return;select.innerHTML=items.map(v=>`<option value="${escapeMarkup(v)}" ${v===selected?'selected':''}>${escapeMarkup(v)}</option>`).join('')}
+  function v77CurrentPotential(attrs=initialiseCreatorAttributes(),pos=$('#position')?.value||'CM'){
+    const ovr=calcOverall(attrs,pos),age=v77AgeFromDOB($('#dateOfBirth')?.value||'2008-04-15'),bg=$('#careerBackground')?.value||'Local Academy Graduate',personality=$('#careerPersonality')?.value||'Professional',challenge=$('#careerDifficulty')?.value||'Realistic Career';let gap=age<=18?18:age<=21?15:12;
+    if(bg==='Academy Wonderkid')gap+=3;if(bg==='Late Bloomer')gap+=4;if(bg==='Lower-League Prospect')gap+=2;if(personality==='Professional')gap+=1;if(personality==='Ambitious')gap+=1;if(challenge==='Rising Star')gap+=1;if(challenge==='Underdog')gap+=5;return clamp(ovr+gap,ovr,97)
+  }
+  function v77UpdateDOB(){const el=$('#dateOfBirth'),age=$('#age');if(el&&age){const a=v77AgeFromDOB(el.value);if(![...age.options].some(o=>+o.value===a))age.add(new Option(String(a),String(a)));age.value=String(a)}}
+  function v77UpdateSecondaryNationality(){const sel=$('#secondaryNationality');if(!sel)return;const current=sel.value,primary=$('#nationality')?.value||'';const countries=(circleXIManagerCore?.COUNTRIES||[]).slice().sort((a,b)=>a.name.localeCompare(b.name));sel.innerHTML='<option value="">None</option>'+countries.map(c=>`<option value="${escapeMarkup(c.id)}">${escapeMarkup(c.name)}</option>`).join('');sel.value=current===primary?'':current}
+  function v77UpdateRoleOptions(){
+    const pos=$('#position')?.value||'CM',arch=$('#archetype'),current=arch?.value,allowed=V77_ARCHETYPES[pos]||V77_ARCHETYPES.CM;if(arch){v77PopulateSelect(arch,allowed,allowed.includes(current)?current:allowed[0]);buildCreatorChips('archetype','archetypeChips')}
+    const secondary=$('#secondaryPosition');if(secondary){[...secondary.options].forEach(o=>o.disabled=o.value===pos);if(secondary.value===pos)secondary.value=''}
+    initialiseCreatorAttributes(true);renderCreatorAttributeDashboard();
+  }
+  function v77ArchetypeImpact(){const root=$('#v77ArchetypeImpact');if(!root)return;const a=$('#archetype')?.value||'Controller',m=V77_ARCHETYPE_META[a]||['Football identity','Your chosen role shapes development and objectives.'];root.innerHTML=`<small>${escapeMarkup(m[0].toUpperCase())}</small><b>${escapeMarkup(a)}</b><p>${escapeMarkup(m[1])}</p>`}
+  function v77PhysicalImpact(){
+    const root=$('#v77PhysicalImpact');if(!root)return;const h=+($('#heightCm')?.value||180),w=+($('#weightKg')?.value||76),build=$('#build')?.value||'Athletic',pos=$('#position')?.value||'CM',attrs=initialiseCreatorAttributes?.()||{},profile=calculatePhysicalProfile({heightCm:h,weightKg:w,build,position:pos,attrs}),summary=physicalProfileSummary(profile),avg=V773_POSITION_PHYSICAL_AVERAGES[pos]||V773_POSITION_PHYSICAL_AVERAGES.CM;
+    $('#heightValue')&&($('#heightValue').textContent=`${h} cm`);$('#weightValue')&&($('#weightValue').textContent=`${w} kg`);
+    const hDiff=h-avg.height,wDiff=w-avg.weight,unusual=Math.abs(profile.weightRatio-1)>.16;
+    const meter=(label,val)=>`<span><small>${label}</small><i><em style="width:${clamp(Math.round(val*100),4,100)}%"></em></i><b>${Math.round(val*100)}%</b></span>`;
+    root.innerHTML=`<small>PHYSICAL IDENTITY · LIVE GAME IMPACT</small><b>${h} cm · ${w} kg · ${escapeMarkup(profile.buildName)}</b><p>${escapeMarkup(pos)} average: ${avg.height} cm / ${avg.weight} kg · You are ${hDiff===0?'the same height':`${Math.abs(hDiff)} cm ${hDiff>0?'taller':'shorter'}`} and ${wDiff===0?'the same weight':`${Math.abs(wDiff)} kg ${wDiff>0?'heavier':'lighter'}`}.${unusual?' ⚠ Unusual profile for this height/build.':''}</p><div class="v773-physical-meters">${meter('Turning',clamp(.5+(profile.turnFactor-1)*5,.18,.82))}${meter('Shielding',clamp(.5+(profile.shieldingFactor-1)*4,.18,.86))}${meter('Contact',clamp(.5+(profile.contactStabilityFactor-1)*4,.18,.86))}${meter('Aerial reach',clamp((profile.jumpReach-23)/12.5,.15,.95))}</div><div class="v773-physical-summary"><span><small>CENTRE OF GRAVITY</small><b>${summary.cog}</b></span><span><small>STRIDE</small><b>${summary.stride}</b></span><span><small>PHYSICAL PRESENCE</small><b>${summary.presence}</b></span><span><small>AERIAL</small><b>${summary.aerial}</b></span></div><p class="v773-physical-note">Body shape mostly changes movement expression, reach, collisions, shielding and momentum. Football attributes still determine quality, so no build is an automatic meta choice.</p>`;
+    const buildX={Lean:.84,Slim:.90,Balanced:.98,Athletic:1.04,Powerful:1.14,Stocky:1.20};$$('.classic-build-card').forEach(card=>{const bp=calculatePhysicalProfile({heightCm:h,weightKg:w,build:card.dataset.value,position:pos,attrs}),sil=card.querySelector('.build-silhouette');if(sil)sil.style.transform=`scaleX(${(buildX[normalisePhysicalBuild(card.dataset.value)]||1)*clamp(1+(bp.weightRatio-1)*.22,.94,1.08)}) scaleY(${clamp(bp.visualHeightScale,.92,1.08)})`;});
+  }
+
+  function v77ClubPathway(){
+    const root=$('#v77ClubPathway'),choice=selectedCircleXIWorld();if(!root||!choice){if(root)root.innerHTML='';return}const attrs=initialiseCreatorAttributes(),pos=$('#position')?.value||'CM',ovr=calcOverall(attrs,pos),squad=loadCircleXIManagerSquad(choice.country.id,choice.club.id)||[],group=squadGroup(pos),competition=squad.filter(x=>squadGroup(x.position)===group).sort((a,b)=>b.overall-a.overall),ahead=competition.filter(x=>(x.overall||0)>ovr),top=competition.slice(0,3),gap=(top[0]?.overall||choice.club.reputation||70)-ovr;let route=gap<=-2?'HIGH':gap<=4?'GOOD':gap<=9?'MODERATE':'VERY HIGH',role=gap<=-2?'First Team':gap<=3?'Rotation':gap<=8?'Fringe Player':'Academy / Prospect';const arch=$('#archetype')?.value||'',fitSeed=seededUnit(`${choice.club.id}-${arch}-${pos}`),fit=clamp(Math.round(68+fitSeed*24-(route==='VERY HIGH'?2:0)),60,96);root.innerHTML=`<section class="v77-pathway-card"><div class="v77-pathway-head"><div><small>STARTING CLUB PATHWAY</small><b>${escapeMarkup(choice.club.name)} · ${escapeMarkup(pos)}</b></div><em>${route} COMPETITION</em></div><div class="v77-pathway-grid"><article><span>👥</span><b>${competition.length?(ahead.length+' ahead'):'Squad pending'}</b><small>${competition.length?'Players in your positional group with higher OVR':'Full positional competition generates at career start'}</small></article><article><span>🎽</span><b>${role}</b><small>Projected initial squad role</small></article><article><span>🧠</span><b>${fit}% fit</b><small>Manager tactical compatibility</small></article><article><span>📈</span><b>${ovr} → ${v77CurrentPotential(attrs,pos)}</b><small>Projected OVR and potential</small></article></div><div class="v77-pathway-competition"><b>Immediate competition:</b> ${top.map(x=>`${escapeMarkup(x.name)} ${x.overall}`).join(' · ')||'Squad data will generate at career start'}</div></section>`
+  }
+  function v77AttributeConsequence(){const root=$('#attributePreview');if(!root)return;root.querySelector('.v77-consequence-strip')?.remove();const a=initialiseCreatorAttributes(),pos=$('#position')?.value||'CM',rows=pos==='GK'?[['Shot stopping',Math.round(((a.reflexes||55)+(a.handling||55))/2)],['One-on-ones',a.oneOnOnes||55],['Build-up',a.distribution||a.passing||55]]:[['Ball security',Math.round(((a.firstTouch||55)+(a.composure||55))/2)],['Movement',Math.round(((a.pace||55)+(a.acceleration||55)+(a.agility||55))/3)],['Physical duels',Math.round(((a.strength||55)+(a.balance||55))/2)]];root.insertAdjacentHTML('beforeend',`<div class="v77-consequence-strip">${rows.map(([label,v])=>`<span><b>${escapeMarkup(label)} · ${Math.round(v)}</b>${v>=75?'Clear strength':v>=65?'Reliable':v>=55?'Developing':'Needs work'}</span>`).join('')}</div>`)}
+  function v77SelectMeta(){const s1=$('#signatureStrength1'),s2=$('#signatureStrength2'),wk=$('#signatureWeakness');if(!s1||!s2||!wk)return;const defaults=[s1.value||'First Touch',s2.value||'Vision',wk.value||'Strength'];[s1,s2,wk].forEach((el,i)=>v77PopulateSelect(el,V77_SPECIALITIES,defaults[i]));if(s1.value===s2.value)s2.value=V77_SPECIALITIES.find(x=>x!==s1.value)||'Vision';if(wk.value===s1.value||wk.value===s2.value)wk.value=V77_SPECIALITIES.find(x=>x!==s1.value&&x!==s2.value)||'Strength'}
+  function v77ProfileComparison(){const pos=$('#position')?.value||'CM',a=$('#archetype')?.value||'Controller';const map={GK:'Modern Goalkeeper',CB:'Modern Centre Back',RB:'Two-way Full Back',LB:'Two-way Full Back',DM:'Midfield Screen',CM:'Complete Midfielder',AM:'Creative Number 10',RW:'Dynamic Wide Forward',LW:'Dynamic Wide Forward',ST:'Modern Number 9'};return `${a} · ${map[pos]||'Complete Footballer'}`}
+  function v77DNA(){
+    const root=$('#v77PlayerDNA');if(!root)return;const pos=$('#position')?.value||'CM',arch=$('#archetype')?.value||'Controller',foot=$('#foot')?.value||'Right',s1=$('#signatureStrength1')?.value||'First Touch',s2=$('#signatureStrength2')?.value||'Vision',weak=$('#signatureWeakness')?.value||'Strength',personality=$('#careerPersonality')?.value||'Professional',secondary=$('#secondaryPosition')?.value||'';root.innerHTML=`<small>PLAYER DNA</small><h4>${escapeMarkup(v77ProfileComparison())}</h4><p>${escapeMarkup(`${foot}-footed ${arch.toLowerCase()} whose standout qualities are ${s1.toLowerCase()} and ${s2.toLowerCase()}. ${weak} is the main development weakness. ${personality} personality${secondary?` with ${secondary} as a secondary position`:''}.`)}</p><div class="v77-dna-tags"><span>${escapeMarkup(pos)}${secondary?` / ${escapeMarkup(secondary)}`:''}</span><span>${escapeMarkup(arch)}</span><span>${escapeMarkup(s1)}</span><span>${escapeMarkup(s2)}</span><span>Weakness: ${escapeMarkup(weak)}</span><span>${$('#skillMoves')?.value||3}★ skills</span></div>`
+  }
+  function v77Grade(value){return value>=78?'A+':value>=73?'A':value>=68?'B+':value>=63?'B':value>=58?'C+':'C'}
+  function v77Scouting(){
+    const root=$('#v77ScoutingReport');if(!root)return;const a=initialiseCreatorAttributes(),avg=keys=>Math.round(keys.reduce((n,k)=>n+Number(a[k]??50),0)/Math.max(1,keys.length)),tech=avg(['firstTouch','dribbling','passing','technique','finishing','crossing']),mental=avg(['vision','decisions','composure','anticipation','positioning']),physical=avg(['pace','acceleration','stamina','strength','agility','balance']),tactical=avg(['positioning','decisions','vision','anticipation']),gk=avg(['reflexes','handling','positioning','distribution']),pos=$('#position')?.value||'CM',ovr=calcOverall(a,pos),pot=v77CurrentPotential(a,pos),weak=$('#signatureWeakness')?.value||'Strength',s1=$('#signatureStrength1')?.value||'First Touch',s2=$('#signatureStrength2')?.value||'Vision',readiness=pos==='GK'?gk:Math.round((tech+mental+physical+tactical)/4);root.innerHTML=`<div class="v772-scout-head"><div><small>ACADEMY SCOUTING REPORT</small><h4>${ovr} current ability · ${Math.max(ovr,pot-2)}–${Math.min(99,pot+2)} potential range</h4></div><span>${v77Grade(readiness)} READINESS</span></div><div class="v77-scout-grades v772-scout-grades"><span><b>${v77Grade(tech)}</b><small>TECHNICAL</small></span><span><b>${v77Grade(mental)}</b><small>MENTAL</small></span><span><b>${v77Grade(physical)}</b><small>PHYSICAL</small></span><span><b>${v77Grade(tactical)}</b><small>TACTICAL</small></span><span><b>${v77Grade(pos==='GK'?gk:readiness)}</b><small>${pos==='GK'?'GOALKEEPING':'READINESS'}</small></span></div><div class="v772-scout-summary"><div><small>SCOUT SUMMARY</small><p>${escapeMarkup(`${s1} and ${s2} give this ${pos} a clear foundation. ${weak} is the priority development area before the player can consistently influence first-team football.`)}</p></div><ol><li><b>1</b>${escapeMarkup(weak)}</li><li><b>2</b>${escapeMarkup(pos==='GK'?'Distribution':'Positioning')}</li><li><b>3</b>${escapeMarkup(physical<66?'Physical readiness':'Consistency')}</li></ol></div>`}
+  function v77RenderFinalReview(){
+    const root=$('#creatorFinalReview'),choice=selectedCircleXIWorld();if(!root)return;syncCreatorName();const a=initialiseCreatorAttributes(),pos=$('#position')?.value||'CM',secondary=$('#secondaryPosition')?.value||'',ovr=calcOverall(a,pos),pot=v77CurrentPotential(a,pos),country=selectedNationalityCountry(),second=(circleXIManagerCore?.COUNTRIES||[]).find(c=>c.id===$('#secondaryNationality')?.value),dob=$('#dateOfBirth')?.value||'',age=v77AgeFromDOB(dob),foot=$('#foot')?.value||'Right';root.innerHTML=`<div class="v772-dossier"><div class="v772-dossier-hero"><div><small>PLAYER OVERVIEW</small><h3>${escapeMarkup($('#playerName')?.value||'Player')}</h3><p>${escapeMarkup(country?.name||'Nationality')} · ${escapeMarkup(pos)}${secondary?` / ${escapeMarkup(secondary)}`:''} · ${escapeMarkup(foot)} footed</p></div><div class="v772-rating-pair"><span><b>${ovr}</b><small>OVERALL</small></span><i>→</i><span><b>${pot}</b><small>POTENTIAL</small></span><em>+${Math.max(0,pot-ovr)} ceiling</em></div></div><div class="v772-dossier-grid"><article><small>FIRST CLUB</small><b>${escapeMarkup(choice?.club?.name||'Choose a club')}</b><p>${escapeMarkup(choice?.league?.name||'Starting league')}</p></article><article><small>PLAYSTYLE</small><b>${escapeMarkup($('#archetype')?.value||'')}</b><p>${escapeMarkup(v77ProfileComparison())}</p></article><article><small>FOOTBALL IDENTITY</small><b>${escapeMarkup($('#careerBackground')?.value||'')}</b><p>${escapeMarkup($('#careerPersonality')?.value||'')}</p></article><article><small>PHYSICAL PROFILE</small><b>${$('#heightCm')?.value||180} cm · ${$('#weightKg')?.value||76} kg</b><p>${escapeMarkup($('#build')?.value||'Athletic')} · ${escapeMarkup(physicalProfileSummary(calculatePhysicalProfile({heightCm:+($('#heightCm')?.value||180),weightKg:+($('#weightKg')?.value||76),build:$('#build')?.value||'Athletic',position:pos,attrs:a})).presence)} presence · age ${age}</p></article><article><small>TECHNICAL PROFILE</small><b>${escapeMarkup(foot)} · ${$('#weakFootRating')?.value||3}★ weak foot</b><p>${$('#skillMoves')?.value||3}★ skill moves · #${$('#shirtNumber')?.value||8} preferred</p></article><article><small>INTERNATIONAL</small><b>${escapeMarkup(country?.name||'—')}${second?` / ${escapeMarkup(second.name)}`:''}</b><p>${second?'Dual-national pathway':'Primary national-team pathway'}</p></article></div></div>`;
+  }
+  function v772JourneyLabel(value){return value==='Realistic Career'?'Authentic Journey':value==='Underdog'?'Underdog Story':value||'Not chosen'}
+  function v772MatchLabel(value){return ({Easy:'Amateur',Balanced:'Professional',Hard:'World Class'})[value]||value||'Not chosen'}
+  function v772CareerPathProjection(){
+    const choice=selectedCircleXIWorld(),attrs=initialiseCreatorAttributes(),pos=$('#position')?.value||'CM',ovr=calcOverall(attrs,pos),mode=$('#careerDifficulty')?.value||'',clubRep=Number(choice?.club?.reputation||70);let trust=45,role='Academy / Prospect',opportunity='Limited',rep='Local Prospect',dev='Balanced';if(mode==='Rising Star'){trust=54;role=ovr>=clubRep-6?'Rotation':'Fringe First-Team';opportunity='Good';rep='National Prospect';dev='Faster early'}else if(mode==='Realistic Career'){trust=45;role=ovr>=clubRep-4?'Rotation':ovr>=clubRep-10?'Fringe Player':'Academy / Prospect';opportunity='Earned';rep='Local Prospect';dev='Balanced'}else if(mode==='Underdog'){trust=36;role='Academy Prospect';opportunity='Limited';rep='Local Prospect';dev='Slower early · higher ceiling'}return {choice,ovr,trust,role,opportunity,rep,dev}
+  }
+  function v772RenderCareerSetup(){
+    const impact=$('#v772CareerJourneyImpact'),summary=$('#v772CareerSetupSummary'),mode=$('#careerDifficulty')?.value||'',match=$('#createDifficulty')?.value||'',rules=$('#careerMode')?.value||'Standard Career',page=$('[data-v772-review-page="career"]');
+    if(page){page.classList.remove('journey-rising','journey-authentic','journey-underdog');if(mode)page.classList.add(mode==='Rising Star'?'journey-rising':mode==='Underdog'?'journey-underdog':'journey-authentic')}
+    if(impact){if(!mode){impact.innerHTML=`<div class="v772-impact-empty"><span>↗</span><div><b>Choose a Career Journey</b><p>Your projected squad role, starting trust and opportunity will appear here.</p></div></div>`}else{const p=v772CareerPathProjection();impact.innerHTML=`<div class="v772-impact-head"><div><small>YOUR STARTING PATH</small><h4>${escapeMarkup(p.choice?.club?.name||'Starting Club')} · ${escapeMarkup(v772JourneyLabel(mode))}</h4></div><span>${p.ovr} OVR</span></div><div class="v772-impact-grid"><span><small>PROJECTED ROLE</small><b>${escapeMarkup(p.role)}</b></span><span><small>MANAGER TRUST</small><b>${p.trust}%</b></span><span><small>FIRST-TEAM CHANCE</small><b>${escapeMarkup(p.opportunity)}</b></span><span><small>REPUTATION</small><b>${escapeMarkup(p.rep)}</b></span><span><small>DEVELOPMENT</small><b>${escapeMarkup(p.dev)}</b></span></div>`}}
+    if(summary){const complete=!!mode&&!!match;summary.className=`v772-career-summary ${complete?'complete':'incomplete'}`;summary.innerHTML=complete?`<span>✓</span><div><small>CAREER SETUP COMPLETE</small><b>${escapeMarkup(v772JourneyLabel(mode))} · ${escapeMarkup(v772MatchLabel(match))}</b><p>${escapeMarkup(rules.replace(' Career',''))} rules · Match difficulty can be changed later.</p></div>`:`<span>🔒</span><div><small>FINAL STEP</small><b>${!mode?'Choose a Career Journey':'Choose a Match Difficulty'}</b><p>Begin Career unlocks after both decisions are made.</p></div>`}
+    refreshCreatorWizardLocks(false);if(activeCreatorStep===4){if(mode&&match)creatorValidationMessage(`✓ Career setup complete · ${v772JourneyLabel(mode)} · ${v772MatchLabel(match)}.`,'success');else creatorValidationMessage('Choose a Career Journey and Match Difficulty to unlock Begin Career.','neutral')}
+  }
+  function v772TrimReviewPreview(){if(activeCreatorStep!==4)return;const root=$('#attributePreview'),summary=$('#creationSummary');if(!root)return;const a=initialiseCreatorAttributes(),pos=$('#position')?.value||'CM',keys=(V77_KEY_ATTRS[pos]||V77_KEY_ATTRS.CM).slice(0,6);root.innerHTML=`<div class="preview-attribute-head"><span>Key ${escapeMarkup(pos)} Attributes</span><small>TOP 6</small></div>`+keys.map(k=>`<div class="attribute-row key-attribute ${attributeColour(a[k]||50)}"><span>${pretty(k)}</span><span class="bar"><i style="width:${a[k]||50}%"></i></span><output>${Math.round(a[k]||50)}</output></div>`).join('')+`<button type="button" class="v772-view-all-attrs" data-v772-edit-step="2">Edit / view all attributes →</button>`;if(summary){const choice=selectedCircleXIWorld(),ovr=calcOverall(a,pos),pot=v77CurrentPotential(a,pos);summary.innerHTML=`<div class="v772-preview-summary"><small>CREATED PLAYER</small><h3>${escapeMarkup($('#playerName')?.value||'Player')}</h3><p>${escapeMarkup(choice?.club?.name||'Club')} · ${escapeMarkup(pos)} · ${escapeMarkup($('#archetype')?.value||'')}</p><div><b>${ovr}<small>OVR</small></b><b>${pot}<small>POT</small></b></div></div>`}
+  }
+  function v77RefreshPanels(){v77UpdateDOB();v77ArchetypeImpact();v77PhysicalImpact();v77ClubPathway();v77DNA();v77Scouting();v77RenderFinalReview();v77AttributeConsequence();v772RenderCareerSetup();v772TrimReviewPreview();const sm=$('#skillMovesValue');if(sm)sm.textContent=`${$('#skillMoves')?.value||3} ★`;const second=$('#secondaryNationality');if(second&&second.value&&second.value===$('#nationality')?.value)second.value=''}
+
+
+  const v77BaseRenderCreatorAttributeDashboard=renderCreatorAttributeDashboard;
+  renderCreatorAttributeDashboard=function(){const pos=$('#position')?.value||'CM',a=initialiseCreatorAttributes();if(pos==='GK'){Object.assign(a,{diving:Number(a.diving||68),handling:Number(a.handling||67),reflexes:Number(a.reflexes||69),gkPositioning:Number(a.gkPositioning||a.positioning||68),kicking:Number(a.kicking||63),oneOnOnes:Number(a.oneOnOnes||66),aerialReach:Number(a.aerialReach||67),distribution:Number(a.distribution||a.passing||64)})}v77BaseRenderCreatorAttributeDashboard();const goalBtn=$('[data-creator-attribute-group="Goalkeeping"]');if(goalBtn)goalBtn.style.display=pos==='GK'?'':'none';if(pos!=='GK'&&activeCreatorAttributeGroup==='Goalkeeping'){activeCreatorAttributeGroup='Technical';v77BaseRenderCreatorAttributeDashboard()}setTimeout(v77AttributeConsequence,0)};
+  const v77BaseUpdateCreationPreview=updateCreationPreview;
+  updateCreationPreview=function(){v77BaseUpdateCreationPreview();v77RefreshPanels()};
+
+  function v77SpendBudget(priority){creatorAttributeDraft=creatorBaseAttributes($('#position')?.value||'CM',$('#archetype')?.value||'Controller');creatorAttributePoints=30;creatorAttributeSignature=`${$('#position')?.value||'CM'}|${$('#archetype')?.value||'Controller'}`;let guard=0,i=0;while(creatorAttributePoints>0&&guard++<300){const key=priority[i++%priority.length];const val=creatorAttributeDraft[key]??55,cost=creatorAttributeCost(val);if(val<90&&creatorAttributePoints>=cost){creatorAttributeDraft[key]=val+1;creatorAttributePoints-=cost}}renderCreatorAttributeDashboard();updateCreationPreview()}
+  function v77ApplyAttrPreset(mode){const pos=$('#position')?.value||'CM',keys=V77_KEY_ATTRS[pos]||V77_KEY_ATTRS.CM;if(mode==='balanced')return v77SpendBudget([...keys,...CREATOR_ATTRIBUTE_GROUPS.Mental,...CREATOR_ATTRIBUTE_GROUPS.Physical]);if(mode==='technical')return v77SpendBudget([...CREATOR_ATTRIBUTE_GROUPS.Technical,...keys]);if(mode==='physical')return v77SpendBudget([...CREATOR_ATTRIBUTE_GROUPS.Physical,...keys]);return v77SpendBudget([...keys,...keys,...CREATOR_ATTRIBUTE_GROUPS.Mental])}
+  function v77Randomise(smart=false){
+    const positions=Object.keys(V77_ARCHETYPES),pos=pick(positions);$('#position').value=pos;v77UpdateRoleOptions();const arcs=V77_ARCHETYPES[pos];$('#archetype').value=smart?(pos==='CB'?pick(['Stopper','Ball Playing Defender','Cover Defender']):pos==='CM'?pick(['Controller','Box-to-Box','Playmaker']):pick(arcs)):pick(arcs);buildCreatorChips('archetype','archetypeChips');
+    const first=pick(['Kai','Renny','Noah','Micah','Leo','Malik','Andre','Jude','Elijah','Daniel']),last=pick(['Mensah','Cole','Silva','Owusu','Hart','Adjei','Morgan','Bennett','Diallo','Santos']);$('#firstName').value=first;$('#surname').value=last;
+    $('#foot').value=Math.random()<.22?'Left':'Right';$('#skillMoves').value=String(smart?(['RW','LW','AM'].includes(pos)?4:pos==='CB'||pos==='GK'?2:3):Math.ceil(Math.random()*5));
+    const build=smart?(pos==='CB'||pos==='ST'?pick(['Athletic','Powerful']):['RW','LW','AM'].includes(pos)?pick(['Lean','Slim','Athletic']):pos==='GK'?pick(['Balanced','Athletic','Powerful']):pick(['Balanced','Athletic'])):pick(['Lean','Slim','Balanced','Athletic','Powerful','Stocky']);$('#build').value=build;buildCreatorChips('build','buildChips');
+    let h=smart?(pos==='GK'||pos==='CB'?Math.round(rand(184,197)):pos==='ST'?Math.round(rand(177,193)):['RW','LW','AM'].includes(pos)?Math.round(rand(166,184)):Math.round(rand(172,188))):Math.round(rand(160,205));let w=smart?Math.round((h-100)*(['Powerful','Stocky'].includes(build)?1.05:['Lean','Slim'].includes(build)?.82:.92)):Math.round(rand(55,110));$('#heightCm').value=String(clamp(h,160,205));$('#weightKg').value=String(clamp(w,55,110));
+    $('#hair').value=pick(HAIR_STYLES);$('#headShape').value=pick(['Oval','Round','Square','Long','Diamond']);$('#jawStyle').value=pick(['Soft','Balanced','Defined','Wide']);$('#noseStyle').value=pick(['Small','Balanced','Wide','Long']);$('#eyeStyle').value=pick(['Balanced','Narrow','Wide','Deep set']);$('#browStyle').value=pick(['Natural','Thick','Fine','Arched']);$('#hairlineStyle').value=pick(['Straight','Rounded','Sharp','Widow’s Peak','Curved','Receding']);$('#facialHair').value=pick(['Clean Shaven','Clean Shaven','Stubble','Goatee','Short Beard','Full Beard']);buildHairStyleCards();$('#shirtNumber').value=String(smart?({GK:1,CB:5,RB:2,LB:3,DM:6,CM:8,AM:10,RW:7,LW:11,ST:9}[pos]||8):Math.round(rand(1,40)));
+    v77SelectMeta();const choices=smart?(V77_KEY_ATTRS[pos]||V77_KEY_ATTRS.CM).map(k=>Object.keys(V77_SPECIALITY_ATTR).find(name=>V77_SPECIALITY_ATTR[name]===k)).filter(Boolean):V77_SPECIALITIES;$('#signatureStrength1').value=pick(choices.length?choices:V77_SPECIALITIES);$('#signatureStrength2').value=pick(V77_SPECIALITIES.filter(x=>x!==$('#signatureStrength1').value));$('#signatureWeakness').value=pick(V77_SPECIALITIES.filter(x=>x!==$('#signatureStrength1').value&&x!==$('#signatureStrength2').value));
+    v77ApplyAttrPreset(smart?'position':pick(['balanced','technical','physical','position']));syncCreatorName();updateCreationPreview()
+  }
+  const V77_PRESET_IDS=['firstName','surname','dateOfBirth','secondaryNationality','position','secondaryPosition','archetype','skillMoves','build','heightCm','weightKg','signatureStrength1','signatureStrength2','signatureWeakness','careerBackground','careerPersonality','skinTone','hairColour','hair','headShape','jawStyle','noseStyle','eyeStyle','browStyle','hairlineStyle','facialHair','complexion','bootModel','bootColour','bootSecondaryColour','shirtNumber','sleeveLength','shirtStyle','sockHeight','wristTape','matchAccessories','foot','weakFootRating','bothFootedToggle','careerDifficulty'];
+  function v77SavePreset(){const values={};V77_PRESET_IDS.forEach(id=>{const el=$('#'+id);if(el)values[id]=el.type==='checkbox'?el.checked:el.value});values.creatorAttributeDraft=cloneData(initialiseCreatorAttributes());values.creatorAttributePoints=creatorAttributePoints;localStorage.setItem('circleXIV77CreatorPreset',JSON.stringify(values));alert('Create-a-Pro preset saved on this device.')}
+  function v77LoadPreset(){let v;try{v=JSON.parse(localStorage.getItem('circleXIV77CreatorPreset')||'null')}catch{}if(!v)return alert('No V77 Create-a-Pro preset has been saved yet.');if(v.position)$('#position').value=v.position;v77UpdateRoleOptions();V77_PRESET_IDS.forEach(id=>{const el=$('#'+id);if(!el||v[id]===undefined)return;if(el.type==='checkbox')el.checked=!!v[id];else el.value=v[id]});if(v.creatorAttributeDraft){creatorAttributeDraft=cloneData(v.creatorAttributeDraft);creatorAttributePoints=Number(v.creatorAttributePoints??30);creatorAttributeSignature=`${$('#position').value}|${$('#archetype').value}`}buildCreatorChips('archetype','archetypeChips');buildCreatorChips('build','buildChips');buildHairStyleCards();renderCreatorAttributeDashboard();updateCreationPreview()}
+
+  function v77PhysicalMods(p){
+    const h=Number(p.heightCm||180),b=normalisePhysicalBuild(p.build||'Athletic'),a=p.attrs,add=(k,n)=>{if(k in a)a[k]=clamp(Number(a[k]??55)+n,1,99)};
+    // Tiny attribute nudges only; the V77.3 runtime physical profile carries the real feel.
+    if(h>=190){add('heading',1);add('jumping',1)}else if(h<=170){add('agility',1)}
+    if(b==='Athletic')add('stamina',1);else if(b==='Powerful')add('strength',1);else if(b==='Stocky')add('balance',1);else if(b==='Lean')add('agility',1);
+    if(p.position==='GK'){a.positioning=Number(a.gkPositioning||a.positioning||65);a.passing=Number(a.distribution||a.passing||60);a.crossing=Number(a.kicking||a.crossing||55)}
+    applyPhysicalProfileToRuntime(p);return a
+  }
+
+  function v77DifficultyMods(save){const p=save.player,mode=p.careerDifficulty||'Realistic Career',keys=V77_KEY_ATTRS[p.position]||V77_KEY_ATTRS.CM,mod=mode==='Rising Star'?2:mode==='Underdog'?-2:0;if(mod)keys.slice(0,5).forEach(k=>{p.attrs[k]=clamp(Number(p.attrs[k]??55)+mod,1,99)});if(mode==='Rising Star'){p.managerTrust=clamp(p.managerTrust+7,0,100);p.morale=clamp(p.morale+3,0,100)}if(mode==='Underdog'){p.managerTrust=clamp(p.managerTrust-4,0,100);p.morale=clamp(p.morale+2,0,100)}}
+  function v77ApplyCreatedProfile(save){
+    if(!save?.player||save.player.v77Applied)return;const p=save.player;p.dateOfBirth=$('#dateOfBirth')?.value||'2008-04-15';p.age=v77AgeFromDOB(p.dateOfBirth);const second=(circleXIManagerCore?.COUNTRIES||[]).find(c=>c.id===$('#secondaryNationality')?.value);p.secondaryNationalityId=second?.id||null;p.secondaryNationality=second?.name||null;p.secondaryPosition=$('#secondaryPosition')?.value||null;p.skillMoves=clamp(Number($('#skillMoves')?.value||3),1,5);p.heightCm=Number($('#heightCm')?.value||180);p.weightKg=Number($('#weightKg')?.value||76);p.signatureStrengths=[$('#signatureStrength1')?.value||'First Touch',$('#signatureStrength2')?.value||'Vision'];p.signatureWeakness=$('#signatureWeakness')?.value||'Strength';p.headShape=$('#headShape')?.value||'Oval';p.jawStyle=$('#jawStyle')?.value||'Balanced';p.noseStyle=$('#noseStyle')?.value||'Balanced';p.eyeStyle=$('#eyeStyle')?.value||'Balanced';p.browStyle=$('#browStyle')?.value||'Natural';p.hairlineStyle=$('#hairlineStyle')?.value||'Rounded';p.facialHair=$('#facialHair')?.value||'Clean Shaven';p.complexion=$('#complexion')?.value||'Clear';p.bootModel=$('#bootModel')?.value||'Control Pro';p.bootSecondaryColour=$('#bootSecondaryColour')?.value||'#111827';p.preferredShirtNumber=Number($('#shirtNumber')?.value||8);p.sleeveLength=$('#sleeveLength')?.value||'Short';p.shirtStyle=$('#shirtStyle')?.value||'Untucked';p.sockHeight=$('#sockHeight')?.value||'Standard';p.wristTape=$('#wristTape')?.value||'None';p.matchAccessories=$('#matchAccessories')?.value||'None';p.runningStyle=$('#runningStyle')?.value||'Balanced';p.shootingStyle=$('#shootingStyle')?.value||'Compact';p.goalCelebration=$('#goalCelebration')?.value||'Arms Out';p.freeKickStance=$('#freeKickStance')?.value||'Balanced';p.penaltyRunUp=$('#penaltyRunUp')?.value||'Standard';p.careerDifficulty=$('#careerDifficulty')?.value||'Realistic Career';p.creatorMatchDifficulty=$('#createDifficulty')?.value||'Balanced';p.creatorPassAssist=$('#creatorPassAssist')?.value||'Standard';p.creatorShotAssist=$('#creatorShotAssist')?.value||'Standard';p.weakFootRating=clamp(Number($('#weakFootRating')?.value||3),1,5);p.weakFootProgress=(p.weakFootRating-1)*25;p.bothFooted=!!$('#bothFootedToggle')?.checked||p.weakFootRating>=5;p.naturalFoot=$('#foot')?.value||p.foot||'Right';p.foot=p.naturalFoot;p.creatorDNA=v77ProfileComparison();p.unlockedCelebrations=['Arms Out','Knee Slide','Point to Sky','Calm Walk','Team Huddle'];v77PhysicalMods(p);v77DifficultyMods(save);p.overall=calcOverall(p.attrs,p.position);p.potential=v77CurrentPotential(p.attrs,p.position);p.originalAttrs=cloneData(p.attrs);p.attributeProgress=Object.fromEntries(Object.entries(p.attrs).map(([k,v])=>[k,Number(v)]));p.visualIdentityVersion=V775_VISUAL_IDENTITY_VERSION;ensureVisualIdentity(p);p.physicalProfileVersion=V773_PHYSICAL_PROFILE_VERSION;applyPhysicalProfileToRuntime(p);
+    const squad=loadCircleXIManagerSquad(save.world?.countryId,save.club?.id)||[],taken=new Set(squad.map(x=>Number(x.shirtNumber)).filter(Boolean));if(taken.has(p.preferredShirtNumber)){let available=1;while(taken.has(available)&&available<100)available++;p.shirtNumber=available;save.messages.unshift({title:'Squad number allocation',body:`You requested #${p.preferredShirtNumber}, but it is already assigned. The club has issued #${available}. You can request your preferred number later when it becomes available.`,new:true,category:'Manager'})}
+    const tech=['firstTouch','dribbling','passing','technique','finishing','crossing'].reduce((n,k)=>n+Number(p.attrs[k]||50),0)/6,mental=['vision','decisions','composure','anticipation','positioning'].reduce((n,k)=>n+Number(p.attrs[k]||50),0)/5,phys=['pace','acceleration','stamina','strength','agility','balance'].reduce((n,k)=>n+Number(p.attrs[k]||50),0)/6;save.messages.unshift({title:'Academy scouting report',body:`${p.creatorDNA}. Technical ${v77Grade(tech)}, Mental ${v77Grade(mental)}, Physical ${v77Grade(phys)}. Current ability ${p.overall}; projected potential ${Math.max(p.overall,p.potential-2)}–${Math.min(99,p.potential+2)}. Recommended focus: ${p.signatureWeakness}.`,new:true,category:'Manager'});if(p.secondaryNationality)save.messages.unshift({title:'Dual nationality registered',body:`You are eligible through ${p.nationality} and ${p.secondaryNationality}. Your primary route begins with ${p.nationality}; once you reach senior international consideration, an allegiance decision can be offered.`,new:true,category:'National Team'});p.v77Applied=true;ensureV76CareerSystems(save);save.v76.narrative.identity=v76CareerIdentity(save)
+  }
+
+  // Training identity: signature strengths develop faster, the chosen weakness develops
+  // a little more slowly, and personality changes consistency without granting free OVR.
+  const v77BaseAwardDrillResult=awardDrillResult;
+  awardDrillResult=function(drillId,score,manual=true){const before=career?.player?.attrs?cloneData(career.player.attrs):null,result=v77BaseAwardDrillResult(drillId,score,manual);const p=career?.player;if(!p||!result?.gains||!before)return result;const strong=new Set((p.signatureStrengths||[]).map(x=>V77_SPECIALITY_ATTR[x]).filter(Boolean)),weak=V77_SPECIALITY_ATTR[p.signatureWeakness],professional=p.careerPersonality==='Professional'?1.06:1,late=p.careerBackground==='Late Bloomer'&&score>=6500?1.08:1;Object.entries(result.gains).forEach(([k,g])=>{const mult=(strong.has(k)?1.14:k===weak?.94:1)*professional*late,extra=Number(g||0)*(mult-1);if(extra>0)p.attrs[k]=clamp(Number(p.attrs[k]||0)+extra,1,99)});p.overall=calcOverall(p.attrs,p.position);return result};
+
+  const v77BaseObjectiveTemplates=v76ObjectiveTemplates;
+  v76ObjectiveTemplates=function(pos,status=''){const p=career?.player,arc=p?.archetype||'',sub=['Substitute','Reserve'].includes(status);if(/Controller|Playmaker|False Nine|Creator|Inverted/.test(arc))return sub?[['rating','Control your minutes','Reach a 6.9 rating',6.9],['passPct','Protect possession','Complete 82% of passes',82]]:[['rating','Set the tempo','Reach a 7.0 rating',7],['passPct','Control possession','Complete 84% of passes',84],['keyPasses','Break a line','Create 2 key passes',2]];if(/Ball Winner|Anchor|Stopper|Half Back|Defensive/.test(arc))return sub?[['rating','Win your shift','Reach a 6.8 rating',6.8],['tackles','Win contact','Make 2 tackles',2]]:[['rating','Defensive authority','Reach a 7.0 rating',7],['tackles','Regain possession','Make 4 tackles',4],['passPct','Secure the ball','Complete 80% of passes',80]];if(/Winger|Inside Forward|Direct Runner|Mezzala/.test(arc))return sub?[['rating','Change the game','Reach a 7.0 rating',7],['dribbles','Attack your marker','Complete 1 dribble',1]]:[['rating','Threaten consistently','Reach a 7.2 rating',7.2],['dribbles','Beat defenders','Complete 3 dribbles',3],['keyPasses','Create danger','Make 2 key passes',2]];if(/Poacher|Forward|Second Striker|Shadow Runner/.test(arc))return sub?[['rating','Make an impact','Reach a 7.0 rating',7],['shotsOnTarget','Find the target','Put 1 shot on target',1]]:[['rating','Lead the attack','Reach a 7.2 rating',7.2],['shotsOnTarget','Test the keeper','Put 3 shots on target',3],['goalContribution','Decide the game','Score or assist once',1]];return v77BaseObjectiveTemplates(pos,status)};
+
+  // Dual-nationality allegiance decision at the point senior consideration begins.
+  const v77BaseCareerCountry=careerCountry;
+  careerCountry=function(save=career){const chosen=save?.player?.internationalChoiceId;if(chosen){const c=(circleXIManagerCore?.COUNTRIES||[]).find(x=>x.id===chosen||x.name===chosen);if(c)return c}return v77BaseCareerCountry(save)};
+  const v77BaseEvaluateInternationalCallup=evaluateInternationalCallup;
+  evaluateInternationalCallup=function(save=career,force=false){const p=save?.player;if(p?.secondaryNationalityId&&!p.internationalChoiceId){const secondary=(circleXIManagerCore?.COUNTRIES||[]).find(c=>c.id===p.secondaryNationalityId),form=internationalAverageForm(save),overall=Number(p.overall||0),primary=v77BaseCareerCountry(save),threshold=Math.min(primary?cxiNationalOverall(primary):80,secondary?cxiNationalOverall(secondary):80);if(overall>=threshold-5&&form>=7.1){if(!save.messages.some(m=>m.id==='v77-national-allegiance'))save.messages.unshift({id:'v77-national-allegiance',title:'International allegiance decision',sender:'International Football Desk',category:'National Team',body:`Senior international interest has arrived. Choose whether to commit your international career to ${primary?.name||p.nationality} or ${secondary?.name||p.secondaryNationality}. This choice is permanent for this career.`,new:true,read:false,receivedAt:new Date().toISOString(),choices:[{id:'v77-nation-primary',label:`Commit to ${primary?.name||p.nationality}`},{id:'v77-nation-secondary',label:`Commit to ${secondary?.name||p.secondaryNationality}`} ]});const intl=ensureInternationalCareer(save);Object.assign(intl,{selected:false,status:'Allegiance decision pending',reason:'Choose your senior international allegiance in the Inbox.'});return intl}}return v77BaseEvaluateInternationalCallup(save,force)};
+  const v77BaseInboxChoice=v76HandleInboxChoice;
+  v76HandleInboxChoice=function(message,choiceId){if(choiceId==='v77-nation-primary'||choiceId==='v77-nation-secondary'){const p=career.player,primary=v77BaseCareerCountry(career),secondary=(circleXIManagerCore?.COUNTRIES||[]).find(c=>c.id===p.secondaryNationalityId),chosen=choiceId==='v77-nation-secondary'?secondary:primary;if(chosen){p.internationalChoiceId=chosen.id;p.internationalChoiceName=chosen.name;career.international=null;message.v76Answered=choiceId;message.read=true;message.new=false;message.body+=`\n\nYour decision: commit to ${chosen.name}. Your senior international pathway now follows ${chosen.name}.`;career.messages.unshift({title:`International future: ${chosen.name}`,body:`Your senior allegiance has been registered. Future call-ups and competitions now follow ${chosen.name}.`,new:true,category:'National Team'});saveCareer('v77-national-choice');renderCareerInbox();renderHub();return}}return v77BaseInboxChoice(message,choiceId)};
+
+  // Career milestone celebration unlocks.
+  const v77BaseProcessMatchResult=v76ProcessMatchResult;
+  v76ProcessMatchResult=function(save,result,preObjectives=[]){const out=v77BaseProcessMatchResult(save,result,preObjectives);const p=save?.player;if(p){p.unlockedCelebrations||=['Arms Out','Knee Slide','Point to Sky','Calm Walk','Team Huddle'];const unlock=(need,name)=>{if((save.stats?.goals||0)>=need&&!p.unlockedCelebrations.includes(name)){p.unlockedCelebrations.push(name);save.messages.unshift({title:'Celebration unlocked',body:`${name} is now part of your celebration library after reaching ${need} career goals.`,new:true,category:'Career'})}};unlock(10,'Signature Slide');unlock(25,'Crowd Salute');unlock(50,'Icon Pose')}return out};
+
+  let v772ReviewTab='player',v772CareerConfirmed=false;
+  function v772SetReviewTab(tab){v772ReviewTab=tab==='career'?'career':'player';$$('[data-v772-review-tab]').forEach(b=>b.classList.toggle('active',b.dataset.v772ReviewTab===v772ReviewTab));$$('[data-v772-review-page]').forEach(p=>p.classList.toggle('active',p.dataset.v772ReviewPage===v772ReviewTab));if(v772ReviewTab==='career')v772RenderCareerSetup();$('#playerForm')?.scrollTo?.({top:0,behavior:'smooth'})}
+  function v772ConfirmMarkup(){const a=initialiseCreatorAttributes(),pos=$('#position')?.value||'CM',choice=selectedCircleXIWorld(),ovr=calcOverall(a,pos),pot=v77CurrentPotential(a,pos),journey=v772JourneyLabel($('#careerDifficulty')?.value),match=v772MatchLabel($('#createDifficulty')?.value);return `<div class="v772-confirm-player"><div><span>XI</span><small>CREATE-A-PRO</small></div><section><h3>${escapeMarkup($('#playerName')?.value||'Player')}</h3><p>${escapeMarkup(choice?.club?.name||'Club')} · ${escapeMarkup(pos)} · ${escapeMarkup($('#archetype')?.value||'')}</p><div><b>${ovr}<small>OVR</small></b><i>→</i><b>${pot}<small>POT</small></b></div></section></div><div class="v772-confirm-settings"><span><small>CAREER JOURNEY</small><b>${escapeMarkup(journey)}</b></span><span><small>MATCH DIFFICULTY</small><b>${escapeMarkup(match)}</b></span><span><small>CAREER RULES</small><b>${escapeMarkup(($('#careerMode')?.value||'Standard Career').replace(' Career',''))}</b></span></div><p class="v772-confirm-note">Your Career Journey is locked once the save begins. Match Difficulty can be changed later in Settings.</p>`}
+  function v772OpenConfirmation(){const modal=$('#v772CareerConfirm'),body=$('#v772CareerConfirmBody');if(!modal||!body)return;body.innerHTML=v772ConfirmMarkup();modal.classList.remove('hidden')}
+  function v772CloseConfirmation(){v772CareerConfirmed=false;$('#v772CareerConfirm')?.classList.add('hidden')}
+  function v772ApplyAdvancedSettings(){const pass=$('#creatorPassAssist')?.value,shot=$('#creatorShotAssist')?.value;if(pass)settings.passAssist=pass==='High'?'Assisted':pass;if(shot)settings.shotAssist=shot==='High'?'Assisted':shot;settings.creatorTutorialPrompts=$('#creatorTutorialPrompts')?.value||'Contextual';settings.creatorMatchSpeed=$('#creatorMatchSpeed')?.value||'Authentic';saveSettings()}
+  function v772SetupReviewUX(){
+    $$('[data-v772-review-tab]').forEach(b=>b.addEventListener('click',()=>v772SetReviewTab(b.dataset.v772ReviewTab)));$('[data-v772-open-career]')?.addEventListener('click',()=>v772SetReviewTab('career'));
+    document.addEventListener('click',e=>{const edit=e.target.closest('[data-v772-edit-step]');if(!edit)return;const step=Number(edit.dataset.v772EditStep);if(Number.isFinite(step)){setCreatorStep(step,{force:true});creatorValidationMessage(`Editing ${CREATOR_STEP_NAMES[step]}. Review remains unlocked when this section is valid.`,'neutral')}});
+    $('#playerForm')?.addEventListener('submit',e=>{if(v772CareerConfirmed)return;const all=creatorStepsBeforeValid(5),review=validateCreatorStep(4);if(activeCreatorStep===4&&creatorUnlockedStep>=4&&all.valid&&review.valid){e.preventDefault();e.stopImmediatePropagation();v772OpenConfirmation()}},true);
+    $('[data-v772-confirm-back]')?.addEventListener('click',v772CloseConfirmation);$('[data-v772-confirm-start]')?.addEventListener('click',()=>{v772CareerConfirmed=true;v772ApplyAdvancedSettings();$('#v772CareerConfirm')?.classList.add('hidden');$('#playerForm')?.requestSubmit()});
+    $('#v772CareerConfirm')?.addEventListener('click',e=>{if(e.target.id==='v772CareerConfirm')v772CloseConfirmation()});
+  }
+  function v77SetupCreator(){
+    const hair=$('#hair');if(hair)HAIR_STYLES.forEach(style=>{if(![...hair.options].some(o=>o.value===style))hair.add(new Option(style,style))});buildHairStyleCards();
+    v77UpdateSecondaryNationality();v77SelectMeta();v77UpdateDOB();v77UpdateRoleOptions();
+    const weak=$('#weakFootRating'),both=$('#bothFootedToggle');if(weak)weak.disabled=false;if(both)both.disabled=false;const footNote=$('#weakFootEditorNote');if(footNote)footNote.textContent='Choose your starting weak foot · improve it later through training';
+    $('#dateOfBirth')?.addEventListener('input',()=>{v77UpdateDOB();v77RefreshPanels()});$('#nationality')?.addEventListener('change',()=>{v77UpdateSecondaryNationality();v77RefreshPanels()});$('#position')?.addEventListener('input',()=>{v77UpdateRoleOptions();v77SelectMeta();v77RefreshPanels()});$('#archetype')?.addEventListener('input',v77RefreshPanels);
+    $('#v77SmartRandom')?.addEventListener('click',()=>v77Randomise(true));$('#v77FullRandom')?.addEventListener('click',()=>v77Randomise(false));$('#v77SavePreset')?.addEventListener('click',v77SavePreset);$('#v77LoadPreset')?.addEventListener('click',v77LoadPreset);
+    $$('[data-v77-attr-preset]').forEach(b=>b.addEventListener('click',()=>v77ApplyAttrPreset(b.dataset.v77AttrPreset)));
+    $$('[data-v77-career-difficulty]').forEach(b=>b.addEventListener('click',()=>{$('#careerDifficulty').value=b.dataset.v77CareerDifficulty;$$('[data-v77-career-difficulty]').forEach(x=>x.classList.toggle('active',x===b));v77RefreshPanels()}));
+    $('#createDifficulty')?.addEventListener('input',v772RenderCareerSetup);$('#createDifficulty')?.addEventListener('change',v772RenderCareerSetup);$('#careerMode')?.addEventListener('input',v772RenderCareerSetup);$('#careerMode')?.addEventListener('change',v772RenderCareerSetup);
+    $('#bothFootedToggle')?.addEventListener('change',e=>{if(e.target.checked){$('#weakFootRating').value='5';$('#weakFootValue').textContent='5 / 5 · Both footed'}v77RefreshPanels()});$('#weakFootRating')?.addEventListener('input',e=>{$('#weakFootValue').textContent=weakFootLabel(Number(e.target.value));if(Number(e.target.value)<5&&$('#bothFootedToggle'))$('#bothFootedToggle').checked=false;v77RefreshPanels()});
+    $('#playerForm')?.addEventListener('input',v77RefreshPanels);$('#playerForm')?.addEventListener('change',v77RefreshPanels);
+    $('#playerForm')?.addEventListener('submit',()=>{if(career){v77ApplyCreatedProfile(career);saveCareer('v77-create-a-pro');setTimeout(()=>{renderHub();refreshContinue()},0)}});
+    v772SetupReviewUX();v772SetReviewTab('player');v77RefreshPanels();
+  }
+
+
+  // ============================================================================
+  // V77.4 IMMERSION DIRECTOR + TRAINING SCROLL UX
+  // Adds match atmosphere, match-state urgency, contextual receiving/pressure,
+  // emotional reactions, cleaner HUD behaviour, stoppage statistics, weather
+  // particles, camera emphasis, rating feedback and a post-match dressing-room
+  // beat. Deliberately does NOT add new teammate speech/callouts or commentary.
+  // ============================================================================
+  const V774_IMMERSION_VERSION='77.4.0';
+  let v774TrainingScrollTop=0;
+
+  function v774TrainingToolbarMarkup(p){
+    const t=ensureTrainingProgramme(p),remaining=trainingSessionsRemaining(p),energy=Math.round(100-(t.fatigue||0)),sharp=Math.round(t.sharpness||70);
+    return `<div class="v774-training-sticky"><div class="v774-training-summary"><span><small>TRAINING</small><b>${remaining}/3 sessions</b></span><span><small>ENERGY</small><b>${energy}%</b></span><span><small>SHARPNESS</small><b>${sharp}%</b></span></div><div class="v774-training-jumps"><button type="button" data-v774-training-view="ground">🏟 Ground</button><button type="button" data-v774-training-zone="Technical">⚽ Technical</button><button type="button" data-v774-training-zone="Tactical">🧠 Tactical</button><button type="button" data-v774-training-zone="Physical">⚡ Physical</button><button type="button" data-v774-training-zone="Set Pieces">🎯 Set Pieces</button><button type="button" data-v774-training-zone="Recovery">💧 Recovery</button><button type="button" data-v774-training-view="development">📈 Development</button></div></div>`;
+  }
+  function v774BindTrainingToolbar(){
+    const panel=document.querySelector('.career-tab-panel[data-career-panel="training"]');
+    const root=$('#trainingOptions');if(!panel||!root)return;
+    panel.onscroll=()=>{v774TrainingScrollTop=panel.scrollTop};
+    root.querySelectorAll('[data-v774-training-view]').forEach(btn=>btn.onclick=()=>root.querySelector(`[data-training-view="${btn.dataset.v774TrainingView}"]`)?.click());
+    root.querySelectorAll('[data-v774-training-zone]').forEach(btn=>btn.onclick=()=>{
+      const category=btn.dataset.v774TrainingZone;
+      const go=()=>{const facility=root.querySelector(`.ground-facility[data-ground-category="${category}"]`);if(facility){facility.click();setTimeout(()=>facility.scrollIntoView?.({block:'center',behavior:'smooth'}),30)}};
+      if(activeTrainingCentreView!=='ground'){root.querySelector('[data-training-view="ground"]')?.click();setTimeout(go,60)}else go();
+    });
+    requestAnimationFrame(()=>{panel.scrollTop=Math.min(v774TrainingScrollTop,Math.max(0,panel.scrollHeight-panel.clientHeight))});
+  }
+  const v774BaseRenderTrainingCentre=renderTrainingCentre;
+  renderTrainingCentre=function(p){
+    const panel=document.querySelector('.career-tab-panel[data-career-panel="training"]');if(panel)v774TrainingScrollTop=panel.scrollTop;
+    v774BaseRenderTrainingCentre(p);
+    const root=$('#trainingOptions');if(root&&!root.querySelector('.v774-training-sticky'))root.insertAdjacentHTML('afterbegin',v774TrainingToolbarMarkup(p));
+    v774BindTrainingToolbar();
+  };
+
+  MatchGame.prototype.ensureV774Immersion=function(){
+    if(this.v774Immersion)return this.v774Immersion;
+    const comp=`${this.competition?.name||''} ${this.competition?.round||''}`.toLowerCase(),lateRound=/final|semi|quarter|derby|champion|international|cup/.test(comp);
+    this.v774Immersion={version:V774_IMMERSION_VERSION,importance:lateRound?.88:.58,crowd:.34,crowdTarget:.34,momentum:[.5,.5],teamIntent:['BALANCED','BALANCED'],lastCrowdSwell:-99,lastOwnerId:null,receiveStyle:'',pressureCount:0,pressureLevel:0,statsTimer:0,cameraTimer:0,cameraKind:'',ratingFlash:0,ratingDelta:0,lastEventAt:0,weatherSeed:Math.floor(Math.random()*99999)};
+    const screen=$('#matchScreen');if(screen&&!$('#v774MatchPulse'))screen.insertAdjacentHTML('beforeend',`<div id="v774Awareness" class="v774-awareness" aria-live="polite"></div><div id="v774RatingFlash" class="v774-rating-flash"></div><div id="v774MatchContext" class="v774-match-context"></div>`);
+    return this.v774Immersion;
+  };
+  MatchGame.prototype.v774EventWeight=function(e,team){
+    if(!e||e.team!==team)return 0;return ({goal:1.5,shot:.38,post:.48,save:.26,recovery:.18,interception:.18,aerialWin:.12,combination:.16,pass:.025,turnover:-.2,mistake:-.35,foul:-.08}[e.type]||0);
+  };
+  MatchGame.prototype.updateV774Immersion=function(dt){
+    const s=this.ensureV774Immersion();if(!s)return;
+    s.statsTimer=Math.max(0,s.statsTimer-dt);s.cameraTimer=Math.max(0,s.cameraTimer-dt);s.ratingFlash=Math.max(0,s.ratingFlash-dt);
+    const recent=(this.telemetry?.events||[]).filter(e=>this.elapsed-Number(e.time||0)<=28);
+    for(const team of [0,1]){
+      let raw=.5;recent.forEach(e=>raw+=this.v774EventWeight(e,team)*.09-this.v774EventWeight(e,1-team)*.055);
+      raw+=clamp(((this.telemetry?.shots?.[team]||0)-(this.telemetry?.shots?.[1-team]||0))*.012,-.08,.08);
+      s.momentum[team]=lerp(s.momentum[team],clamp(raw,.12,.88),1-Math.exp(-1.7*dt));
+    }
+    const progress=clamp(this.elapsed/Math.max(1,this.duration),0,1),diff=this.score[0]-this.score[1];
+    for(const team of [0,1]){
+      const trailing=team===0?diff<0:diff>0,leading=team===0?diff>0:diff<0;
+      s.teamIntent[team]=progress>.72&&trailing?'CHASE':progress>.78&&leading?'PROTECT':s.momentum[team]>.64?'PRESSURE':'BALANCED';
+    }
+    const danger=clamp(Math.abs((this.ball?.x||this.W/2)-this.W/2)/(this.W/2),0,1),lateTension=progress>.8&&Math.abs(diff)<=1?.24:0;
+    s.crowdTarget=clamp(.24+s.importance*.18+Math.max(...s.momentum)*.34+danger*.12+lateTension,.25,1);
+    s.crowd=lerp(s.crowd,s.crowdTarget,1-Math.exp(-2.1*dt));
+    if(s.crowd>.72&&this.elapsed-s.lastCrowdSwell>8&&!this.matchCeremony&&!this.replayPlayback){s.lastCrowdSwell=this.elapsed;try{swellCrowdAmbience(.7+s.crowd*.65,1.7)}catch{}}
+    const owner=this.ball?.owner;
+    if(owner&&owner.id!==s.lastOwnerId){
+      s.lastOwnerId=owner.id;const opp=this.players.filter(p=>p.team!==owner.team&&!p.sentOff),near=opp.filter(p=>dist(p,owner)<52),nearest=near.length?Math.min(...near.map(p=>dist(p,owner))):99,pressure=clamp((52-nearest)/42+Math.max(0,near.length-1)*.16,0,1);
+      const incomingHigh=(this.ball?.z||0)>18,backToGoal=Math.abs(angleDifference(owner.upperDir??owner.dir,owner.team===0?0:Math.PI))>1.55;
+      owner.receiveStyle=incomingHigh?'aerial-control':pressure>.62?'protected-touch':backToGoal?'half-turn':'open-body';owner.receiveStyleTimer=.9;
+      if(owner.actionTimer<=0&&owner!==this.ball.lastTouch)this.setAction(owner,'firstTouch',.20,owner.dir);
+    }
+    this.players.forEach(p=>{if(p.receiveStyleTimer>0){p.receiveStyleTimer=Math.max(0,p.receiveStyleTimer-dt);if(!p.receiveStyleTimer)p.receiveStyle=''}});
+    if(this.user){const near=this.players.filter(p=>p.team!==this.user.team&&!p.sentOff&&dist(p,this.user)<64);s.pressureCount=near.length;s.pressureLevel=clamp(near.reduce((n,p)=>n+clamp((64-dist(p,this.user))/52,0,1),0),0,1);}
+    const pulse=$('#v774MatchPulse'),aware=$('#v774Awareness'),context=$('#v774MatchContext'),flash=$('#v774RatingFlash');
+    const stoppage=!!(this.restart||this.matchEventBanner||this.halftimePending||this.fullTimePending);
+    pulse?.classList.toggle('visible',stoppage||s.statsTimer>0);
+    if(pulse){const total=Math.max(1,(this.telemetry?.possession?.[0]||0)+(this.telemetry?.possession?.[1]||0)),p0=Math.round((this.telemetry?.possession?.[0]||0)/total*100);$('#v774Possession').textContent=`${p0}–${100-p0}`;$('#v774Shots').textContent=`${this.telemetry?.shots?.[0]||0}–${this.telemetry?.shots?.[1]||0}`;const m=s.momentum[0]-s.momentum[1];$('#v774Momentum').textContent=Math.abs(m)<.08?'EVEN':m>0?(this.homeClub?.abbr||'HOME'):(this.opponent?.abbr||'AWAY');}
+    if(aware){const offside=this.user&&this.isPlayerInOffsidePosition?.(this.user,this.ball?.x,this.secondLastDefenderLine?.(this.user.team));aware.className='v774-awareness'+(offside||s.pressureCount?' visible':'');aware.textContent=offside?'⚑ OFFSIDE RISK':s.pressureCount>=2?`◉ PRESSURE ×${s.pressureCount}`:s.pressureCount===1?'◉ PRESSURE':'';}
+    if(context){const intent=s.teamIntent[this.user?.team||0],label=intent==='CHASE'?'CHASING THE GAME':intent==='PROTECT'?'PROTECTING THE LEAD':intent==='PRESSURE'?'MOMENTUM BUILDING':'';context.classList.toggle('visible',!!label||!!this.matchCeremony);context.textContent=this.matchCeremony?`${Math.round(s.importance*100)}% MATCH IMPORTANCE`:label;}
+    if(flash){flash.classList.toggle('visible',s.ratingFlash>0);flash.textContent=s.ratingFlash>0?`${s.ratingDelta>0?'+':''}${s.ratingDelta.toFixed(2)} RATING`:'';}
+    $('#matchScreen')?.classList.toggle('v774-clean-hud',!stoppage&&!this.keyAction?.key&&!this.mouse?.charging&&s.pressureCount===0);
+    if(s.cameraTimer>0&&!this.matchCeremony&&!this.restart){const z=s.cameraKind==='goal'?1.08:s.cameraKind==='shot'?1.045:1.025;this.camera.zoom=lerp(this.camera.zoom||1,z,1-Math.exp(-3.5*dt));}
+  };
+
+  const v774BaseUpdate=MatchGame.prototype.update;
+  MatchGame.prototype.update=function(dt){const out=v774BaseUpdate.call(this,dt);try{this.updateV774Immersion(dt)}catch(err){if(!this._v774UpdateError){this._v774UpdateError=true;console.warn('V77.4 immersion update skipped',err)}}return out;};
+
+  const v774BaseUpdateAI=MatchGame.prototype.updateAI;
+  MatchGame.prototype.updateAI=function(dt){const out=v774BaseUpdateAI.call(this,dt);const s=this.ensureV774Immersion?.();if(!s||this.restart||this.matchCeremony)return out;for(const p of this.players){if(p.isUser||p.sentOff||p.position==='GK'||p.onPitch===false)continue;const intent=s.teamIntent[p.team],dir=p.team===0?1:-1;if(intent==='CHASE'){const advanced=['CM','AM','RW','LW','ST','RB','LB'].includes(p.position);if(advanced&&this.ball.owner?.team===p.team){p.x=clamp(p.x+dir*dt*(9+15*s.momentum[p.team]),12,this.W-12);p.aiIntent=p.aiIntent||'late-run';p.aiIntentTimer=Math.max(p.aiIntentTimer||0,.22);}}else if(intent==='PROTECT'&&['CB','DM','CM','RB','LB'].includes(p.position)){p.x=lerp(p.x,p.homeX,clamp(dt*.7,0,.05));}else if(intent==='PRESSURE'&&this.ball.owner?.team===p.team&&['CM','AM','RW','LW','ST'].includes(p.position)){p.x=clamp(p.x+dir*dt*6,12,this.W-12);}}return out;};
+
+  MatchGame.prototype.v774ReactToEvent=function(type,team,data={}){
+    const s=this.ensureV774Immersion();s.lastEventAt=this.elapsed;s.statsTimer=Math.max(s.statsTimer,3.4);
+    if(['goal','shot','post','save'].includes(type)){s.cameraTimer=type==='goal'?2.6:1.15;s.cameraKind=type==='goal'?'goal':'shot';}
+    const actor=this.players?.find(p=>p.id===(data.player||data.from||data.scorer));
+    if(actor&&actor.actionTimer<=0&&!this.restart){
+      if(type==='turnover'||type==='mistake'){actor.concededReaction='lookDown';actor.celebrationVariant='lookDown';this.setAction(actor,'frustration',.42,actor.dir);}
+      else if(type==='post'){actor.concededReaction='handsHead';actor.celebrationVariant='handsHead';this.setAction(actor,'frustration',.5,actor.dir);}
+      else if(type==='save'&&actor.position==='GK'){actor.celebrationVariant='fistPump';this.setAction(actor,'celebrate',.28,actor.dir);}
+    }
+    if(type==='goal'){this.benchReaction[team]={type:'celebrate',timer:5.2,style:'spill'};this.benchReaction[1-team]={type:'concede',timer:3.5};const m=this.managers?.[team];if(m){m.gesture='celebrate';m.gestureTimer=4.4}const om=this.managers?.[1-team];if(om){om.gesture='frustrated';om.gestureTimer=3.3}}
+  };
+  const v774BaseRecordEvent=MatchGame.prototype.recordEvent;
+  MatchGame.prototype.recordEvent=function(type,team,data={}){const out=v774BaseRecordEvent.call(this,type,team,data);try{this.v774ReactToEvent(type,team,data)}catch{}return out;};
+
+  const v774BaseAdjustRating=MatchGame.prototype.adjustRating;
+  MatchGame.prototype.adjustRating=function(v,category='general'){const before=this.matchRating,out=v774BaseAdjustRating.call(this,v,category),delta=this.matchRating-before;if(Math.abs(delta)>=.015){const s=this.ensureV774Immersion();s.ratingDelta=delta;s.ratingFlash=1.45;}return out;};
+
+  MatchGame.prototype.drawV774Weather=function(ctx,w,h){
+    const s=this.ensureV774Immersion();if(settings.particleDetail==='Off')return;const wet=this.environment?.wetness||0,cond=String(this.pitchCondition||'');if(wet<.48&&!/snow/i.test(cond))return;ctx.save();ctx.resetTransform?.();const count=settings.particleDetail==='Low'?18:34,t=(performance.now()/1000),snow=/snow/i.test(cond);ctx.lineWidth=1;for(let i=0;i<count;i++){const seed=(i*97+s.weatherSeed)%997,x=((seed*13+t*(snow?14:125)+(this.environment?.windX||0)*4)%w+w)%w,y=((seed*29+t*(snow?35:220))%h+h)%h;if(snow){ctx.fillStyle='rgba(255,255,255,.62)';ctx.beginPath();ctx.arc(x,y,1.2+(i%3)*.35,0,Math.PI*2);ctx.fill()}else{ctx.strokeStyle='rgba(190,225,255,.28)';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+(this.environment?.windX||0)*.12,y+9);ctx.stroke()}}ctx.restore();};
+  const v774BaseDraw=MatchGame.prototype.draw;
+  MatchGame.prototype.draw=function(){const out=v774BaseDraw.call(this);try{const ctx=this.ctx,dpr=this.dpr||1,w=this.canvas.width/dpr,h=this.canvas.height/dpr;this.drawV774Weather(ctx,w,h)}catch{}return out;};
+
+  const v774BaseRenderPostMatch=renderPostMatch;
+  renderPostMatch=function(r){v774BaseRenderPostMatch(r);const wrap=document.querySelector('#postMatchScreen .postmatch-wrap');if(!wrap)return;wrap.querySelector('.v774-dressing-room')?.remove();const won=(r.score?.[0]||0)>(r.score?.[1]||0),draw=(r.score?.[0]||0)===(r.score?.[1]||0),rating=Number(r.rating||6.5),mood=won?'BUZZING':draw?'COMPOSED':'QUIET',tone=won?'good':draw?'steady':'low',detail=won?(rating>=8?'Players crowd around you after an influential performance.':'The dressing room is lively after the win.'):draw?'The group resets quickly and turns attention to the next fixture.':rating>=7?'Your individual display earns respect despite the result.':'The room is subdued and the focus turns to recovery.';const html=`<section class="v774-dressing-room ${tone}"><span>🚪</span><div><small>POST-MATCH DRESSING ROOM</small><b>${mood}</b><p>${escapeMarkup(detail)}</p></div><aside><span><small>YOUR RATING</small><b>${rating.toFixed(1)}</b></span><span><small>RESULT</small><b>${won?'WIN':draw?'DRAW':'LOSS'}</b></span></aside></section>`;wrap.querySelector('#continuePostBtn')?.insertAdjacentHTML('beforebegin',html);};
+
+
+  // --------------------------------------------------------------------------
+  // V77.6 recognition-first hair renderers + creator impact preview
+  // --------------------------------------------------------------------------
+  const v776PreviousFootballHair=drawFootballHair;
+  drawFootballHair=function(ctx,style,x,y,scale,colour,motion=0,profile={}){
+    const type=style||'Short',s=Math.max(.72,scale||1),base=colour||'#21140d',hi=mixColour(base,'#ffffff',.16),dark=shadeColour(base,-.34),meta=v776HairMeta(type),sway=Math.sin(motion||0)*meta.motion*.72*s,view=profile?.view||'front';
+    ctx.save();ctx.translate(x,y);ctx.lineCap='round';ctx.lineJoin='round';
+    const cap=(width=2.55,height=2.55,front=.10)=>{const g=ctx.createLinearGradient(-width*s,-height*s,width*s,.65*s);g.addColorStop(0,hi);g.addColorStop(.35,base);g.addColorStop(1,dark);ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(-width*s,front*s);ctx.quadraticCurveTo(-width*1.02*s,-height*.82*s,0,-height*s);ctx.quadraticCurveTo(width*1.02*s,-height*.82*s,width*s,front*s);ctx.quadraticCurveTo(width*.5*s,.72*s,0,.38*s);ctx.quadraticCurveTo(-width*.5*s,.72*s,-width*s,front*s);ctx.fill();drawHairlineV776(ctx,0,-.05*s,width*.82*s,profile?.hairlineStyle||'Rounded',base,s*.44);ctx.fillStyle=base};
+    if(type==='Shaved'||type==='Buzz Cut'){
+      ctx.globalAlpha=type==='Shaved'?.30:.58;cap(2.46,type==='Buzz Cut'?2.12:1.88,.12);ctx.globalAlpha=1;ctx.fillStyle=hi;for(let i=-2;i<=2;i++){ctx.globalAlpha=.35;ctx.beginPath();ctx.arc(i*.78*s,-1.1*s+(i%2)*.12*s,.12*s,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1;
+    } else if(['Fade','Low Fade','High Fade','Taper','Waves'].includes(type)){
+      const high=type==='High Fade',low=type==='Low Fade',taper=type==='Taper',waves=type==='Waves';cap(2.48,high?3.05:low?2.25:taper?2.48:2.62,.08);
+      ctx.fillStyle=dark;ctx.globalAlpha=.34;const sideH=(high?1.78:low?1.18:1.46)*s;ctx.fillRect(-2.55*s,-.20*s,.58*s,sideH);ctx.fillRect(1.97*s,-.20*s,.58*s,sideH);ctx.globalAlpha=1;
+      ctx.strokeStyle=hi;ctx.lineWidth=.20*s;if(waves){for(let r=0;r<3;r++){ctx.beginPath();ctx.arc(0,(-1.35+r*.46)*s,(1.05+r*.32)*s,Math.PI*.10,Math.PI*.90);ctx.stroke()}}else{for(let i=-2;i<=2;i++){ctx.beginPath();ctx.moveTo(i*.68*s,-(high?2.72:2.25)*s);ctx.quadraticCurveTo(i*.55*s,-1.15*s,i*.42*s,-.28*s);ctx.stroke()}}
+    } else if(type==='Afro'){
+      const bubbles=[[0,-1.35,2.62],[-1.72,-.78,1.52],[1.72,-.78,1.52],[-.9,-2.32,1.58],[.9,-2.32,1.58],[-2.12,-1.75,1.02],[2.12,-1.75,1.02]];for(const [cx,cy,r] of bubbles){const g=ctx.createRadialGradient((cx-.28)*s,(cy-.34)*s,.1,cx*s,cy*s,r*s);g.addColorStop(0,hi);g.addColorStop(.35,base);g.addColorStop(1,dark);ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx*s,cy*s,r*s,0,Math.PI*2);ctx.fill()}
+    } else if(type==='Curly Top'||type==='Curls'){
+      cap(2.42,type==='Curls'?2.95:2.62,.14);const count=type==='Curls'?14:10;for(let i=0;i<count;i++){const a=i*Math.PI*2/count,r=type==='Curls'?(i%2?2.05:1.55):(i%2?1.82:1.42);ctx.fillStyle=i%2?base:hi;ctx.beginPath();ctx.arc(Math.cos(a)*r*s,(-1.55+Math.sin(a)*(type==='Curls'?1.12:.88))*s,(type==='Curls'?.64:.55)*s,0,Math.PI*2);ctx.fill()}
+    } else if(type==='Cornrows'){
+      cap(2.40,2.34,.16);ctx.strokeStyle=hi;ctx.lineWidth=.30*s;for(let i=-3;i<=3;i++){ctx.beginPath();ctx.moveTo(i*.50*s,-2.28*s);ctx.quadraticCurveTo(i*.39*s,-.70*s,i*.28*s,.38*s);ctx.stroke();ctx.strokeStyle=dark;ctx.lineWidth=.12*s;ctx.beginPath();ctx.moveTo((i*.50+.12)*s,-2.2*s);ctx.quadraticCurveTo((i*.39+.08)*s,-.7*s,(i*.28+.05)*s,.34*s);ctx.stroke();ctx.strokeStyle=hi;ctx.lineWidth=.30*s}
+    } else if(type==='Braids'){
+      cap(2.42,2.42,.15);const spread=view==='side'?[0,1,2]:[-2,-1,0,1,2];for(const i of spread){const start=i*.77*s;ctx.strokeStyle=dark;ctx.lineWidth=.78*s;ctx.beginPath();ctx.moveTo(start,-.58*s);ctx.quadraticCurveTo((i*.84+(view==='side'?.45:0))*s,1.55*s+sway,(i*.72+(view==='side'?.70:0))*s,3.65*s+sway);ctx.stroke();ctx.strokeStyle=hi;ctx.lineWidth=.16*s;ctx.stroke()}
+    } else if(type==='Twists'){
+      cap(2.36,2.48,.14);for(let i=-2;i<=2;i++){const drift=Math.sin(motion+i)*.12*s;const g=ctx.createLinearGradient(i*.76*s,-2.35*s,i*.76*s,1.15*s);g.addColorStop(0,hi);g.addColorStop(.5,base);g.addColorStop(1,dark);ctx.strokeStyle=g;ctx.lineWidth=.52*s;ctx.beginPath();ctx.moveTo(i*.76*s,-2.25*s);ctx.quadraticCurveTo((i*.82+.12)*s,-.55*s,(i*.72)*s,1.28*s+drift);ctx.stroke();ctx.fillStyle=base;ctx.beginPath();ctx.arc(i*.72*s,1.33*s+drift,.34*s,0,Math.PI*2);ctx.fill()}
+    } else if(type==='Mohawk'){
+      ctx.globalAlpha=.24;cap(2.30,1.85,.2);ctx.globalAlpha=1;const g=ctx.createLinearGradient(-.5*s,.25*s,.5*s,-3.7*s);g.addColorStop(0,dark);g.addColorStop(.52,base);g.addColorStop(1,hi);ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(-.72*s,.32*s);ctx.lineTo(-.54*s,-2.35*s);ctx.lineTo(0,-3.78*s-sway*.15);ctx.lineTo(.54*s,-2.35*s);ctx.lineTo(.72*s,.32*s);ctx.closePath();ctx.fill();
+    } else if(type==='Locs'){
+      cap(2.44,2.42,.15);const strands=view==='side'?[0,1,2]:[-2,-1,0,1,2];for(const i of strands){const lean=i*.12+(view==='side'?.48:0);ctx.strokeStyle=dark;ctx.lineWidth=.84*s;ctx.beginPath();ctx.moveTo(i*.77*s,-.50*s);ctx.quadraticCurveTo((i*.85+lean)*s,1.55*s+sway,(i*.72+lean)*s,4.35*s+sway);ctx.stroke();ctx.strokeStyle=hi;ctx.lineWidth=.15*s;ctx.stroke()}
+    } else if(type==='Pony Tail'){
+      // Tail sits behind the head from front/side views; only the rear view centres it.
+      const rear=view==='back',side=view==='side',anchorX=(rear?0:side?1.72:1.92)*s,tailEndX=(rear?.24:side?2.55:2.72)*s;
+      ctx.strokeStyle=dark;ctx.lineWidth=1.22*s;ctx.beginPath();ctx.moveTo(anchorX,-.26*s);ctx.quadraticCurveTo((tailEndX+.42*s),1.45*s+sway,tailEndX,4.55*s+sway);ctx.stroke();ctx.strokeStyle=hi;ctx.lineWidth=.18*s;ctx.stroke();
+      cap(2.44,2.45,.14);ctx.fillStyle=base;ctx.beginPath();ctx.arc(anchorX,-.22*s,.55*s,0,Math.PI*2);ctx.fill();
+    } else if(type==='Long Hair'){
+      cap(2.58,2.65,.12);ctx.fillStyle=dark;const left=-2.35*s,right=2.35*s,bottom=4.05*s+sway;ctx.beginPath();ctx.moveTo(left,-.2*s);ctx.quadraticCurveTo(-2.75*s,1.8*s,left,bottom);ctx.quadraticCurveTo(-1.55*s,3.0*s,-1.25*s,.15*s);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(right,-.2*s);ctx.quadraticCurveTo(2.75*s,1.8*s,right,bottom);ctx.quadraticCurveTo(1.55*s,3.0*s,1.25*s,.15*s);ctx.closePath();ctx.fill();
+    } else {cap(2.48,2.50,.12);ctx.strokeStyle=hi;ctx.lineWidth=.22*s;for(let i=-2;i<=2;i++){ctx.beginPath();ctx.moveTo(i*.70*s,-2.25*s);ctx.quadraticCurveTo(i*.60*s,-1.1*s,i*.46*s,-.16*s);ctx.stroke()}}
+    ctx.restore();
+  };
+
+  const v776PreviousPortraitHair=drawPortraitHair;
+  drawPortraitHair=function(ctx,style,x,y,scale,colour,phase=0,profile={}){
+    const type=style||'Short',s=scale||1,base=colour||'#21140d',hi=mixColour(base,'#ffffff',.10),dark=shadeColour(base,-.34),meta=v776HairMeta(type),sway=Math.sin(phase||0)*meta.motion*4.2*s,view=profile?.view||'front';ctx.save();ctx.translate(x,y);ctx.lineCap='round';ctx.lineJoin='round';
+    const scalp=(w=22,h=32,front=2)=>{const g=ctx.createLinearGradient(-w*s,-h*s,w*s,8*s);g.addColorStop(0,hi);g.addColorStop(.38,base);g.addColorStop(1,dark);ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(-w*s,front*s);ctx.quadraticCurveTo(-w*1.05*s,-h*.78*s,0,-h*s);ctx.quadraticCurveTo(w*1.05*s,-h*.78*s,w*s,front*s);ctx.quadraticCurveTo(w*.48*s,-6*s,0,-4*s);ctx.quadraticCurveTo(-w*.48*s,-6*s,-w*s,front*s);ctx.fill();drawHairlineV776(ctx,0,-2*s,w*.82*s,profile?.hairlineStyle||'Rounded',base,s)};
+    if(type==='Shaved'||type==='Buzz Cut'){ctx.globalAlpha=type==='Shaved'?.30:.60;scalp(21.5,type==='Buzz Cut'?26:22,2);ctx.globalAlpha=1;ctx.fillStyle=hi;ctx.globalAlpha=.34;for(let r=0;r<3;r++)for(let i=-4;i<=4;i++){ctx.beginPath();ctx.arc(i*4.1*s,(-20+r*6+(i%2)*1.2)*s,.55*s,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1}
+    else if(['Fade','Low Fade','High Fade','Taper','Waves'].includes(type)){const high=type==='High Fade',low=type==='Low Fade',waves=type==='Waves';scalp(22,high?36:low?27:31,2);ctx.fillStyle=dark;ctx.globalAlpha=.42;ctx.fillRect(-23*s,-7*s,5*s,(high?20:low?13:17)*s);ctx.fillRect(18*s,-7*s,5*s,(high?20:low?13:17)*s);ctx.globalAlpha=1;ctx.strokeStyle=hi;ctx.lineWidth=.75*s;if(waves){for(let r=0;r<4;r++){ctx.beginPath();ctx.arc(0,(-21+r*5)*s,(10+r*2.5)*s,.08*Math.PI,.92*Math.PI);ctx.stroke()}}else for(let i=-4;i<=4;i++){ctx.beginPath();ctx.moveTo(i*4.3*s,-(high?32:27)*s);ctx.quadraticCurveTo(i*3.5*s,-15*s,i*2.8*s,-2*s);ctx.stroke()}}
+    else if(type==='Afro'){for(let i=0;i<18;i++){const a=i*Math.PI*2/18,rx=27+((i%3)-1)*2,ry=22+((i%4)-1.5)*1.3,cx=Math.cos(a)*rx*s,cy=(-18+Math.sin(a)*17)*s,r=(8.4+(i%2)*1.6)*s;const g=ctx.createRadialGradient(cx-r*.3,cy-r*.3,1,cx,cy,r);g.addColorStop(0,hi);g.addColorStop(.36,base);g.addColorStop(1,dark);ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.fill()}ctx.fillStyle=base;ctx.beginPath();ctx.ellipse(0,-15*s,24*s,19*s,0,0,Math.PI*2);ctx.fill()}
+    else if(type==='Cornrows'){scalp(21.5,29,3);ctx.strokeStyle=hi;ctx.lineWidth=1.15*s;for(let i=-5;i<=5;i++){ctx.beginPath();ctx.moveTo(i*3.7*s,-28*s);ctx.quadraticCurveTo(i*3.0*s,-13*s,i*2.5*s,3*s);ctx.stroke();ctx.strokeStyle=dark;ctx.lineWidth=.45*s;ctx.beginPath();ctx.moveTo((i*3.7+1.2)*s,-27*s);ctx.quadraticCurveTo((i*3+1)*s,-13*s,(i*2.5+.7)*s,3*s);ctx.stroke();ctx.strokeStyle=hi;ctx.lineWidth=1.15*s}}
+    else if(type==='Braids'){scalp(21.5,29,3);for(const i of [-4,-3,-2,-1,1,2,3,4]){ctx.strokeStyle=dark;ctx.lineWidth=3.0*s;ctx.beginPath();ctx.moveTo(i*4.4*s,-4*s);ctx.quadraticCurveTo(i*5.0*s,18*s+sway,i*4.4*s,43*s+sway);ctx.stroke();ctx.strokeStyle=hi;ctx.lineWidth=.55*s;ctx.stroke()}}
+    else if(type==='Curly Top'||type==='Curls'){scalp(21,30,3);const count=type==='Curls'?24:17;for(let i=0;i<count;i++){const a=i*Math.PI*2/count;ctx.fillStyle=i%2?base:hi;ctx.beginPath();ctx.arc(Math.cos(a)*(type==='Curls'?21:18)*s,(-21+Math.sin(a)*(type==='Curls'?15:12))*s,(type==='Curls'?6.7:6.1)*s,0,Math.PI*2);ctx.fill()}}
+    else if(type==='Twists'){scalp(21,30,3);for(let i=-5;i<=5;i++){const drift=Math.sin(phase+i)*1.8*s;const g=ctx.createLinearGradient(i*4*s,-28*s,i*4*s,13*s);g.addColorStop(0,hi);g.addColorStop(.5,base);g.addColorStop(1,dark);ctx.strokeStyle=g;ctx.lineWidth=3.7*s;ctx.beginPath();ctx.moveTo(i*4*s,-27*s);ctx.quadraticCurveTo((i*4.2+(i%2?1:-1))*s,-7*s,i*3.7*s,13*s+drift);ctx.stroke()}}
+    else if(type==='Mohawk'){ctx.globalAlpha=.22;scalp(19,22,4);ctx.globalAlpha=1;const g=ctx.createLinearGradient(-5*s,3*s,5*s,-45*s);g.addColorStop(0,dark);g.addColorStop(.55,base);g.addColorStop(1,hi);ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(-7*s,4*s);ctx.lineTo(-5*s,-30*s);ctx.lineTo(0,-45*s-sway*.12);ctx.lineTo(6*s,-30*s);ctx.lineTo(7*s,4*s);ctx.closePath();ctx.fill()}
+    else if(type==='Locs'){scalp(22,29,3);for(const i of [-4,-3,-2,-1,1,2,3,4]){ctx.strokeStyle=dark;ctx.lineWidth=4.0*s;ctx.beginPath();ctx.moveTo(i*4.6*s,-4*s);ctx.quadraticCurveTo((i*5+(i%2?1.6:-1.6))*s,24*s+sway,i*4.3*s,56*s+sway);ctx.stroke();ctx.strokeStyle=hi;ctx.lineWidth=.62*s;ctx.stroke()}}
+    else if(type==='Pony Tail'){
+      // Render the tail first so the scalp/head visually occludes it instead of the tail crossing the face.
+      const rear=view==='back',side=view==='side',anchorX=(rear?0:side?18:19)*s,endX=(rear?3:side?24:25)*s;
+      ctx.strokeStyle=dark;ctx.lineWidth=9.5*s;ctx.beginPath();ctx.moveTo(anchorX,-1*s);ctx.quadraticCurveTo((endX+5*s),24*s+sway,endX,62*s+sway);ctx.stroke();ctx.strokeStyle=hi;ctx.lineWidth=1.1*s;ctx.stroke();
+      scalp(22,30,3);ctx.fillStyle=base;ctx.beginPath();ctx.arc(anchorX,-2*s,5.0*s,0,Math.PI*2);ctx.fill();
+    }
+    else if(type==='Long Hair'){scalp(23,31,2);const g=ctx.createLinearGradient(0,-3*s,0,62*s);g.addColorStop(0,base);g.addColorStop(1,dark);ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(-22*s,-3*s);ctx.quadraticCurveTo(-28*s,28*s,-20*s,62*s+sway);ctx.quadraticCurveTo(-8*s,45*s,-9*s,4*s);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(22*s,-3*s);ctx.quadraticCurveTo(28*s,28*s,20*s,62*s+sway);ctx.quadraticCurveTo(8*s,45*s,9*s,4*s);ctx.closePath();ctx.fill()}
+    else {scalp(22,31,2);ctx.strokeStyle=hi;ctx.lineWidth=.85*s;for(let i=-4;i<=4;i++){ctx.beginPath();ctx.moveTo(i*4.2*s,-29*s);ctx.quadraticCurveTo(i*3.6*s,-15*s,i*3*s,-2*s);ctx.stroke()}}
+    ctx.restore();
+  };
+
+  function v776DrawFacePreview(){
+    const canvas=$('#v776FacePreview');if(!canvas)return;const ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height,appearance={skinTone:$('#skinTone')?.value||'#7b4b2a',hairStyle:$('#hair')?.value||'Fade',hairColour:$('#hairColour')?.value||'#21140d',headShape:$('#headShape')?.value||'Oval',jawStyle:$('#jawStyle')?.value||'Balanced',noseStyle:$('#noseStyle')?.value||'Balanced',eyeStyle:$('#eyeStyle')?.value||'Balanced',browStyle:$('#browStyle')?.value||'Natural',hairlineStyle:$('#hairlineStyle')?.value||'Rounded',facialHair:$('#facialHair')?.value||'Clean Shaven',complexion:$('#complexion')?.value||'Clear'};
+    ctx.clearRect(0,0,w,h);const bg=ctx.createRadialGradient(w*.5,h*.44,5,w*.5,h*.5,w*.58);bg.addColorStop(0,'#17243b');bg.addColorStop(1,'#080d18');ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);ctx.strokeStyle='rgba(167,139,250,.22)';ctx.strokeRect(.5,.5,w-1,h-1);
+    const cx=w/2,cy=79,rx=31,ry=39,skin=appearance.skinTone;const hg=ctx.createRadialGradient(cx-12,cy-13,2,cx,cy,44);hg.addColorStop(0,mixColour(skin,'#fff',.28));hg.addColorStop(.62,skin);hg.addColorStop(1,shadeColour(skin,-.20));ctx.fillStyle=hg;ctx.strokeStyle=shadeColour(skin,-.32);ctx.lineWidth=1.4;traceFaceSilhouetteV776(ctx,cx,cy,rx,ry,appearance.headShape,appearance.jawStyle);ctx.fill();ctx.stroke();ctx.fillStyle=shadeColour(skin,-.1);ctx.beginPath();ctx.ellipse(cx-rx*.96,cy,4.2,7.0,0,0,Math.PI*2);ctx.ellipse(cx+rx*.96,cy,4.2,7.0,0,0,Math.PI*2);ctx.fill();drawPortraitHair(ctx,appearance.hairStyle,cx,cy-10,1.18,appearance.hairColour,performance.now()/700,{...appearance,view:'front',headFit:{cx,cy,rx,ry}});drawFaceFeaturesV776(ctx,appearance,cx,cy,rx,ry,1.1,{media:true,expression:($('#careerPersonality')?.value==='Confident'||$('#careerPersonality')?.value==='Leader')?'confident':'neutral'});ctx.fillStyle='rgba(255,255,255,.78)';ctx.font='800 8px system-ui';ctx.textAlign='center';ctx.fillText(`${appearance.headShape.toUpperCase()} · ${appearance.jawStyle.toUpperCase()}`,cx,h-10);
+  }
+  function v776RefreshFaceHairImpact(){
+    const root=$('#v776FaceHairImpact');if(!root)return;v776DrawFacePreview();const copy=root.querySelector('.v776-face-hair-copy'),style=$('#hair')?.value||'Fade',meta=v776HairMeta(style),facial=$('#facialHair')?.value||'Clean Shaven',head=$('#headShape')?.value||'Oval',jaw=$('#jawStyle')?.value||'Balanced',hairline=$('#hairlineStyle')?.value||'Rounded',nose=$('#noseStyle')?.value||'Balanced',eyes=$('#eyeStyle')?.value||'Balanced';if(copy)copy.innerHTML=`<small>LIVE VISUAL IDENTITY</small><h5>${escapeMarkup(style)} · ${escapeMarkup(head)} / ${escapeMarkup(jaw)}</h5><p>Your face drives close-up Career Media and profile images. Hair drives the strongest on-pitch recognition from distance.</p><div class="v776-impact-grid"><span><b>${escapeMarkup(v776ImpactLabel(meta.media))}</b><small>MEDIA FACE/HAIR IMPACT</small></span><span><b>${escapeMarkup(v776ImpactLabel(meta.match))}</b><small>MATCH READABILITY</small></span><span><b>${escapeMarkup(hairline)}</b><small>HAIRLINE</small></span><span><b>${escapeMarkup(facial)}</b><small>FACIAL HAIR</small></span></div><em>${escapeMarkup(`${eyes} eyes · ${nose} nose · ${$('#browStyle')?.value||'Natural'} brows`)}</em>`;
+  }
+  const v776BaseBuildHairStyleCards=buildHairStyleCards;
+  buildHairStyleCards=function(){const select=$('#hair'),container=$('#hairChips');if(!select||!container)return;const colour=$('#hairColour')?.value||'#21140d',skin=$('#skinTone')?.value||'#9a5d38';container.className='hair-style-grid';container.innerHTML=HAIR_STYLES.map(style=>{const locked=!STARTER_HAIR_STYLES.includes(style),rule=HAIR_UNLOCK_RULES[style],meta=v776HairMeta(style);return `<button type="button" class="hair-card v776-hair-card ${select.value===style?'active':''} ${locked?'locked':''}" data-value="${style}" ${locked?'disabled':''}><span class="hair-thumb ${hairSlug(style)}" style="--hair:${colour};--skin:${skin}"><i></i></span><b>${escapeMarkup(style)}</b><span class="v776-readability">${'●'.repeat(meta.match)}${'○'.repeat(5-meta.match)}</span><small>${locked?`🔒 ${rule?.detail||'Career unlock'}`:`Match ${v776ImpactLabel(meta.match)}`}</small></button>`}).join('');container.onclick=e=>{const btn=e.target.closest('[data-value]');if(!btn||btn.disabled)return;select.value=btn.dataset.value;buildHairStyleCards();select.dispatchEvent(new Event('input',{bubbles:true}))};v776RefreshFaceHairImpact();};
+  const v776BaseRefreshPanels=v77RefreshPanels;
+  v77RefreshPanels=function(){v776BaseRefreshPanels();v776RefreshFaceHairImpact()};
+  function v775StyleLockerOptions(values,current){return values.map(v=>`<option ${v===current?'selected':''}>${escapeMarkup(v)}</option>`).join('')}
+  function v775OpenStyleLocker(){if(!career?.player)return;document.querySelector('.v775-style-locker-overlay')?.remove();const p=career.player,v=resolvedVisualIdentity(p),hairs=(p.unlockedHairStyles?.length?p.unlockedHairStyles:HAIR_STYLES);const wrap=document.createElement('div');wrap.className='v775-style-locker-overlay';wrap.innerHTML=`<section class="v775-style-locker"><header><div><small>CAREER STYLE LOCKER</small><h3>Update your match-day identity</h3><p>Face structure and physical dimensions stay locked; career styling can evolve.</p></div><button type="button" data-v775-close>×</button></header><div class="v775-locker-grid"><label>Hairstyle<select data-v775-field="hairStyle">${v775StyleLockerOptions(hairs,v.hairStyle)}</select></label><label>Hair colour<input type="color" data-v775-field="hairColour" value="${v.hairColour}"></label><label>Facial hair<select data-v775-field="facialHair">${v775StyleLockerOptions(['Clean Shaven','Stubble','Goatee','Short Beard','Full Beard'],v.facialHair)}</select></label><label>Boot model<select data-v775-field="bootModel">${v775StyleLockerOptions(['Velocity','Control Pro','Power Strike','Classic Leather'],v.bootModel)}</select></label><label>Boot colour<input type="color" data-v775-field="bootColour" value="${v.bootColour}"></label><label>Boot accent<input type="color" data-v775-field="bootSecondaryColour" value="${v.bootSecondaryColour}"></label><label>Sleeves<select data-v775-field="sleeveLength">${v775StyleLockerOptions(['Short','Long','Undershirt'],v.sleeveLength)}</select></label><label>Shirt style<select data-v775-field="shirtStyle">${v775StyleLockerOptions(['Untucked','Tucked','Fitted'],v.shirtStyle)}</select></label><label>Sock height<select data-v775-field="sockHeight">${v775StyleLockerOptions(['Low','Standard','High'],v.sockHeight)}</select></label><label>Wrist tape<select data-v775-field="wristTape">${v775StyleLockerOptions(['None','Left','Right','Both'],v.wristTape)}</select></label><label>Accessories<select data-v775-field="matchAccessories">${v775StyleLockerOptions(['None','Gloves','Ankle Tape','Gloves + Ankle Tape'],v.matchAccessories)}</select></label><label>Running style<select data-v775-field="runningStyle">${v775StyleLockerOptions(['Light','Balanced','Powerful','Explosive'],v.runningStyle)}</select></label><label>Shooting style<select data-v775-field="shootingStyle">${v775StyleLockerOptions(['Compact','Power','Placement','Quick Release'],v.shootingStyle)}</select></label><label>Goal celebration<select data-v775-field="goalCelebration">${v775StyleLockerOptions(p.unlockedCelebrations||['Arms Out','Knee Slide','Point to Sky','Calm Walk','Team Huddle'],v.goalCelebration)}</select></label><label>Free-kick stance<select data-v775-field="freeKickStance">${v775StyleLockerOptions(['Balanced','Side On','Short Run Up','Power Run Up'],v.freeKickStance)}</select></label><label>Penalty run-up<select data-v775-field="penaltyRunUp">${v775StyleLockerOptions(['Standard','Short','Stutter','Power'],v.penaltyRunUp)}</select></label></div><footer><span>Changes update Career Media, Match Day and Training immediately.</span><button type="button" data-v775-save>SAVE APPEARANCE</button></footer></section>`;document.body.appendChild(wrap)}
+  function v775SaveStyleLocker(){const overlay=document.querySelector('.v775-style-locker-overlay');if(!overlay||!career?.player)return;overlay.querySelectorAll('[data-v775-field]').forEach(el=>career.player[el.dataset.v775Field]=el.value);ensureVisualIdentity(career.player);career.messages ||= [];career.messages.unshift({title:'Appearance updated',body:'Your Style Locker changes are now used in Career Media, Match Day and Training.',new:true});saveCareer('v77.5-style-locker');overlay.remove();try{renderProfile();renderMediaMiniPlayer();renderProfileHeroPlayer()}catch{}}
+  document.addEventListener('click',e=>{if(e.target.closest('[data-v775-style-locker]'))v775OpenStyleLocker();else if(e.target.closest('[data-v775-close]')||e.target.classList.contains('v775-style-locker-overlay'))e.target.closest('.v775-style-locker-overlay')?.remove();else if(e.target.closest('[data-v775-save]'))v775SaveStyleLocker()});
+  window.__CXI_V774={version:V774_IMMERSION_VERSION,trainingScroll:true,teammateCommunicationAdded:false,commentaryTextAdded:false};
+  window.__CXI_V775={version:'77.5',universalVisualIdentity:true,careerStyleLocker:true,aiAppearanceStable:true,mediaAppearance:true,matchAppearance:true,trainingAppearance:true};
+
+
+  // --------------------------------------------------------------------------
+  // V77.7 Adaptive Face Fit: skull -> hair, jaw/chin -> facial hair
+  // --------------------------------------------------------------------------
+  const V777_FACE_FIT_VERSION='77.7.1';
+  window.__CIRCLE_XI_VISUAL_IDENTITY_VERSION='v77.8-hairstyle-authenticity';
+  function faceFitV777(profile={},rx=1,ry=1){
+    const hs={Oval:{skullW:1,skullH:1,forehead:.98,temple:.98,earY:.02},Round:{skullW:1.06,skullH:.97,forehead:1.05,temple:1.05,earY:.02},Square:{skullW:1.055,skullH:1,forehead:1.04,temple:1.06,earY:.00},Long:{skullW:.94,skullH:1.09,forehead:.94,temple:.93,earY:.01},Diamond:{skullW:1.01,skullH:1.025,forehead:.91,temple:.94,earY:.00}}[profile.headShape]||{skullW:1,skullH:1,forehead:.98,temple:.98,earY:0};
+    const jw={Soft:{jawW:.73,chinW:.63,chinDrop:.98,angular:.15},Balanced:{jawW:.79,chinW:.60,chinDrop:1,angular:.35},Defined:{jawW:.84,chinW:.57,chinDrop:1.025,angular:.68},Wide:{jawW:.95,chinW:.71,chinDrop:1.01,angular:.60}}[profile.jawStyle]||{jawW:.79,chinW:.60,chinDrop:1,angular:.35};
+    const hairline={Straight:{drop:.00,temple:1},Rounded:{drop:.025,temple:.98},Sharp:{drop:.02,temple:.93},'Widow’s Peak':{drop:.08,temple:.97},Curved:{drop:.045,temple:.98},Receding:{drop:-.08,temple:.88}}[profile.hairlineStyle]||{drop:.025,temple:.98};
+    const cx=0,cy=0;
+    return {skullWidth:hs.skullW,skullHeight:hs.skullH,foreheadWidth:hs.forehead,templeWidth:hs.temple*hairline.temple,hairlineDrop:hairline.drop,
+      leftTemple:{x:-rx*hs.temple,y:-ry*.43},rightTemple:{x:rx*hs.temple,y:-ry*.43},leftEar:{x:-rx*hs.skullW*.99,y:ry*hs.earY},rightEar:{x:rx*hs.skullW*.99,y:ry*hs.earY},
+      leftJaw:{x:-rx*jw.jawW,y:ry*.66},rightJaw:{x:rx*jw.jawW,y:ry*.66},chin:{x:0,y:ry*jw.chinDrop},chinWidth:rx*jw.chinW,jawWidth:rx*jw.jawW,jawAngular:jw.angular,
+      leftSideburn:{x:-rx*hs.temple*.91,y:-ry*.02},rightSideburn:{x:rx*hs.temple*.91,y:-ry*.02},top:{x:0,y:-ry*hs.skullH}};
+  }
+  function hairFitMetaV777(style='Short'){
+    const m={
+      'Shaved':[.99,.99,.02], 'Buzz Cut':[1,1,.04], 'Waves':[1.01,1,.07], 'Cornrows':[1.01,1,.08],
+      'Fade':[1.015,1,.17], 'Low Fade':[1.02,1,.14], 'High Fade':[1.02,1,.23], 'Taper':[1.02,1,.16],
+      'Short':[1.02,1,.16], 'Curly Top':[1.04,1,.32], 'Curls':[1.05,1,.43], 'Twists':[1.04,1,.46],
+      'Afro':[1.12,1,.84], 'Braids':[1.035,1,.34], 'Locs':[1.04,1,.38], 'Mohawk':[1.0,1,.50],
+      'Pony Tail':[1.025,1,.30], 'Long Hair':[1.06,1,.50]
+    }[style]||[1.02,1,.16];
+    return {baseWidth:m[0],height:m[1],volume:m[2]};
+  }
+  const v777HairBase=drawFootballHair;
+  drawFootballHair=function(ctx,style,x,y,scale,colour,motion=0,profile={}){
+    const fit=faceFitV777(profile,1,1),hm=hairFitMetaV777(style),close=['Shaved','Buzz Cut','Waves','Cornrows'].includes(style),width=hm.baseWidth*(1+(fit.skullWidth-1)*(close?.95:.72)),height=1+(fit.skullHeight-1)*(close?.88:.35),frontShift=fit.hairlineDrop*1.5*scale;
+    ctx.save();ctx.translate(x,y+frontShift);ctx.scale(width,height);v777HairBase(ctx,style,0,0,scale,colour,motion,{...profile,faceFit:fit});ctx.restore();
+  };
+  const v777PortraitBase=drawPortraitHair;
+  drawPortraitHair=function(ctx,style,x,y,scale,colour,phase=0,profile={}){
+    const fit=faceFitV777(profile,1,1),hm=hairFitMetaV777(style),close=['Shaved','Buzz Cut','Waves','Cornrows'].includes(style),width=hm.baseWidth*(1+(fit.skullWidth-1)*(close?.98:.78)),height=1+(fit.skullHeight-1)*(close?.92:.42),frontShift=fit.hairlineDrop*7*scale;
+    ctx.save();ctx.translate(x,y+frontShift);ctx.scale(width,height);v777PortraitBase(ctx,style,0,0,scale,colour,phase,{...profile,faceFit:fit});ctx.restore();
+  };
+  // Superseded by the v77.10 beard fit further down, which replaces this function
+  // outright rather than delegating to it. Kept for reference only.
+  drawFacialHairV776=function(ctx,appearance,cx,cy,rx,ry,scale=1,compact=false){
+    const type=appearance?.facialHair||'Clean Shaven';if(type==='Clean Shaven')return;
+    const fit=faceFitV777(appearance,rx,ry),col=shadeColour(appearance?.hairColour||'#21140d',-.05),stubble=type==='Stubble';
+    const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+    const jawW=Math.abs(fit.jawWidth),chinW=Math.abs(fit.chinWidth),leftSideX=fit.leftSideburn.x,rightSideX=fit.rightSideburn.x;
+    const mouthHalf=clamp(rx*(.17+(jawW/rx-.78)*.16+(chinW/rx-.60)*.20),rx*.15,rx*.31);
+    const moustacheY=ry*.29,lipDip=ry*.34,mouthY=ry*.37,chinY=fit.chin.y,jawY=fit.leftJaw.y;
+    const chinPeak=chinY*(type==='Full Beard'?1.10:type==='Short Beard'?1.03:1.01);
+    ctx.save();ctx.translate(cx,cy);ctx.fillStyle=col;ctx.strokeStyle=col;ctx.lineJoin='round';ctx.lineCap='round';
+    if(stubble){
+      ctx.globalAlpha=.28;ctx.lineWidth=Math.max(.5,1.15*scale);
+      ctx.beginPath();
+      ctx.moveTo(leftSideX*.96,ry*.10);
+      ctx.quadraticCurveTo(-jawW*1.02,ry*.33,-jawW*.92,jawY*.98);
+      ctx.quadraticCurveTo(-chinW*.78,chinY*.94,0,chinY*.98);
+      ctx.quadraticCurveTo(chinW*.78,chinY*.94,jawW*.92,jawY*.98);
+      ctx.quadraticCurveTo(jawW*1.02,ry*.33,rightSideX*.96,ry*.10);
+      ctx.stroke();
+      ctx.globalAlpha=.22;
+      ctx.beginPath();
+      ctx.moveTo(-mouthHalf*.95,moustacheY);
+      ctx.quadraticCurveTo(0,ry*.25,mouthHalf*.95,moustacheY);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+    const drawMoustache=(alpha=.74)=>{
+      ctx.globalAlpha=alpha;
+      ctx.beginPath();
+      ctx.moveTo(-mouthHalf,moustacheY);
+      ctx.quadraticCurveTo(-mouthHalf*.42,ry*.22,0,ry*.30);
+      ctx.quadraticCurveTo(mouthHalf*.42,ry*.22,mouthHalf,moustacheY);
+      ctx.quadraticCurveTo(0,lipDip,-mouthHalf,moustacheY);
+      ctx.fill();
+    };
+    if(type==='Goatee'){
+      const baseW=clamp(chinW*.60+jawW*.06,rx*.18,rx*.30),topW=clamp(mouthHalf*.60,rx*.10,rx*.18);
+      ctx.globalAlpha=.88;
+      ctx.beginPath();
+      ctx.moveTo(-topW,mouthY);
+      ctx.quadraticCurveTo(-baseW*1.18,ry*.62,-baseW,chinY*.82);
+      ctx.quadraticCurveTo(-baseW*.30,chinPeak*.96,0,chinPeak);
+      ctx.quadraticCurveTo(baseW*.30,chinPeak*.96,baseW,chinY*.82);
+      ctx.quadraticCurveTo(baseW*1.18,ry*.62,topW,mouthY);
+      ctx.quadraticCurveTo(0,ry*.50,-topW,mouthY);
+      ctx.fill();
+      ctx.globalAlpha=.64;
+      ctx.beginPath();
+      ctx.ellipse(0,ry*.48,topW*.42,ry*.06,0,0,Math.PI*2);
+      ctx.fill();
+      drawMoustache(.82);
+      ctx.restore();
+      return;
+    }
+    const full=type==='Full Beard';
+    const cheekTop=full?ry*.07:ry*.16;
+    const outerJaw=jawW*(full?1.02:.95),innerJaw=jawW*(full?.73:.67),chinBase=chinW*(full?1.12:1.01),sideInset=full?.03:.06;
+    ctx.globalAlpha=full?.94:.87;
+    ctx.beginPath();
+    ctx.moveTo(leftSideX,cheekTop);
+    ctx.quadraticCurveTo(-jawW*(1.00-sideInset),ry*.22,-outerJaw,ry*.38);
+    ctx.quadraticCurveTo(-jawW*1.02,jawY*.86,-innerJaw,jawY);
+    ctx.quadraticCurveTo(-chinBase*.92,chinY*.95,0,chinPeak);
+    ctx.quadraticCurveTo(chinBase*.92,chinY*.95,innerJaw,jawY);
+    ctx.quadraticCurveTo(jawW*1.02,jawY*.86,outerJaw,ry*.38);
+    ctx.quadraticCurveTo(jawW*(1.00-sideInset),ry*.22,rightSideX,cheekTop);
+    ctx.quadraticCurveTo(mouthHalf*1.38,ry*.31,mouthHalf*.94,mouthY);
+    ctx.quadraticCurveTo(0,ry*.54,-mouthHalf*.94,mouthY);
+    ctx.quadraticCurveTo(-mouthHalf*1.38,ry*.31,leftSideX,cheekTop);
+    ctx.closePath();
+    ctx.fill();
+    if(full){
+      ctx.globalAlpha=.20;
+      ctx.lineWidth=Math.max(.45,1.1*scale);
+      ctx.beginPath();
+      ctx.moveTo(-chinBase*.50,chinY*.88);
+      ctx.quadraticCurveTo(0,chinPeak*.96,chinBase*.50,chinY*.88);
+      ctx.stroke();
+    }
+    drawMoustache(type==='Short Beard'?.70:.68);
+    ctx.restore();
+  };
+  let v777PreviewView='front';
+  function v777DrawAdaptivePreview(){
+    const canvas=$('#v776FacePreview');if(!canvas)return;const ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height,appearance={skinTone:$('#skinTone')?.value||'#7b4b2a',hairStyle:$('#hair')?.value||'Fade',hairColour:$('#hairColour')?.value||'#21140d',headShape:$('#headShape')?.value||'Oval',jawStyle:$('#jawStyle')?.value||'Balanced',noseStyle:$('#noseStyle')?.value||'Balanced',eyeStyle:$('#eyeStyle')?.value||'Balanced',browStyle:$('#browStyle')?.value||'Natural',hairlineStyle:$('#hairlineStyle')?.value||'Rounded',facialHair:$('#facialHair')?.value||'Clean Shaven',complexion:$('#complexion')?.value||'Clear'};
+    ctx.clearRect(0,0,w,h);const cx=w/2,cy=88,rx=35,ry=43,skin=appearance.skinTone,fit=faceFitV777(appearance,rx,ry);
+    if(v777PreviewView==='top'){
+      ctx.fillStyle=shadeColour(skin,-.04);ctx.beginPath();ctx.ellipse(cx,cy,rx*fit.skullWidth,ry*.73,0,0,Math.PI*2);ctx.fill();drawPortraitHair(ctx,appearance.hairStyle,cx,cy-5,1.05,appearance.hairColour,performance.now()/700,{...appearance,view:'top',headFit:{cx,cy,rx,ry:ry*.73}});
+    } else {
+      const side=v777PreviewView==='side',fx=side?cx-2:cx;ctx.fillStyle=skin;ctx.strokeStyle=shadeColour(skin,-.32);ctx.lineWidth=1.4;ctx.save();if(side)ctx.scale(.90,1);traceFaceSilhouetteV776(ctx,side?fx/.90:fx,cy,rx,ry,appearance.headShape,appearance.jawStyle);ctx.fill();ctx.stroke();ctx.restore();drawPortraitHair(ctx,appearance.hairStyle,fx,cy-10,1.23,appearance.hairColour,performance.now()/700,{...appearance,view:side?'side':'front',headFit:{cx:fx,cy,rx,ry}});drawFaceFeaturesV776(ctx,appearance,fx,cy,rx,ry,1.12,{side,media:true,expression:'neutral'});
+    }
+    ctx.fillStyle='rgba(255,255,255,.82)';ctx.font='800 8px system-ui';ctx.textAlign='center';ctx.fillText(`${appearance.headShape.toUpperCase()} · ${appearance.jawStyle.toUpperCase()} · ${v777PreviewView.toUpperCase()}`,cx,h-9);
+  }
+  const v777OldUpdateImpact=v776RefreshFaceHairImpact;
+  v776RefreshFaceHairImpact=function(){v777OldUpdateImpact();v777DrawAdaptivePreview();const root=$('#v776FaceHairImpact'),copy=root?.querySelector('.v776-face-hair-copy');if(copy){const a={headShape:$('#headShape')?.value||'Oval',jawStyle:$('#jawStyle')?.value||'Balanced',hairlineStyle:$('#hairlineStyle')?.value||'Rounded'},fit=faceFitV777(a,1,1);copy.insertAdjacentHTML('beforeend',`<div class="v777-fit-readout"><span><b>${Math.round(fit.skullWidth*100)}%</b><small>HAIR BASE FIT</small></span><span><b>${Math.round(fit.jawWidth*100)}%</b><small>BEARD JAW FIT</small></span><span><b>${escapeMarkup(v777PreviewView.toUpperCase())}</b><small>PREVIEW ANGLE</small></span></div>`);}}
+  document.querySelectorAll('[data-v777-view]').forEach(btn=>btn.addEventListener('click',()=>{v777PreviewView=btn.dataset.v777View||'front';document.querySelectorAll('[data-v777-view]').forEach(b=>b.classList.toggle('active',b===btn));v776RefreshFaceHairImpact()}));
+  window.__CXI_V777={version:V777_FACE_FIT_VERSION,adaptiveSkullHairFit:true,adaptiveJawBeardFit:true,sharedSideburnAnchors:true,frontSideTopPreview:true,dynamicOldSaveRendering:true};
+
+
+  // --------------------------------------------------------------------------
+  // V77.8 Hairstyle Authenticity: richer texture + automatic context previews
+  // --------------------------------------------------------------------------
+  const V778_HAIRSTYLE_VERSION='77.8.0';
+  const V778_UPGRADED_HAIR=new Set(['Afro','Waves','Curls','Long Hair','Pony Tail']);
+  const V778_HAIR_PRESENTATION={
+    'Afro':{texture:'Dense curls',motion:'Soft bounce'},
+    'Waves':{texture:'Wave pattern',motion:'Rigid'},
+    'Curls':{texture:'Curl clusters',motion:'Soft bounce'},
+    'Long Hair':{texture:'Layered strands',motion:'Flowing'},
+    'Pony Tail':{texture:'Tied strands',motion:'Dynamic tail'}
+  };
+  function v778AppearanceFromCreator(){return {skinTone:$('#skinTone')?.value||'#7b4b2a',hairStyle:$('#hair')?.value||'Fade',hairColour:$('#hairColour')?.value||'#21140d',headShape:$('#headShape')?.value||'Oval',jawStyle:$('#jawStyle')?.value||'Balanced',noseStyle:$('#noseStyle')?.value||'Balanced',eyeStyle:$('#eyeStyle')?.value||'Balanced',browStyle:$('#browStyle')?.value||'Natural',hairlineStyle:$('#hairlineStyle')?.value||'Rounded',facialHair:$('#facialHair')?.value||'Clean Shaven',complexion:$('#complexion')?.value||'Clear'};}
+  // V77.10: crown roundness follows the selected head shape, and the front hairline
+  // dip is a share of the cap height instead of two absolute pixel constants, so the
+  // same path is correctly proportioned at portrait scale (h~30) and top-down match
+  // scale (h~2.4) alike.
+  let v7710CrownCtrl=1.04;
+  function v778ScalpPath(ctx,w,h,front=2){const k=v7710CrownCtrl,dip=h*.183,line=h*.127;ctx.beginPath();ctx.moveTo(-w,front);ctx.quadraticCurveTo(-w*k,-h*.78,0,-h);ctx.quadraticCurveTo(w*k,-h*.78,w,front);ctx.quadraticCurveTo(w*.48,-dip,0,-line);ctx.quadraticCurveTo(-w*.48,-dip,-w,front);ctx.closePath();}
+  function v778DrawMatchHairRaw(ctx,type,s,base,motion,profile={}){
+    const hi=mixColour(base,'#ffffff',.18),mid=mixColour(base,'#ffffff',.07),dark=shadeColour(base,-.38),phase=motion||0,view=profile?.view||'front';
+    ctx.lineCap='round';ctx.lineJoin='round';
+    if(type==='Afro'){
+      const sway=Math.sin(phase)*.035*s;
+      const clumps=[[-2.15,-1.15,.82],[-1.72,-2.05,.92],[-.92,-2.62,1.00],[0,-2.80,1.05],[.92,-2.62,1.00],[1.72,-2.05,.92],[2.15,-1.15,.82],[1.95,-.28,.78],[-1.95,-.28,.78],[-1.05,-.75,1.15],[0,-.86,1.24],[1.05,-.75,1.15]];
+      const g=ctx.createRadialGradient(-.65*s,-2.1*s,.2*s,0,-1.25*s,3.05*s);g.addColorStop(0,hi);g.addColorStop(.32,mid);g.addColorStop(.72,base);g.addColorStop(1,dark);ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(0,-1.25*s,2.62*s,2.25*s,0,0,Math.PI*2);ctx.fill();
+      for(const [x,y,r] of clumps){ctx.fillStyle=(Math.round((x+y)*10)%2)?base:mid;ctx.beginPath();ctx.arc(x*s,(y*s)+sway,r*s,0,Math.PI*2);ctx.fill();}
+      ctx.strokeStyle=hi;ctx.globalAlpha=.26;ctx.lineWidth=.15*s;for(let i=0;i<12;i++){const a=(i/12)*Math.PI*2,rr=(1.18+(i%3)*.27)*s;ctx.beginPath();ctx.arc(Math.cos(a)*rr,(-1.35+Math.sin(a)*.75)*s,.28*s,a,a+Math.PI*1.35);ctx.stroke()}ctx.globalAlpha=1;
+    } else if(type==='Waves'){
+      const g=ctx.createLinearGradient(-2.5*s,-2.2*s,2.5*s,.3*s);g.addColorStop(0,hi);g.addColorStop(.35,base);g.addColorStop(1,dark);ctx.fillStyle=g;v778ScalpPath(ctx,2.48*s,2.16*s,.13*s);ctx.fill();drawHairlineV776(ctx,0,-.05*s,2.0*s,profile?.hairlineStyle||'Rounded',base,s*.44);
+      ctx.strokeStyle=mixColour(base,'#ffffff',.28);ctx.lineWidth=.14*s;ctx.globalAlpha=.68;for(let r=0;r<5;r++){ctx.beginPath();ctx.arc(0,(-1.72+r*.35)*s,(.65+r*.34)*s,Math.PI*.10,Math.PI*.90);ctx.stroke();}ctx.globalAlpha=1;ctx.fillStyle=dark;ctx.globalAlpha=.25;ctx.fillRect(-2.52*s,-.10*s,.48*s,1.18*s);ctx.fillRect(2.04*s,-.10*s,.48*s,1.18*s);ctx.globalAlpha=1;
+    } else if(type==='Curls'){
+      const g=ctx.createLinearGradient(-2.4*s,-3.0*s,2.4*s,.4*s);g.addColorStop(0,hi);g.addColorStop(.38,base);g.addColorStop(1,dark);ctx.fillStyle=g;v778ScalpPath(ctx,2.35*s,2.62*s,.16*s);ctx.fill();drawHairlineV776(ctx,0,-.05*s,1.93*s,profile?.hairlineStyle||'Rounded',base,s*.44);
+      const curls=[[-1.78,-2.10],[-.95,-2.62],[0,-2.78],[.95,-2.62],[1.78,-2.10],[-1.85,-1.20],[-.95,-1.48],[0,-1.58],[.95,-1.48],[1.85,-1.20],[-1.28,-.62],[-.42,-.77],[.42,-.77],[1.28,-.62]];
+      ctx.strokeStyle=hi;ctx.lineWidth=.25*s;ctx.globalAlpha=.72;for(let i=0;i<curls.length;i++){const [x,y]=curls[i],r=(.36+(i%3)*.06)*s;ctx.beginPath();ctx.arc(x*s,y*s,r,.20*Math.PI,1.82*Math.PI);ctx.stroke();ctx.fillStyle=i%2?base:mid;ctx.globalAlpha=.58;ctx.beginPath();ctx.arc(x*s,y*s,.26*s,0,Math.PI*2);ctx.fill();ctx.globalAlpha=.72;}ctx.globalAlpha=1;
+    } else if(type==='Long Hair'){
+      const sway=Math.sin(phase)*.34*s,back=view==='back';
+      const strands=[[-2.05,-.10,-2.45,3.95],[-1.55,-.35,-1.70,4.35],[-1.05,-.15,-1.18,4.10],[1.05,-.15,1.18,4.10],[1.55,-.35,1.70,4.35],[2.05,-.10,2.45,3.95]];
+      for(let i=0;i<strands.length;i++){const [sx,sy,ex,ey]=strands[i];ctx.strokeStyle=i%2?base:dark;ctx.lineWidth=(.62+(i%3)*.08)*s;ctx.beginPath();ctx.moveTo(sx*s,sy*s);ctx.quadraticCurveTo((sx*1.16)*s,(1.85+(i%2)*.25)*s,(ex*s)+(back?0:sway*(sx>0?1:-1)),ey*s+sway);ctx.stroke();ctx.strokeStyle=hi;ctx.globalAlpha=.25;ctx.lineWidth=.11*s;ctx.stroke();ctx.globalAlpha=1;}
+      const g=ctx.createLinearGradient(-2.5*s,-2.8*s,2.5*s,.4*s);g.addColorStop(0,hi);g.addColorStop(.34,base);g.addColorStop(1,dark);ctx.fillStyle=g;v778ScalpPath(ctx,2.52*s,2.72*s,.12*s);ctx.fill();drawHairlineV776(ctx,0,-.05*s,2.05*s,profile?.hairlineStyle||'Rounded',base,s*.44);
+    } else if(type==='Pony Tail'){
+      const sway=Math.sin(phase)*.52*s,rear=view==='back',side=view==='side',anchorX=(rear?0:side?1.66:1.86)*s,dir=rear?0:1;
+      // Tail first: multiple tapered strands tied to a common anchor.
+      for(let i=-2;i<=2;i++){const spread=i*.12*s,ex=(rear?i*.10:2.38+i*.12)*s;ctx.strokeStyle=i%2?base:dark;ctx.lineWidth=(.34+(2-Math.abs(i))*.08)*s;ctx.beginPath();ctx.moveTo(anchorX+spread,-.28*s);ctx.quadraticCurveTo((anchorX+(dir?1.18*s:spread*.8)),1.55*s+sway*.45,ex,4.55*s+sway);ctx.stroke();ctx.strokeStyle=hi;ctx.globalAlpha=.28;ctx.lineWidth=.08*s;ctx.stroke();ctx.globalAlpha=1;}
+      const g=ctx.createLinearGradient(-2.45*s,-2.6*s,2.45*s,.5*s);g.addColorStop(0,hi);g.addColorStop(.38,base);g.addColorStop(1,dark);ctx.fillStyle=g;v778ScalpPath(ctx,2.40*s,2.48*s,.15*s);ctx.fill();drawHairlineV776(ctx,0,-.05*s,1.95*s,profile?.hairlineStyle||'Rounded',base,s*.44);ctx.fillStyle=dark;ctx.beginPath();ctx.arc(anchorX,-.24*s,.50*s,0,Math.PI*2);ctx.fill();ctx.fillStyle=hi;ctx.globalAlpha=.45;ctx.beginPath();ctx.arc(anchorX-.12*s,-.38*s,.13*s,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+    }
+  }
+  function v778DrawPortraitHairRaw(ctx,type,s,base,phase,profile={}){
+    const hi=mixColour(base,'#ffffff',.14),mid=mixColour(base,'#ffffff',.05),dark=shadeColour(base,-.40),sway=Math.sin(phase||0),view=profile?.view||'front';ctx.lineCap='round';ctx.lineJoin='round';
+    const scalp=(w=22,h=31,front=2)=>{const g=ctx.createLinearGradient(-w*s,-h*s,w*s,8*s);g.addColorStop(0,hi);g.addColorStop(.34,base);g.addColorStop(1,dark);ctx.fillStyle=g;v778ScalpPath(ctx,w*s,h*s,front*s);ctx.fill();drawHairlineV776(ctx,0,-2*s,w*.82*s,profile?.hairlineStyle||'Rounded',base,s)};
+    if(type==='Afro'){
+      const outline=[];for(let i=0;i<26;i++){const a=i/26*Math.PI*2,rx=31+(i%4-1.5)*1.8,ry=26+(i%5-2)*1.2;outline.push([Math.cos(a)*rx*s,(-19+Math.sin(a)*ry)*s,(7.1+(i%3)*1.05)*s]);}
+      const bg=ctx.createRadialGradient(-8*s,-31*s,2*s,0,-18*s,37*s);bg.addColorStop(0,hi);bg.addColorStop(.28,mid);bg.addColorStop(.68,base);bg.addColorStop(1,dark);ctx.fillStyle=bg;ctx.beginPath();ctx.ellipse(0,-18*s,31*s,28*s,0,0,Math.PI*2);ctx.fill();
+      for(let i=0;i<outline.length;i++){const [x,y,r]=outline[i];ctx.fillStyle=i%3===0?mid:base;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();}
+      ctx.strokeStyle=hi;ctx.lineWidth=.75*s;ctx.globalAlpha=.26;for(let i=0;i<34;i++){const a=(i*2.399),rad=(8+(i%7)*3.0)*s,x=Math.cos(a)*rad,y=(-18+Math.sin(a)*rad*.68)*s,r=(1.8+(i%3)*.45)*s;ctx.beginPath();ctx.arc(x,y,r,a,a+Math.PI*1.45);ctx.stroke()}ctx.globalAlpha=1;
+    } else if(type==='Waves'){
+      scalp(21.8,25,2.6);ctx.fillStyle=dark;ctx.globalAlpha=.32;ctx.fillRect(-22.5*s,-6*s,4.2*s,14*s);ctx.fillRect(18.3*s,-6*s,4.2*s,14*s);ctx.globalAlpha=1;ctx.strokeStyle=mixColour(base,'#ffffff',.34);ctx.lineWidth=.68*s;ctx.globalAlpha=.70;for(let ring=0;ring<6;ring++){const rr=(8+ring*3.2)*s;ctx.beginPath();ctx.arc(0,(-18+ring*2.15)*s,rr,.08*Math.PI,.92*Math.PI);ctx.stroke();}ctx.globalAlpha=1;
+    } else if(type==='Curls'){
+      scalp(21.5,30,2.7);const pts=[[-20,-20],[-14,-29],[-5,-33],[5,-33],[14,-29],[20,-20],[-20,-10],[-12,-16],[-3,-20],[7,-20],[16,-15],[-16,-3],[-7,-7],[3,-8],[13,-5]];
+      for(let i=0;i<pts.length;i++){const [x,y]=pts[i],r=(5.2+(i%4)*.7)*s;ctx.fillStyle=i%3===0?mid:base;ctx.beginPath();ctx.arc(x*s,y*s,r,0,Math.PI*2);ctx.fill();ctx.strokeStyle=hi;ctx.globalAlpha=.66;ctx.lineWidth=.72*s;ctx.beginPath();ctx.arc(x*s,y*s,r*.55,(i%3)*.4,Math.PI*1.65+(i%3)*.4);ctx.stroke();ctx.globalAlpha=1;}
+    } else if(type==='Long Hair'){
+      const flow=sway*3.6*s,back=view==='back';
+      const strands=[[-22,-3,-28,62],[-18,-4,-22,67],[-13,-5,-15,64],[-8,-3,-8,58],[8,-3,8,58],[13,-5,15,64],[18,-4,22,67],[22,-3,28,62]];
+      for(let i=0;i<strands.length;i++){const [sx,sy,ex,ey]=strands[i];const g=ctx.createLinearGradient(sx*s,sy*s,ex*s,ey*s);g.addColorStop(0,i%2?base:mid);g.addColorStop(1,dark);ctx.strokeStyle=g;ctx.lineWidth=(3.5+(i%3)*.55)*s;ctx.beginPath();ctx.moveTo(sx*s,sy*s);ctx.quadraticCurveTo((sx*1.12)*s,28*s,(ex*s)+(back?0:flow*(sx>0?1:-1)),ey*s+flow*.40);ctx.stroke();ctx.strokeStyle=hi;ctx.globalAlpha=.20;ctx.lineWidth=.55*s;ctx.stroke();ctx.globalAlpha=1;}
+      scalp(22.8,31.5,2.2);ctx.strokeStyle=hi;ctx.globalAlpha=.20;ctx.lineWidth=.62*s;for(let i=-4;i<=4;i++){ctx.beginPath();ctx.moveTo(i*4.7*s,-28*s);ctx.quadraticCurveTo(i*4.2*s,-15*s,i*3.5*s,-3*s);ctx.stroke()}ctx.globalAlpha=1;
+    } else if(type==='Pony Tail'){
+      const rear=view==='back',side=view==='side',anchorX=(rear?0:side?17:18.5)*s,flow=sway*4.6*s;
+      for(let i=-3;i<=3;i++){const ex=(rear?i*1.2:25+i*1.15)*s;ctx.strokeStyle=i%2?base:dark;ctx.lineWidth=(2.0+(3-Math.abs(i))*.35)*s;ctx.beginPath();ctx.moveTo(anchorX+i*.35*s,-1*s);ctx.quadraticCurveTo(anchorX+(rear?i*.5:9*s),26*s+flow*.25,ex,64*s+flow);ctx.stroke();ctx.strokeStyle=hi;ctx.globalAlpha=.24;ctx.lineWidth=.42*s;ctx.stroke();ctx.globalAlpha=1;}
+      scalp(21.7,29.5,2.7);ctx.strokeStyle=hi;ctx.globalAlpha=.24;ctx.lineWidth=.58*s;for(let i=-4;i<=4;i++){ctx.beginPath();ctx.moveTo(i*4.2*s,-27*s);ctx.quadraticCurveTo((i*3.8+(anchorX/s)*.22)*s,-13*s,anchorX,-3*s);ctx.stroke()}ctx.globalAlpha=1;ctx.fillStyle=dark;ctx.beginPath();ctx.arc(anchorX,-2*s,5.2*s,0,Math.PI*2);ctx.fill();ctx.fillStyle=hi;ctx.globalAlpha=.45;ctx.beginPath();ctx.arc(anchorX-1.3*s,-3.4*s,1.25*s,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+    }
+  }
+  const v778BaseFootballHair=drawFootballHair;
+  drawFootballHair=function(ctx,style,x,y,scale,colour,motion=0,profile={}){
+    if(!V778_UPGRADED_HAIR.has(style))return v778BaseFootballHair(ctx,style,x,y,scale,colour,motion,profile);
+    const fit=faceFitV777(profile,1,1),hm=hairFitMetaV777(style),close=style==='Waves',width=hm.baseWidth*(1+(fit.skullWidth-1)*(close?.98:.78)),height=1+(fit.skullHeight-1)*(close?.92:.42),frontShift=fit.hairlineDrop*1.5*scale;
+    ctx.save();ctx.translate(x,y+frontShift);ctx.scale(width,height);v778DrawMatchHairRaw(ctx,style,Math.max(.72,scale||1),colour||'#21140d',motion,{...profile,faceFit:fit});ctx.restore();
+  };
+  const v778BasePortraitHair=drawPortraitHair;
+  drawPortraitHair=function(ctx,style,x,y,scale,colour,phase=0,profile={}){
+    if(!V778_UPGRADED_HAIR.has(style))return v778BasePortraitHair(ctx,style,x,y,scale,colour,phase,profile);
+    const fit=faceFitV777(profile,1,1),hm=hairFitMetaV777(style),close=style==='Waves',width=hm.baseWidth*(1+(fit.skullWidth-1)*(close?.99:.80)),height=1+(fit.skullHeight-1)*(close?.94:.46),frontShift=fit.hairlineDrop*7*scale;
+    ctx.save();ctx.translate(x,y+frontShift);ctx.scale(width,height);v778DrawPortraitHairRaw(ctx,style,scale||1,colour||'#21140d',phase,{...profile,faceFit:fit});ctx.restore();
+  };
+  function v778DrawFaceContext(canvas,appearance,mode='media'){
+    if(!canvas)return;const ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;ctx.clearRect(0,0,w,h);const bg=ctx.createRadialGradient(w*.5,h*.38,4,w*.5,h*.52,w*.62);bg.addColorStop(0,mode==='training'?'#143044':mode==='match'?'#153b2c':'#1b2440');bg.addColorStop(1,'#07101d');ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
+    if(mode==='match'||mode==='training'){
+      const cx=w/2,cy=h*.48,skin=appearance.skinTone,jersey=mode==='training'?'#202a3a':'#7c3aed';ctx.fillStyle=jersey;ctx.beginPath();ctx.roundRect(cx-18,cy+12,36,29,8);ctx.fill();ctx.fillStyle=skin;ctx.beginPath();ctx.ellipse(cx,cy,14,16,0,0,Math.PI*2);ctx.fill();drawFootballHair(ctx,appearance.hairStyle,cx,cy-10,3.35,appearance.hairColour,performance.now()/650,{...appearance,view:'top',headFit:{cx,cy,rx:14,ry:16}});ctx.fillStyle='rgba(255,255,255,.72)';ctx.font='800 7px system-ui';ctx.textAlign='center';ctx.fillText(mode.toUpperCase(),cx,h-6);return;
+    }
+    const cx=w/2,cy=h*.42,rx=mode==='replay'?30:38,ry=mode==='replay'?37:47,skin=appearance.skinTone;ctx.fillStyle=skin;ctx.strokeStyle=shadeColour(skin,-.28);ctx.lineWidth=1.5;traceFaceSilhouetteV776(ctx,cx,cy,rx,ry,appearance.headShape,appearance.jawStyle);ctx.fill();ctx.stroke();drawPortraitHair(ctx,appearance.hairStyle,cx,cy-11,mode==='replay'?1.15:1.38,appearance.hairColour,performance.now()/700,{...appearance,view:'front',headFit:{cx,cy,rx,ry}});drawFaceFeaturesV776(ctx,appearance,cx,cy,rx,ry,mode==='replay'?1:1.18,{media:true,expression:'neutral'});ctx.fillStyle='rgba(255,255,255,.72)';ctx.font='800 8px system-ui';ctx.textAlign='center';ctx.fillText(mode==='replay'?'REPLAY':'CLASSIC MEDIA',cx,h-8);
+  }
+  function v778RefreshStylePreview(){const root=$('#v778StylePreview');if(!root)return;const a=v778AppearanceFromCreator();v778DrawFaceContext($('#v778MediaPreview'),a,'media');v778DrawFaceContext($('#v778MatchPreview'),a,'match');v778DrawFaceContext($('#v778TrainingPreview'),a,'training');v778DrawFaceContext($('#v778ReplayPreview'),a,'replay');const n=$('#v778HairName');if(n)n.textContent=a.hairStyle;}
+  const v778PreviousBuildHairStyleCards=buildHairStyleCards;
+  buildHairStyleCards=function(){const select=$('#hair'),container=$('#hairChips');if(!select||!container)return;const colour=$('#hairColour')?.value||'#21140d',skin=$('#skinTone')?.value||'#9a5d38';container.className='hair-style-grid';container.innerHTML=HAIR_STYLES.map(style=>{const locked=!STARTER_HAIR_STYLES.includes(style),rule=HAIR_UNLOCK_RULES[style],meta=v776HairMeta(style),extra=V778_HAIR_PRESENTATION[style]||{texture:meta.length||'Styled',motion:meta.motion>.5?'Dynamic':meta.motion>.12?'Subtle':'Rigid'};return `<button type="button" class="hair-card v776-hair-card ${select.value===style?'active':''} ${locked?'locked':''}" data-value="${style}" ${locked?'disabled':''}><span class="hair-thumb ${hairSlug(style)}" style="--hair:${colour};--skin:${skin}"><i></i></span><b>${escapeMarkup(style)}</b><span class="v778-hair-tags"><i>${escapeMarkup(extra.texture)}</i><i>${escapeMarkup(extra.motion)}</i></span><span class="v776-readability">${'●'.repeat(meta.match)}${'○'.repeat(5-meta.match)}</span><small>${locked?`🔒 ${rule?.detail||'Career unlock'}`:`Match ${v776ImpactLabel(meta.match)}`}</small></button>`}).join('');container.onclick=e=>{const btn=e.target.closest('[data-value]');if(!btn||btn.disabled)return;select.value=btn.dataset.value;buildHairStyleCards();select.dispatchEvent(new Event('input',{bubbles:true}))};v778RefreshStylePreview();};
+  const v778PreviousRefreshPanels=v77RefreshPanels;
+  v77RefreshPanels=function(){v778PreviousRefreshPanels();v778RefreshStylePreview()};
+  ['hair','hairColour','skinTone','headShape','jawStyle','noseStyle','eyeStyle','browStyle','hairlineStyle','facialHair','complexion'].forEach(id=>$('#'+id)?.addEventListener('input',v778RefreshStylePreview));
+  window.__CIRCLE_XI_VISUAL_IDENTITY_VERSION='v77.8-hairstyle-authenticity';
+  if(window.__CXI_V777)window.__CXI_V777.frontSideTopPreview=false;
+  window.__CXI_V778={version:V778_HAIRSTYLE_VERSION,manualAngleButtons:false,styleImpactPanel:false,classicMediaPreview:true,automaticContextPreview:true,upgradedStyles:[...V778_UPGRADED_HAIR],sharedAcrossContexts:true};
+
+  // --------------------------------------------------------------------------
+  // V77.9 Hairstyle Graphics Overhaul: distinct rendering families for all 18
+  // --------------------------------------------------------------------------
+  const V779_HAIRSTYLE_VERSION='77.9.1';
+  const V779_ALL_HAIR=new Set(HAIR_STYLES);
+  Object.assign(V778_HAIR_PRESENTATION,{
+    'Short':{texture:'Micro texture',motion:'Rigid'},
+    'Fade':{texture:'Textured top + fade',motion:'Rigid'},
+    'Afro':{texture:'Dense micro curls',motion:'Soft bounce'},
+    'Braids':{texture:'Rooted woven braids',motion:'Dynamic'},
+    'Shaved':{texture:'Scalp stubble',motion:'Rigid'},
+    'Curly Top':{texture:'Tapered curl crown',motion:'Soft bounce'},
+    'Cornrows':{texture:'Scalp-following rows',motion:'Rigid'},
+    'Twists':{texture:'Rope twists',motion:'Subtle'},
+    'Mohawk':{texture:'Centre textured strip',motion:'Subtle'},
+    'Locs':{texture:'Rounded loc strands',motion:'Dynamic'},
+    'Low Fade':{texture:'Low gradient fade',motion:'Rigid'},
+    'High Fade':{texture:'High skin fade',motion:'Rigid'},
+    'Taper':{texture:'Temple + nape taper',motion:'Rigid'},
+    'Waves':{texture:'Close 360 waves',motion:'Rigid'},
+    'Buzz Cut':{texture:'Uniform micro stubble',motion:'Rigid'},
+    'Curls':{texture:'Layered curl clusters',motion:'Soft bounce'},
+    'Pony Tail':{texture:'Pulled crown + tapered tail',motion:'Dynamic tail'},
+    'Long Hair':{texture:'Layered flowing sections',motion:'Flowing'}
+  });
+  function v779Palette(base){return {base,hi:mixColour(base,'#ffffff',.13),mid:mixColour(base,'#ffffff',.045),dark:shadeColour(base,-.36),deep:shadeColour(base,-.50)}}
+  function v779ScalpMatch(ctx,s,c,profile={},w=2.45,h=2.42,front=.12,alpha=1){ctx.save();ctx.globalAlpha=alpha;const g=ctx.createLinearGradient(-w*s,-h*s,w*s,.5*s);g.addColorStop(0,c.hi);g.addColorStop(.35,c.base);g.addColorStop(1,c.dark);ctx.fillStyle=g;v778ScalpPath(ctx,w*s,h*s,front*s);ctx.fill();ctx.restore();drawHairlineV776(ctx,0,-h*.80*s,w*.62*s,profile?.hairlineStyle||'Rounded',c.base,s*.42)}
+  function v779ScalpPortrait(ctx,s,c,profile={},w=22,h=29,front=2,alpha=1){ctx.save();ctx.globalAlpha=alpha;const g=ctx.createLinearGradient(-w*s,-h*s,w*s,7*s);g.addColorStop(0,c.hi);g.addColorStop(.34,c.base);g.addColorStop(1,c.dark);ctx.fillStyle=g;v778ScalpPath(ctx,w*s,h*s,front*s);ctx.fill();ctx.restore();drawHairlineV776(ctx,0,-2*s,w*.81*s,profile?.hairlineStyle||'Rounded',c.base,s)}
+  function v779MicroTextureMatch(ctx,s,c,count=28,yMin=-2.0,yMax=-.1,w=1.9,alpha=.34){ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=c.hi;ctx.lineWidth=.07*s;for(let i=0;i<count;i++){const x=Math.sin(i*2.17)*w*s*.92,y=(yMin+(yMax-yMin)*((i*7)%count)/(count-1))*s,len=(.07+(i%3)*.025)*s,ang=(i%5-2)*.18;ctx.beginPath();ctx.moveTo(x-Math.cos(ang)*len,y-Math.sin(ang)*len);ctx.lineTo(x+Math.cos(ang)*len,y+Math.sin(ang)*len);ctx.stroke()}ctx.restore()}
+  function v779MicroTexturePortrait(ctx,s,c,count=80,w=19,y0=-27,y1=-2,alpha=.26){ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=c.hi;ctx.lineWidth=.36*s;for(let i=0;i<count;i++){const x=Math.sin(i*2.39)*w*s*.93,y=(y0+(y1-y0)*((i*13)%count)/(count-1))*s,len=(.55+(i%4)*.14)*s,ang=(i%7-3)*.10;ctx.beginPath();ctx.moveTo(x-Math.cos(ang)*len,y-Math.sin(ang)*len);ctx.quadraticCurveTo(x,y-.25*s,x+Math.cos(ang)*len,y+Math.sin(ang)*len);ctx.stroke()}ctx.restore()}
+  function v779WaveRowsMatch(ctx,s,c){ctx.save();ctx.strokeStyle=mixColour(c.base,'#ffffff',.25);ctx.globalAlpha=.52;ctx.lineWidth=.09*s;for(let row=0;row<7;row++){const rr=(.5+row*.30)*s,cy=(-2.05+row*.31-(.5+row*.30))*s;ctx.beginPath();ctx.arc(0,cy,rr,Math.PI*.10,Math.PI*.90);ctx.stroke();}ctx.restore()}
+  function v779WaveRowsPortrait(ctx,s,c){ctx.save();ctx.strokeStyle=mixColour(c.base,'#ffffff',.28);ctx.globalAlpha=.48;ctx.lineWidth=.48*s;for(let row=0;row<9;row++){const rr=(5.5+row*1.35)*s,cy=(-23+row*1.45)*s;ctx.beginPath();ctx.arc(0,cy,rr,Math.PI*.08,Math.PI*.92);ctx.stroke();}ctx.restore()}
+  function v779CurlMassMatch(ctx,s,c,large=false,topOnly=false,phase=0){
+    const bounce=Math.sin(phase||0)*.022*s,baseY=topOnly?-2.00:-1.38,rx=large?2.72:topOnly?1.92:2.30,ry=large?2.18:topOnly?1.15:1.72;
+    const g=ctx.createRadialGradient(-.55*s,(baseY-.65)*s,.15*s,0,baseY*s,3*s);g.addColorStop(0,c.hi);g.addColorStop(.24,c.mid);g.addColorStop(.66,c.base);g.addColorStop(1,c.dark);ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(0,baseY*s+bounce,rx*s,ry*s,0,0,Math.PI*2);ctx.fill();
+    const edgeCount=large?18:12;for(let i=0;i<edgeCount;i++){const a=i/edgeCount*Math.PI*2,ex=Math.cos(a)*rx*.94,ey=baseY+Math.sin(a)*ry*.92,r=(large?.24:.19)+(i%3)*.025;ctx.fillStyle=i%3===0?c.mid:c.base;ctx.beginPath();ctx.arc(ex*s,(ey*s)+bounce,r*s,0,Math.PI*2);ctx.fill()}
+    const count=large?34:22;ctx.save();ctx.globalAlpha=.34;ctx.strokeStyle=c.hi;ctx.lineWidth=.08*s;for(let i=0;i<count;i++){const a=i*2.399,rad=.28+(i%7)*.21,x=Math.cos(a)*rad*(large?1.62:topOnly?1.08:1.32),y=baseY+Math.sin(a)*rad*(large?1.12:topOnly?.70:.88),r=(.11+(i%4)*.025)*s;ctx.beginPath();ctx.arc(x*s,(y*s)+bounce,r,a,a+Math.PI*1.36);ctx.stroke()}ctx.restore()
+  }
+  function v779CurlMassPortrait(ctx,s,c,large=false,topOnly=false,phase=0){
+    const bounce=Math.sin(phase||0)*(large?.6:.38)*s,baseY=topOnly?-27:large?-22:-18,rx=large?31:topOnly?20:24,ry=large?24.5:topOnly?13:19;
+    const g=ctx.createRadialGradient(-7*s,(baseY-9)*s,2*s,0,baseY*s,(large?39:29)*s);g.addColorStop(0,c.hi);g.addColorStop(.22,c.mid);g.addColorStop(.64,c.base);g.addColorStop(1,c.dark);ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(0,baseY*s+bounce,rx*s,ry*s,0,0,Math.PI*2);ctx.fill();
+    const edgeCount=large?32:20;for(let i=0;i<edgeCount;i++){const a=i/edgeCount*Math.PI*2,ex=Math.cos(a)*rx*.95,ey=baseY+Math.sin(a)*ry*.94,r=(large?3.1:2.4)+(i%4)*.35;ctx.fillStyle=i%4===0?c.mid:c.base;ctx.beginPath();ctx.arc(ex*s,ey*s+bounce,r*s,0,Math.PI*2);ctx.fill()}
+    const count=large?78:46;ctx.save();ctx.globalAlpha=.30;ctx.strokeStyle=c.hi;ctx.lineWidth=.48*s;for(let i=0;i<count;i++){const a=i*2.399,rad=4+(i%10)*2.4,x=Math.cos(a)*rad*(large?1.05:topOnly?.78:.93),y=baseY+Math.sin(a)*rad*(large?.78:topOnly?.52:.66),r=(1.05+(i%5)*.22)*s;ctx.beginPath();ctx.arc(x*s,y*s+bounce,r,a*.31,a*.31+Math.PI*1.34);ctx.stroke()}ctx.restore()
+  }
+  function v779BraidStroke(ctx,x0,y0,cx,cy,x1,y1,width,s,c,alpha=1){ctx.save();ctx.globalAlpha=alpha;ctx.strokeStyle=c.dark;ctx.lineWidth=width*s;ctx.beginPath();ctx.moveTo(x0*s,y0*s);ctx.quadraticCurveTo(cx*s,cy*s,x1*s,y1*s);ctx.stroke();ctx.strokeStyle=c.hi;ctx.globalAlpha=alpha*.34;ctx.lineWidth=Math.max(.07,width*.18)*s;ctx.setLineDash([.35*s,.32*s]);ctx.stroke();ctx.setLineDash([]);ctx.restore()}
+  function v779RowsPortrait(ctx,s,c,profile={},braids=false,phase=0){
+    v779ScalpPortrait(ctx,s,c,profile,21.5,28.5,2.8,braids?.96:.74);
+    ctx.save();ctx.lineCap='round';const roots=[-16,-12,-8,-4,0,4,8,12,16];for(let i=0;i<roots.length;i++){const x=roots[i],endX=x*.54;ctx.strokeStyle=i%2?c.mid:c.hi;ctx.globalAlpha=.54;ctx.lineWidth=.78*s;ctx.beginPath();ctx.moveTo(endX*s,-3.8*s);ctx.quadraticCurveTo(x*.82*s,-14*s,x*s,-27*s);ctx.stroke()}ctx.restore();
+    if(braids){const sway=Math.sin(phase||0)*2.2;const roots2=[-20.5,-15.6,15.6,20.5];for(let i=0;i<roots2.length;i++){const x=roots2[i],side=Math.sign(x),endY=36+(i%2)*9+sway*(i%2?1:-1);v779BraidStroke(ctx,x,-4,x+side*5,13,x+side*7,endY,3.6,s,c,.98)}}
+  }
+  function v779RowsMatch(ctx,s,c,profile={},braids=false,phase=0){
+    v779ScalpMatch(ctx,s,c,profile,2.40,2.30,.15,braids?.96:.78);
+    ctx.save();ctx.strokeStyle=c.hi;ctx.globalAlpha=.50;ctx.lineWidth=.095*s;for(let i=-3;i<=3;i++){ctx.beginPath();ctx.moveTo(i*.30*s,.18*s);ctx.quadraticCurveTo(i*.40*s,-.82*s,i*.55*s,-2.02*s);ctx.stroke()}ctx.restore();
+    if(braids){const wave=Math.sin(phase||0)*.16;for(const x of [-1.72,-.92,.92,1.72]){const side=Math.sign(x);v779BraidStroke(ctx,x,-.16,x+side*.38,1.10,x+side*.50,2.75+wave*side,.55,s,c,.96)}}
+  }
+  function v779TwistsMatch(ctx,s,c,phase=0){
+    v779ScalpMatch(ctx,s,c,{},2.38,2.36,.14,.88);const sway=Math.sin(phase||0)*.06;
+    const pts=[[-1.55,-1.72],[-.88,-2.06],[-.28,-2.20],[.35,-2.18],[.95,-2.02],[1.55,-1.66],[-1.25,-.92],[-.55,-1.10],[.18,-1.15],[.88,-.98]];
+    for(let i=0;i<pts.length;i++){const [x,y]=pts[i],side=x>=0?1:-1,endX=x+side*(.14+(i%2)*.05),endY=y+.75+(i%3)*.13+sway;v779BraidStroke(ctx,x,y,x+side*.08,y+.34,endX,endY,.31,s,c,.96);ctx.fillStyle=c.base;ctx.beginPath();ctx.arc(endX*s,endY*s,.16*s,0,Math.PI*2);ctx.fill()}
+  }
+  function v779TwistsPortrait(ctx,s,c,profile={},phase=0){
+    v779ScalpPortrait(ctx,s,c,profile,21.5,29,2.6,.88);const sway=Math.sin(phase||0)*.8;
+    const pts=[[-17,-24],[-11,-28],[-5,-30],[2,-30],[9,-28],[16,-23],[-15,-14],[-8,-17],[-1,-18],[6,-17],[13,-14]];
+    for(let i=0;i<pts.length;i++){const [x,y]=pts[i],side=x>=0?1:-1,endX=x+side*(1.2+(i%2)*.5),endY=y+12+(i%3)*2+sway*(i%2?1:-1);v779BraidStroke(ctx,x,y,x+side*1.1,y+6,endX,endY,2.65,s,c,.98);ctx.fillStyle=c.base;ctx.beginPath();ctx.arc(endX*s,endY*s,1.35*s,0,Math.PI*2);ctx.fill()}
+  }
+  function v779LocsMatch(ctx,s,c,phase=0){
+    v779ScalpMatch(ctx,s,c,{},2.38,2.35,.14,.88);const sway=Math.sin(phase||0)*.20;const xs=[-1.85,-1.35,-.85,.85,1.35,1.85];
+    for(let i=0;i<xs.length;i++){const x=xs[i],side=Math.sign(x),endX=x+side*(.20+(i%2)*.12),endY=2.25+(i%3)*.42+sway*(i%2?1:-1);v779BraidStroke(ctx,x,-.42,x+side*.20,.75,endX,endY,.60,s,c,.98)}
+  }
+  function v779LocsPortrait(ctx,s,c,profile={},phase=0){
+    v779ScalpPortrait(ctx,s,c,profile,21.8,29,2.4,.88);const sway=Math.sin(phase||0)*3.0;const xs=[-21,-16.6,-12.4,12.4,16.6,21];
+    for(let i=0;i<xs.length;i++){const x=xs[i],side=Math.sign(x),endX=x+side*(2+(i%2)*1.8),endY=34+(i%3)*7+sway*(i%2?1:-1);v779BraidStroke(ctx,x,-4,x+side*3,12,endX,endY,4.2,s,c,.98)}
+  }
+  function v779LongMatch(ctx,s,c,phase=0){const sway=Math.sin(phase||0)*.28;ctx.fillStyle=c.dark;ctx.beginPath();ctx.moveTo(-2.2*s,-.15*s);ctx.quadraticCurveTo(-2.75*s,1.65*s,-2.35*s,4.0*s+sway);ctx.lineTo(-1.20*s,3.35*s+sway*.5);ctx.quadraticCurveTo(-1.0*s,1.0*s,-1.08*s,-.10*s);ctx.closePath();ctx.fill();ctx.beginPath();ctx.moveTo(2.2*s,-.15*s);ctx.quadraticCurveTo(2.75*s,1.65*s,2.35*s,4.0*s-sway);ctx.lineTo(1.20*s,3.35*s-sway*.5);ctx.quadraticCurveTo(1.0*s,1.0*s,1.08*s,-.10*s);ctx.closePath();ctx.fill();v779ScalpMatch(ctx,s,c,{},2.50,2.55,.12,1);ctx.save();ctx.strokeStyle=c.hi;ctx.globalAlpha=.22;ctx.lineWidth=.10*s;for(const x of [-1.8,-1.35,-.9,.9,1.35,1.8]){ctx.beginPath();ctx.moveTo(x*s,-.1*s);ctx.quadraticCurveTo(x*1.18*s,1.8*s,x*1.25*s,3.5*s);ctx.stroke()}ctx.restore()}
+  function v779LongPortrait(ctx,s,c,profile={},phase=0){const sway=Math.sin(phase||0)*3.2;const gradL=ctx.createLinearGradient(-24*s,-4*s,-22*s,64*s);gradL.addColorStop(0,c.mid);gradL.addColorStop(.5,c.base);gradL.addColorStop(1,c.dark);ctx.fillStyle=gradL;ctx.beginPath();ctx.moveTo(-22*s,-5*s);ctx.quadraticCurveTo(-30*s,21*s,-27*s,57*s+sway);ctx.quadraticCurveTo(-24*s,68*s,-16*s,62*s+sway*.6);ctx.quadraticCurveTo(-18*s,42*s,-17*s,3*s);ctx.closePath();ctx.fill();const gradR=ctx.createLinearGradient(24*s,-4*s,22*s,64*s);gradR.addColorStop(0,c.mid);gradR.addColorStop(.5,c.base);gradR.addColorStop(1,c.dark);ctx.fillStyle=gradR;ctx.beginPath();ctx.moveTo(22*s,-5*s);ctx.quadraticCurveTo(30*s,21*s,27*s,57*s-sway);ctx.quadraticCurveTo(24*s,68*s,16*s,62*s-sway*.6);ctx.quadraticCurveTo(18*s,42*s,17*s,3*s);ctx.closePath();ctx.fill();v779ScalpPortrait(ctx,s,c,profile,22.5,30,2.4,1);ctx.save();ctx.strokeStyle=c.hi;ctx.globalAlpha=.18;ctx.lineWidth=.52*s;for(const x of [-21,-19,-17,17,19,21]){ctx.beginPath();ctx.moveTo(x*s,-3*s);ctx.quadraticCurveTo(x*1.16*s,26*s,x*1.20*s,58*s);ctx.stroke()}ctx.restore()}
+  function v779PonyMatch(ctx,s,c,phase=0){const sway=Math.sin(phase||0)*.42;ctx.strokeStyle=c.dark;ctx.lineWidth=.80*s;ctx.beginPath();ctx.moveTo(0,.30*s);ctx.quadraticCurveTo(.5*s,2.0*s,.20*s,4.1*s+sway);ctx.stroke();ctx.strokeStyle=c.hi;ctx.globalAlpha=.22;ctx.lineWidth=.16*s;ctx.stroke();ctx.globalAlpha=1;v779ScalpMatch(ctx,s,c,{},2.38,2.35,.13,1);ctx.save();ctx.strokeStyle=c.hi;ctx.globalAlpha=.22;ctx.lineWidth=.09*s;for(let i=-3;i<=3;i++){ctx.beginPath();ctx.moveTo(i*.55*s,-2.0*s);ctx.quadraticCurveTo(i*.30*s,-.80*s,0,.15*s);ctx.stroke()}ctx.restore();ctx.fillStyle=c.deep;ctx.beginPath();ctx.arc(0,.22*s,.42*s,0,Math.PI*2);ctx.fill()}
+  function v779PonyPortrait(ctx,s,c,profile={},phase=0){const sway=Math.sin(phase||0)*4.3;const anchorX=18*s;ctx.save();ctx.strokeStyle=c.dark;ctx.lineWidth=11*s;ctx.beginPath();ctx.moveTo(anchorX,-1*s);ctx.quadraticCurveTo(29*s,24*s,23*s,61*s+sway);ctx.stroke();ctx.strokeStyle=c.base;ctx.lineWidth=7.5*s;ctx.stroke();ctx.strokeStyle=c.hi;ctx.globalAlpha=.20;ctx.lineWidth=1.0*s;ctx.stroke();ctx.restore();v779ScalpPortrait(ctx,s,c,profile,21.5,28.5,2.7,1);ctx.save();ctx.strokeStyle=c.hi;ctx.globalAlpha=.24;ctx.lineWidth=.55*s;for(let i=-4;i<=4;i++){ctx.beginPath();ctx.moveTo(i*4.2*s,-27*s);ctx.quadraticCurveTo((i*3.4+7)*s,-12*s,anchorX,-3*s);ctx.stroke()}ctx.restore();ctx.fillStyle=c.deep;ctx.beginPath();ctx.arc(anchorX,-2*s,4.8*s,0,Math.PI*2);ctx.fill()}
+  function v779MohawkMatch(ctx,s,c){
+    v779ScalpMatch(ctx,s,c,{},2.36,2.30,.14,.18);const g=ctx.createLinearGradient(0,-2.75*s,0,2.15*s);g.addColorStop(0,c.hi);g.addColorStop(.32,c.base);g.addColorStop(1,c.dark);ctx.fillStyle=g;ctx.beginPath();ctx.roundRect(-.72*s,-2.58*s,1.44*s,4.35*s,.48*s);ctx.fill();for(let i=0;i<6;i++){ctx.fillStyle=i%2?c.base:c.mid;ctx.beginPath();ctx.arc((i%2?.08:-.08)*s,(-2.12+i*.70)*s,(.52+(i%3)*.05)*s,0,Math.PI*2);ctx.fill()}
+  }
+  function v779MohawkPortrait(ctx,s,c,profile={}){
+    const g=ctx.createLinearGradient(0,-43*s,0,4*s);g.addColorStop(0,c.hi);g.addColorStop(.32,c.base);g.addColorStop(1,c.dark);ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(-8*s,4*s);ctx.quadraticCurveTo(-9*s,-12*s,-7*s,-31*s);ctx.quadraticCurveTo(-3*s,-42*s,0,-45*s);ctx.quadraticCurveTo(4*s,-41*s,7*s,-31*s);ctx.quadraticCurveTo(9*s,-12*s,8*s,4*s);ctx.closePath();ctx.fill();ctx.save();ctx.strokeStyle=c.hi;ctx.globalAlpha=.20;ctx.lineWidth=.7*s;for(let i=0;i<6;i++){const y=(-34+i*6.2)*s;ctx.beginPath();ctx.moveTo(-5.5*s,y);ctx.quadraticCurveTo(0,y-2*s,5.5*s,y);ctx.stroke()}ctx.restore()
+  }
+  function v779DrawMatchHairRaw(ctx,type,s,base,motion=0,profile={}){const c=v779Palette(base);ctx.lineCap='round';ctx.lineJoin='round';
+    if(type==='Shaved'){const skin=profile?.skinTone||'#7b4b2a',stub=mixColour(skin,base,.14),cc=v779Palette(stub);v779ScalpMatch(ctx,s,cc,profile,2.46,2.32,.14,.50);ctx.save();ctx.fillStyle=base;ctx.globalAlpha=.22;for(let i=0;i<24;i++){const x=Math.sin(i*2.1)*1.92*s,y=(-1.9+((i*7)%24)/23*1.9)*s;ctx.beginPath();ctx.arc(x,y,.045*s,0,Math.PI*2);ctx.fill()}ctx.restore();return}
+    if(type==='Buzz Cut'){v779ScalpMatch(ctx,s,c,profile,2.46,2.34,.14,.93);v779MicroTextureMatch(ctx,s,c,44,-1.95,.0,2.0,.30);return}
+    if(type==='Waves'){v779ScalpMatch(ctx,s,c,profile,2.46,2.28,.14,.96);v779WaveRowsMatch(ctx,s,c);return}
+    if(type==='Short'){v779ScalpMatch(ctx,s,c,profile,2.48,2.52,.12,1);v779MicroTextureMatch(ctx,s,c,34,-2.18,-.16,1.98,.36);return}
+    if(['Fade','Low Fade','High Fade','Taper'].includes(type)){const topH=type==='High Fade'?2.62:type==='Low Fade'?2.52:type==='Taper'?2.46:2.56,topW=type==='High Fade'?1.78:type==='Fade'?2.04:type==='Low Fade'?2.32:2.46;v779ScalpMatch(ctx,s,c,profile,topW,topH,.13,1);v779MicroTextureMatch(ctx,s,c,30,-2.15,-.16,Math.max(1.35,topW*.76),.36);ctx.save();ctx.strokeStyle=c.dark;ctx.globalAlpha=type==='Low Fade'?.34:type==='Taper'?.48:.20;ctx.lineWidth=.22*s;ctx.beginPath();ctx.moveTo(-topW*.95*s,-.55*s);ctx.quadraticCurveTo(0,(type==='Low Fade'?.35:type==='High Fade'?-.75:-.15)*s,topW*.95*s,-.55*s);ctx.stroke();ctx.restore();return}
+    if(type==='Afro'){v779CurlMassMatch(ctx,s,c,true,false,motion);return}
+    if(type==='Curly Top'){v779ScalpMatch(ctx,s,c,profile,2.40,2.18,.16,.78);v779CurlMassMatch(ctx,s,c,false,true,motion);return}
+    if(type==='Curls'){v779CurlMassMatch(ctx,s,c,false,false,motion);return}
+    if(type==='Cornrows'){v779RowsMatch(ctx,s,c,profile,false,motion);return}
+    if(type==='Braids'){v779RowsMatch(ctx,s,c,profile,true,motion);return}
+    if(type==='Twists'){v779TwistsMatch(ctx,s,c,motion);return}
+    if(type==='Locs'){v779LocsMatch(ctx,s,c,motion);return}
+    if(type==='Mohawk'){v779MohawkMatch(ctx,s,c);return}
+    if(type==='Long Hair'){v779LongMatch(ctx,s,c,motion);return}
+    if(type==='Pony Tail'){v779PonyMatch(ctx,s,c,motion);return}
+    v779ScalpMatch(ctx,s,c,profile);
+  }
+  function v779DrawPortraitHairRaw(ctx,type,s,base,phase=0,profile={}){const c=v779Palette(base);ctx.lineCap='round';ctx.lineJoin='round';
+    if(type==='Shaved'){const skin=profile?.skinTone||'#7b4b2a',stub=mixColour(skin,base,.13),cc=v779Palette(stub);v779ScalpPortrait(ctx,s,cc,profile,22,25.5,3,.46);ctx.save();ctx.fillStyle=base;ctx.globalAlpha=.20;for(let i=0;i<72;i++){const x=Math.sin(i*2.1)*18.7*s,y=(-23+((i*11)%72)/71*21)*s;ctx.beginPath();ctx.arc(x,y,.35*s,0,Math.PI*2);ctx.fill()}ctx.restore();return}
+    if(type==='Buzz Cut'){v779ScalpPortrait(ctx,s,c,profile,22,26.5,2.8,.96);v779MicroTexturePortrait(ctx,s,c,120,19.5,-24,-2,.28);return}
+    if(type==='Waves'){v779ScalpPortrait(ctx,s,c,profile,22,26.8,2.8,.98);v779WaveRowsPortrait(ctx,s,c);return}
+    if(type==='Short'){v779ScalpPortrait(ctx,s,c,profile,22.5,30,2.4,1);v779MicroTexturePortrait(ctx,s,c,100,19.5,-28,-2,.30);return}
+    if(['Fade','Low Fade','High Fade','Taper'].includes(type)){const h=type==='High Fade'?31:type==='Low Fade'?30:type==='Taper'?29.5:30.5,w=type==='High Fade'?16.8:type==='Fade'?19.2:type==='Low Fade'?21.4:22.4;v779ScalpPortrait(ctx,s,c,profile,w,h,2.5,1);v779MicroTexturePortrait(ctx,s,c,88,Math.max(14,w*.82),-28,-3,.30);ctx.save();ctx.strokeStyle=c.dark;ctx.globalAlpha=type==='Low Fade'?.34:type==='Taper'?.48:.18;ctx.lineWidth=.95*s;const fy=type==='High Fade'?-14:type==='Low Fade'?-7:type==='Taper'?-8:-10;ctx.beginPath();ctx.moveTo(-w*.97*s,-6*s);ctx.quadraticCurveTo(0,(2*fy+6)*s,w*.97*s,-6*s);ctx.stroke();ctx.restore();return}
+    if(type==='Afro'){v779CurlMassPortrait(ctx,s,c,true,false,phase);return}
+    if(type==='Curly Top'){v779ScalpPortrait(ctx,s,c,profile,21.5,26,3,.94);v779CurlMassPortrait(ctx,s,c,false,true,phase);return}
+    if(type==='Curls'){v779CurlMassPortrait(ctx,s,c,false,false,phase);return}
+    if(type==='Cornrows'){v779RowsPortrait(ctx,s,c,profile,false,phase);return}
+    if(type==='Braids'){v779RowsPortrait(ctx,s,c,profile,true,phase);return}
+    if(type==='Twists'){v779TwistsPortrait(ctx,s,c,profile,phase);return}
+    if(type==='Locs'){v779LocsPortrait(ctx,s,c,profile,phase);return}
+    if(type==='Mohawk'){v779MohawkPortrait(ctx,s,c,profile);return}
+    if(type==='Long Hair'){v779LongPortrait(ctx,s,c,profile,phase);return}
+    if(type==='Pony Tail'){v779PonyPortrait(ctx,s,c,profile,phase);return}
+    v779ScalpPortrait(ctx,s,c,profile);
+  }
+  const v779FallbackFootballHair=drawFootballHair;
+  drawFootballHair=function(ctx,style,x,y,scale,colour,motion=0,profile={}){if(!V779_ALL_HAIR.has(style))return v779FallbackFootballHair(ctx,style,x,y,scale,colour,motion,profile);const fit=faceFitV777(profile,1,1),hm=hairFitMetaV777(style),close=['Shaved','Buzz Cut','Waves','Cornrows'].includes(style),width=hm.baseWidth*(1+(fit.skullWidth-1)*(close?.98:.80)),height=1+(fit.skullHeight-1)*(close?.92:.46),frontShift=fit.hairlineDrop*1.5*scale;ctx.save();ctx.translate(x,y+frontShift);ctx.scale(width,height);v779DrawMatchHairRaw(ctx,style,Math.max(.72,scale||1),colour||'#21140d',motion,{...profile,faceFit:fit});ctx.restore()};
+  const v779FallbackPortraitHair=drawPortraitHair;
+  drawPortraitHair=function(ctx,style,x,y,scale,colour,phase=0,profile={}){if(!V779_ALL_HAIR.has(style))return v779FallbackPortraitHair(ctx,style,x,y,scale,colour,phase,profile);const fit=faceFitV777(profile,1,1),hm=hairFitMetaV777(style),close=['Shaved','Buzz Cut','Waves','Cornrows'].includes(style),width=hm.baseWidth*(1+(fit.skullWidth-1)*(close?.99:.82)),height=1+(fit.skullHeight-1)*(close?.95:.50),frontShift=fit.hairlineDrop*7*scale;ctx.save();ctx.translate(x,y+frontShift);ctx.scale(width,height);v779DrawPortraitHairRaw(ctx,style,scale||1,colour||'#21140d',phase,{...profile,faceFit:fit});ctx.restore()};
+  function v779RenderHairGrid(canvas){if(!canvas)return;const ctx=canvas.getContext('2d'),styles=[...HAIR_STYLES],cols=6,cellW=190,cellH=176;canvas.width=cols*cellW;canvas.height=Math.ceil(styles.length/cols)*cellH;ctx.fillStyle='#07101d';ctx.fillRect(0,0,canvas.width,canvas.height);styles.forEach((style,i)=>{const col=i%cols,row=Math.floor(i/cols),x=col*cellW,y=row*cellH,skin='#7b4b2a',base='#21140d',a={skinTone:skin,hairStyle:style,hairColour:base,headShape:'Oval',jawStyle:'Balanced',hairlineStyle:'Rounded',facialHair:'Clean Shaven',noseStyle:'Balanced',eyeStyle:'Balanced',browStyle:'Natural',complexion:'Clear'};ctx.fillStyle='#101a2d';ctx.strokeStyle='#29364f';ctx.lineWidth=1;ctx.beginPath();ctx.roundRect(x+7,y+7,cellW-14,cellH-14,12);ctx.fill();ctx.stroke();ctx.fillStyle=skin;traceFaceSilhouetteV776(ctx,x+62,y+70,26,32,a.headShape,a.jawStyle);ctx.fill();drawPortraitHair(ctx,style,x+62,y+60,.86,base,0,{...a,headFit:{cx:x+62,cy:y+70,rx:26,ry:32}});drawFaceFeaturesV776(ctx,a,x+62,y+70,26,32,.82,{media:true,expression:'neutral'});ctx.fillStyle=skin;ctx.beginPath();ctx.ellipse(x+140,y+75,13,15,0,0,Math.PI*2);ctx.fill();drawFootballHair(ctx,style,x+140,y+64,3.05,base,0,{...a,view:'top',headFit:{cx:x+140,cy:y+75,rx:13,ry:15}});ctx.fillStyle='#f8fafc';ctx.font='800 12px system-ui';ctx.textAlign='left';ctx.fillText(style,x+18,y+133);ctx.fillStyle='#8fa1be';ctx.font='700 8px system-ui';ctx.fillText('MEDIA',x+38,y+150);ctx.fillText('MATCH',x+122,y+150)});return canvas};
+  function v779PaintHairCardPreviews(){const skin=$('#skinTone')?.value||'#7b4b2a',base=$('#hairColour')?.value||'#21140d';document.querySelectorAll('#hairChips .hair-card').forEach(card=>{const style=card.dataset.value||'Short';let canvas=card.querySelector('canvas.v779-hair-card-canvas');if(!canvas){canvas=document.createElement('canvas');canvas.className='v779-hair-card-canvas';canvas.width=126;canvas.height=84;card.prepend(canvas)}const ctx=canvas.getContext('2d'),a={skinTone:skin,hairStyle:style,hairColour:base,headShape:$('#headShape')?.value||'Oval',jawStyle:$('#jawStyle')?.value||'Balanced',hairlineStyle:$('#hairlineStyle')?.value||'Rounded',facialHair:'Clean Shaven',noseStyle:'Balanced',eyeStyle:'Balanced',browStyle:'Natural',complexion:'Clear'};ctx.clearRect(0,0,canvas.width,canvas.height);const g=ctx.createRadialGradient(63,34,3,63,44,58);g.addColorStop(0,'#17243b');g.addColorStop(1,'#091321');ctx.fillStyle=g;ctx.fillRect(0,0,126,84);ctx.fillStyle=skin;traceFaceSilhouetteV776(ctx,63,49,20,25,a.headShape,a.jawStyle);ctx.fill();drawPortraitHair(ctx,style,63,42,.66,base,0,{...a,headFit:{cx:63,cy:49,rx:20,ry:25}});drawFaceFeaturesV776(ctx,a,63,49,20,25,.63,{media:true,expression:'neutral'})})}
+  const v779BaseBuildHairStyleCards=buildHairStyleCards;
+  buildHairStyleCards=function(){v779BaseBuildHairStyleCards();v779PaintHairCardPreviews()};
+  window.__CXI_V779={version:V779_HAIRSTYLE_VERSION,allStylesRebuilt:true,renderFamilies:['scalp-close','fade','curl-volume','braided','twists-locs','mohawk','long-flowing','ponytail'],styles:[...HAIR_STYLES],renderHairGrid:v779RenderHairGrid};
+  window.__CIRCLE_XI_VISUAL_IDENTITY_VERSION='v77.9.1-hairstyle-graphics-overhaul';
+
+
+  window.__CXI_V776={version:V776_FACE_HAIR_VERSION,faceSilhouette:true,hairline:true,distinctHairStyles:HAIR_STYLES.length,mediaFaceIdentity:true,matchHairRecognition:true,facialHairProfiles:true,creatorFacePreview:false};
+
+  // --------------------------------------------------------------------------
+  // V77.10 Head Shape Hair Fit
+  // Hair used to be sized from a scale constant chosen per call site and from a
+  // skull table that did not match the silhouette actually being drawn, so every
+  // style sat as a narrow dome with bare skin at the temples and ignored the
+  // selected head shape. The renderer now fits each style to the real drawn skull.
+  // --------------------------------------------------------------------------
+  const V7710_HAIR_FIT_VERSION='77.10.0';
+  // The same proportions traceFaceSilhouetteV776 draws with - one source of truth.
+  const V7710_SKULL={Oval:{temple:.96,cheek:.98,top:.92,chin:.58},Round:{temple:1.03,cheek:1.04,top:.98,chin:.69},Square:{temple:1.05,cheek:1.04,top:.98,chin:.88},Long:{temple:.91,cheek:.93,top:.90,chin:.60},Diamond:{temple:.91,cheek:1.07,top:.90,chin:.55}};
+  // How far the hair wraps toward the temples, and how far the hairline sits forward.
+  const V7710_HAIRLINE={Straight:{drop:.00,temple:1},Rounded:{drop:.02,temple:.985},Sharp:{drop:.015,temple:.96},'Widow’s Peak':{drop:.06,temple:.98},Curved:{drop:.035,temple:.985},Receding:{drop:-.07,temple:.93}};
+  // The design head the v77.9 hair art is drawn against, measured from the art itself:
+  // a portrait cap spans +/-22 wide and rises 30 above its anchor; a top-down match cap
+  // spans +/-2.46 and runs 2.54 from back to hairline.
+  const V7710_REF={portraitHalf:22,portraitCrown:30,matchHalf:2.46,matchDepth:2.54};
+  // Curl-based styles read as curls only while they stay roughly round, so they get a
+  // floor on the vertical/horizontal ratio; flat caps take the exact silhouette instead.
+  const V7710_ROUND_TEXTURE=new Set(['Afro','Curls','Curly Top','Twists']);
+  function v7710Skull(shape){return V7710_SKULL[shape]||V7710_SKULL.Oval}
+  function v7710Hairline(style){return V7710_HAIRLINE[style]||V7710_HAIRLINE.Rounded}
+  function v7710CrownControl(m){return 1.04*(m.top/m.temple)/(V7710_SKULL.Oval.top/V7710_SKULL.Oval.temple)}
+  function v7710ValidBox(box){return box&&Number(box.rx)>0&&Number(box.ry)>0}
+  // Front view: anchor the hair on the skull's widest point and its true crown.
+  function v7710PortraitFit(box,profile,style){
+    const rx=Number(box.rx),ry=Number(box.ry),m=v7710Skull(profile.headShape),hl=v7710Hairline(profile.hairlineStyle);
+    const anchor=.32-hl.drop*.55;                                   // side/sideburn line, as a share of ry above centre
+    const sx=rx*m.temple*hl.temple*1.02/V7710_REF.portraitHalf;     // meet the skull edge at the temples
+    let sy=ry*(1.03-anchor)/V7710_REF.portraitCrown;                // reference cap lands just above the crown
+    if(V7710_ROUND_TEXTURE.has(style))sy=Math.max(sy,sx*.78);
+    return {cx:Number(box.cx)||0,anchorY:(Number(box.cy)||0)-ry*anchor,sx,sy,crownCtrl:v7710CrownControl(m)};
+  }
+  // Top-down view: the cap runs from the back of the skull forward to the hairline.
+  function v7710MatchFit(box,profile,style){
+    const rx=Number(box.rx),ry=Number(box.ry),m=v7710Skull(profile.headShape),hl=v7710Hairline(profile.hairlineStyle);
+    const front=.72+hl.drop*1.6,back=1;
+    const sx=rx*m.temple*hl.temple*1.02/V7710_REF.matchHalf;
+    let sy=Math.min(ry*(front+back)/V7710_REF.matchDepth,sx*1.9);
+    if(V7710_ROUND_TEXTURE.has(style))sy=Math.min(sy,sx*1.32);
+    return {cx:Number(box.cx)||0,anchorY:(Number(box.cy)||0)+ry*back-.12*sy,sx,sy,crownCtrl:v7710CrownControl(m)};
+  }
+  // A fitted cap still leaves bare skull at the temples and above the ears, because each
+  // style's art only paints its own silhouette and none of them were drawn against a real
+  // head outline. Every style that is meant to cover the scalp now gets a base layer
+  // traced from the same silhouette the face is drawn with, so no skull can show through
+  // at any head shape. The number is how far down the side of the head the style reaches,
+  // as a share of ry above the ear line - smaller means more coverage. null means the
+  // style deliberately shows scalp.
+  const V7710_SIDE_COVER={
+    'Short':.17,'Fade':.26,'Low Fade':.21,'High Fade':.33,'Taper':.19,
+    'Buzz Cut':.16,'Waves':.16,'Cornrows':.16,'Shaved':null,
+    'Curly Top':.19,'Curls':.18,'Twists':.18,'Afro':.15,
+    'Braids':.16,'Locs':.16,'Mohawk':null,'Long Hair':.10
+  };
+  function v7710DrawHairBase(ctx,box,profile,style,colour){
+    const cover=V7710_SIDE_COVER[style];if(cover==null)return;
+    const cx=Number(box.cx)||0,cy=Number(box.cy)||0,rx=Number(box.rx),ry=Number(box.ry);
+    const hl=v7710Hairline(profile.hairlineStyle);
+    // Sits just above where each style draws its own hairline, so the style covers this edge.
+    const line=cy-ry*(.445-hl.drop*.55),cut=cy-ry*cover;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(cx-rx*1.5,cy-ry*1.6);ctx.lineTo(cx+rx*1.5,cy-ry*1.6);ctx.lineTo(cx+rx*1.5,cut);
+    ctx.lineTo(cx+rx*.74*hl.temple,cut);
+    ctx.quadraticCurveTo(cx+rx*.54,line,cx,line);
+    ctx.quadraticCurveTo(cx-rx*.54,line,cx-rx*.74*hl.temple,cut);
+    ctx.lineTo(cx-rx*1.5,cut);ctx.closePath();
+    ctx.clip();
+    const g=ctx.createLinearGradient(cx-rx,cy-ry,cx+rx,cy+ry*.35);
+    g.addColorStop(0,mixColour(colour,'#ffffff',.11));g.addColorStop(.38,colour);g.addColorStop(1,shadeColour(colour,-.34));
+    ctx.fillStyle=g;
+    traceFaceSilhouetteV776(ctx,cx,cy,rx*1.015,ry*1.015,profile.headShape,profile.jawStyle);
+    ctx.fill();
+    ctx.restore();
+  }
+  function v7710DrawFitted(ctx,fit,profile,draw){
+    const prev=v7710CrownCtrl;
+    ctx.save();ctx.translate(fit.cx,fit.anchorY);ctx.scale(fit.sx,fit.sy);v7710CrownCtrl=fit.crownCtrl;
+    try{draw()}finally{v7710CrownCtrl=prev;ctx.restore()}
+  }
+  // Call sites that know their head geometry pass profile.headFit={cx,cy,rx,ry};
+  // anything else keeps the previous scale-driven placement untouched.
+  const v7710PortraitBase=drawPortraitHair;
+  drawPortraitHair=function(ctx,style,x,y,scale,colour,phase=0,profile={}){
+    const box=profile&&profile.headFit;
+    if(!v7710ValidBox(box)||!V779_ALL_HAIR.has(style))return v7710PortraitBase(ctx,style,x,y,scale,colour,phase,profile);
+    const fit=v7710PortraitFit(box,profile,style);
+    v7710DrawHairBase(ctx,box,profile,style,colour||'#21140d');
+    v7710DrawFitted(ctx,fit,profile,()=>v779DrawPortraitHairRaw(ctx,style,1,colour||'#21140d',phase,{...profile,faceFit:faceFitV777(profile,1,1),headFrame:fit}));
+  };
+  const v7710FootballBase=drawFootballHair;
+  drawFootballHair=function(ctx,style,x,y,scale,colour,motion=0,profile={}){
+    const box=profile&&profile.headFit;
+    if(!v7710ValidBox(box)||!V779_ALL_HAIR.has(style))return v7710FootballBase(ctx,style,x,y,scale,colour,motion,profile);
+    const fit=v7710MatchFit(box,profile,style);
+    v7710DrawFitted(ctx,fit,profile,()=>v779DrawMatchHairRaw(ctx,style,1,colour||'#21140d',motion,{...profile,faceFit:faceFitV777(profile,1,1),headFrame:fit}));
+  };
+  // Head shape, jaw and hairline changed the face but never repainted the hairstyle
+  // cards, so the Style tab grid kept showing the previous head.
+  ['headShape','jawStyle','hairlineStyle','skinTone','hairColour'].forEach(id=>$('#'+id)?.addEventListener('input',()=>v779PaintHairCardPreviews()));
+  // --------------------------------------------------------------------------
+  // V77.10 Beard fit
+  // Facial hair was authored against a face layout the renderer does not draw. It
+  // placed the moustache at 0.29 ry and the mouth line at 0.37 ry, while
+  // drawFaceFeaturesV776 actually draws the mouth at 0.67 ry - so every beard sat a
+  // third of a face too high and read as a mask up to the eyes. It was also sized
+  // from faceFitV777, whose chin width comes from the jaw style alone and ignores
+  // head shape entirely, so a Square chin (0.88) was bearded at 0.60.
+  //
+  // Beards are now built from the real landmarks and clipped to the same silhouette
+  // the face is drawn with, so they cannot overhang a narrow face or leave bare skin
+  // on a wide one, at any head shape or jaw.
+  // --------------------------------------------------------------------------
+  // The jaw table traceFaceSilhouetteV776 draws with.
+  const V7710_JAW={Soft:{width:.72,drop:.00,round:.78},Balanced:{width:.78,drop:.01,round:.58},Defined:{width:.83,drop:.025,round:.38},Wide:{width:.94,drop:.015,round:.42}};
+  function v7710Jaw(style){return V7710_JAW[style]||V7710_JAW.Balanced}
+  // sideburn / cheek / lip are ry-shares below face centre; inflate gives the beard
+  // its own volume just outside the skin line.
+  const V7710_BEARD={
+    'Stubble':    {sideburn:.15,cheek:.42,lip:.55,inflate:1,     alpha:.30,lips:false,texture:false},
+    'Short Beard':{sideburn:.13,cheek:.40,lip:.56,inflate:1.008, alpha:.90,lips:true, texture:true},
+    'Full Beard': {sideburn:-.03,cheek:.30,lip:.55,inflate:1.038,alpha:.95,lips:true, texture:true}
+  };
+  function v7710BeardRegion(ctx,cx,cy,rx,ry,spec){
+    const side=cy+ry*spec.sideburn,cheek=cy+ry*spec.cheek,lip=cy+ry*spec.lip,lipHalf=rx*.325;
+    ctx.beginPath();
+    ctx.moveTo(cx-rx*1.6,side);
+    ctx.quadraticCurveTo(cx-rx*.62,cheek,cx-lipHalf,lip);
+    ctx.quadraticCurveTo(cx,lip+ry*.025,cx+lipHalf,lip);
+    ctx.quadraticCurveTo(cx+rx*.62,cheek,cx+rx*1.6,side);
+    ctx.lineTo(cx+rx*1.6,cy+ry*2.2);ctx.lineTo(cx-rx*1.6,cy+ry*2.2);
+    ctx.closePath();
+  }
+  drawFacialHairV776=function(ctx,appearance,cx,cy,rx,ry,scale=1,compact=false){
+    const type=appearance?.facialHair||'Clean Shaven';if(type==='Clean Shaven')return;
+    const headShape=appearance?.headShape||'Oval',jawStyle=appearance?.jawStyle||'Balanced';
+    const jaw=v7710Jaw(jawStyle),m=v7710Skull(headShape);
+    const col=shadeColour(appearance?.hairColour||'#21140d',-.05),skin=appearance?.skinTone||'#7b4b2a';
+    const mouthY=cy+ry*.67,mouthHalf=rx*.25;                 // as drawFaceFeaturesV776 draws them
+    const chinY=cy+ry*(.98+jaw.drop),chinHalf=rx*m.chin;     // head shape drives the chin, as the silhouette does
+    ctx.save();ctx.lineJoin='round';ctx.lineCap='round';ctx.fillStyle=col;ctx.strokeStyle=col;
+    const moustache=(alpha)=>{
+      const w=mouthHalf*1.22,top=mouthY-ry*.135,mid=mouthY-ry*.045;
+      ctx.globalAlpha=alpha;ctx.beginPath();
+      ctx.moveTo(cx-w,mid);
+      ctx.quadraticCurveTo(cx-w*.45,mouthY-ry*.085,cx,mouthY-ry*.055);
+      ctx.quadraticCurveTo(cx+w*.45,mouthY-ry*.085,cx+w,mid);
+      ctx.quadraticCurveTo(cx,top-ry*.03,cx-w,mid);
+      ctx.closePath();ctx.fill();
+    };
+    if(type==='Goatee'){
+      // Chin width comes from the head shape, exactly as the silhouette draws it, so a
+      // square chin carries a wider goatee than a narrow diamond one. The patch wraps the
+      // mouth so the moustache and chin read as one piece.
+      const gw=Math.max(rx*.17,chinHalf*.64);
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(cx-gw*.80,mouthY-ry*.13);
+      ctx.quadraticCurveTo(cx-gw*1.12,cy+ry*.90,cx,cy+ry*1.16);
+      ctx.quadraticCurveTo(cx+gw*1.12,cy+ry*.90,cx+gw*.80,mouthY-ry*.13);
+      ctx.quadraticCurveTo(cx,mouthY+ry*.02,cx-gw*.80,mouthY-ry*.13);
+      ctx.closePath();ctx.clip();
+      ctx.globalAlpha=.90;
+      traceFaceSilhouetteV776(ctx,cx,cy,rx*1.02,ry*1.025,headShape,jawStyle);ctx.fill();
+      ctx.restore();
+      ctx.globalAlpha=1;ctx.fillStyle=mixColour(skin,'#000000',.16);
+      ctx.beginPath();ctx.ellipse(cx,mouthY,mouthHalf*.80,ry*.05,0,0,Math.PI*2);ctx.fill();
+      ctx.restore();return;
+    }
+    const spec=V7710_BEARD[type]||V7710_BEARD['Short Beard'];
+    ctx.save();
+    v7710BeardRegion(ctx,cx,cy,rx,ry,spec);ctx.clip();
+    ctx.globalAlpha=spec.alpha;
+    traceFaceSilhouetteV776(ctx,cx,cy,rx*spec.inflate,ry*spec.inflate,headShape,jawStyle);ctx.fill();
+    if(spec.texture&&!compact){
+      ctx.globalAlpha=.16;ctx.strokeStyle=mixColour(col,'#ffffff',.5);ctx.lineWidth=Math.max(.2,.012*rx);
+      for(let i=-4;i<=4;i++){const x=cx+i*rx*.17;
+        ctx.beginPath();ctx.moveTo(x,cy+ry*.52);ctx.quadraticCurveTo(x+i*rx*.02,cy+ry*.80,x+i*rx*.035,chinY*.99);ctx.stroke();}
+      ctx.strokeStyle=col;
+    }
+    ctx.restore();
+    if(spec.lips){
+      ctx.globalAlpha=1;ctx.fillStyle=mixColour(skin,'#000000',.16);
+      ctx.beginPath();ctx.ellipse(cx,mouthY,mouthHalf*.84,ry*.052,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=col;moustache(Math.min(1,spec.alpha+.03));
+    }
+    ctx.restore();
+  };
+  // Pony Tail was withdrawn as a hairstyle option in v77.10. Careers saved with it are
+  // migrated to the closest remaining style so no save renders a style that is no longer
+  // selectable, and the creator select drops the option if it is still in the markup.
+  const V7710_RETIRED_HAIR={'Pony Tail':'Long Hair'};
+  function v7710LiveHairStyle(style){return V7710_RETIRED_HAIR[style]||style}
+  const v7710BaseResolvedVisualIdentity=resolvedVisualIdentity;
+  resolvedVisualIdentity=function(player={}){
+    const v=v7710BaseResolvedVisualIdentity(player);
+    v.hairStyle=v7710LiveHairStyle(v.hairStyle);
+    return v;
+  };
+  (()=>{
+    for(const [retired,replacement] of Object.entries(V7710_RETIRED_HAIR)){
+      let i;
+      while((i=HAIR_STYLES.indexOf(retired))>=0)HAIR_STYLES.splice(i,1);
+      while((i=STARTER_HAIR_STYLES.indexOf(retired))>=0)STARTER_HAIR_STYLES.splice(i,1);
+      delete HAIR_UNLOCK_RULES[retired];
+      V779_ALL_HAIR.delete(retired);
+      V778_UPGRADED_HAIR.delete(retired);
+      delete V778_HAIR_PRESENTATION[retired];
+      const sel=$('#hair');
+      if(sel){
+        [...sel.options].forEach(o=>{if(o.value===retired)o.remove()});
+        if(sel.value===retired)sel.value=replacement;
+      }
+    }
+  })();
+  window.__CIRCLE_XI_VISUAL_IDENTITY_VERSION='v77.10-head-shape-hair-fit';
+  window.__CXI_V7710={version:V7710_HAIR_FIT_VERSION,headShapeHairFit:true,faceShapeBeardFit:true,beards:Object.keys(V7710_BEARD).concat(['Goatee']),retiredHair:{...V7710_RETIRED_HAIR},liveHairStyle:v7710LiveHairStyle,resolveIdentity:resolvedVisualIdentity,fittedContexts:['style-cards','style-preview','classic-media','match','training','replay','hair-grid'],headShapes:Object.keys(V7710_SKULL)};
+
+  // --------------------------------------------------------------------------
+  // V77.11 Smart manager feedback
+  //
+  // The old assessment tested every phrase independently, so it routinely argued
+  // with itself. 85% passing with three misplaced passes produced both "your
+  // passing was controlled and accurate" and "several misplaced passes allowed the
+  // opposition to transition". Scoring while making an error that led to a goal
+  // produced "the manager was delighted with your decisive contribution" directly
+  // above "a possession error led directly to a goal". It also carried three
+  // variants per line and four fixed summaries, so it repeated within a handful of
+  // matches, and it never looked at the match itself - the result, the scoreline,
+  // or how long the player was actually on the pitch.
+  //
+  // Feedback is now built per THEME. Each theme scores once from the stats plus the
+  // match context and emits at most one line, positive or negative, never both.
+  // Volume thresholds scale with minutes played, so a substitute is not judged on a
+  // starter's sample. Tone is gated last so it cannot disagree with its leading line.
+  // --------------------------------------------------------------------------
+  const V7711_FEEDBACK_VERSION='77.11.0';
+  const V7711_ATTACKING=new Set(['ST','RW','LW','AM']);
+  const V7711_DEFENSIVE=new Set(['CB','RB','LB','DM']);
+  let v7711Seed=0;
+
+  // Prefers lines that have not appeared recently, and only falls back to the full
+  // pool once every variant has been used inside the window.
+  function v7711Pick(id,variants,salt=0){
+    const list=(variants||[]).filter(Boolean);
+    if(!list.length)return{key:id+'-0',text:''};
+    const keyed=list.map((text,index)=>({text,index,key:id+'-'+index}));
+    const history=career?.managerFeedbackHistory||[];
+    const seen=history.slice(-Math.max(14,list.length*2));
+    const fresh=keyed.filter(item=>!seen.includes(item.key));
+    const pool=fresh.length?fresh:keyed;
+    return pool[Math.abs(hashText(id+'|'+salt+'|'+v7711Seed))%pool.length];
+  }
+
+  function v7711Context(r){
+    const score=Array.isArray(r.score)?r.score:[0,0];
+    const gf=Number(score[0])||0,ga=Number(score[1])||0,margin=Math.abs(gf-ga);
+    const minutes=Math.max(1,Math.round(Number(r.minutesPlayed)||90));
+    const poss=Array.isArray(r.possession)?Math.round(Number(r.possession[0])||50):Math.round(Number(r.possession)||50);
+    const teamShots=Array.isArray(r.teamShots)?Number(r.teamShots[0])||0:Number(r.teamShots)||0;
+    return{gf,ga,margin,
+      outcome:gf>ga?'win':gf<ga?'loss':'draw',
+      minutes,cameo:minutes<35,fullGame:minutes>=80,
+      cleanSheet:ga===0,tight:margin<=1,heavy:margin>=3,
+      poss,teamShots,dominated:poss>=60,starved:poss<=40,
+      onlyGoal:gf>0&&(Number(r.goals)||0)>=gf,
+      big:/final|semi|quarter|derby|cup|champion|international/i.test((r.competition?.name||'')+' '+(r.competition?.round||''))};
+  }
+
+  // Each entry scores once. A positive score becomes a "what went well" line, a
+  // negative score becomes a "what needs work" line. A theme can never produce both.
+  function v7711Themes(r,ctx,pos){
+    const n=k=>Number(r[k])||0;
+    const per90=v=>v/Math.max(.3,ctx.minutes/90);
+    const attacking=V7711_ATTACKING.has(pos),defensive=V7711_DEFENSIVE.has(pos),keeper=pos==='GK';
+    const passes=n('passes'),passPct=Number(r.passPct)||0;
+    const dribbles=n('dribbles'),dribbleOk=n('successfulDribbles'),dribblePct=dribbles?Math.round(dribbleOk/dribbles*100):0;
+    const defActions=n('tackles')+n('interceptions')+n('blocks'),duels=n('duelsWon');
+    const aerials=n('aerialDuels'),aerialPct=aerials?Math.round(n('aerialWins')/aerials*100):0;
+    const shots=n('shots'),sot=n('shotsOnTarget'),goals=n('goals'),assists=n('assists');
+    const keyPasses=n('keyPasses'),chances=n('chancesCreated');
+    const lost=n('possessionLost'),misplaced=n('misplacedPasses');
+    const errG=n('errorsLeadingToGoal'),errS=n('errorsLeadingToShot');
+    const fouls=n('foulsCommitted'),yellows=n('yellowCards'),reds=n('redCards');
+    const saves=n('saves'),bigMissed=n('bigChancesMissed'),pressures=n('pressures');
+    const passTarget=defensive||pos==='CM'?80:74;
+    const themes=[];
+    // posGate keeps a line honest: the sentence only fires when the stat behind it
+    // actually supports it, whatever the arithmetic says.
+    const push=(id,score,detail,positives,negatives,posGate)=>themes.push({id,score,detail,positives,negatives,posGate:posGate===undefined?true:!!posGate});
+
+    push('finishing',
+      goals*3.4+sot*.5-bigMissed*1.9-(goals===0&&shots>=3&&sot<=1?1.2:0)-(attacking&&!ctx.cameo&&shots===0?1:0),
+      goals?goals+' goal'+(goals===1?'':'s')+' from '+(shots||goals)+' shot'+((shots||goals)===1?'':'s'):bigMissed?bigMissed+' big chance'+(bigMissed===1?'':'s')+' missed':sot+'/'+shots+' on target',
+      ['You found the finish when it mattered and the movement before it was just as good.',
+       'Your goal was taken with real composure and it changed the afternoon.',
+       'You attacked the chance with conviction - that finish was earned.',
+       'The decisive moment was yours, and you were calm when the goal opened up.',
+       'You made the run and then took the chance cleanly. That is your job done.',
+       'Sharp in front of goal, and the timing of the run created the opening.',
+       'That is the ruthlessness we have been asking for in the final third.'],
+      ['You reached shooting positions but did not test the goalkeeper often enough.',
+       'The chances arrived; the final contact has to be calmer than that.',
+       'You had sight of goal and rushed it. Pick your spot and make the keeper work.',
+       'Good positions, wasteful execution - steady yourself over the ball.',
+       'We created for you and the finishing let that work down.',
+       'The shot selection was ambitious when a simpler finish was available.',
+       'You have to punish those openings. One of them needs to go in.'],goals>0||sot>=2);
+
+    push('creation',
+      assists*3.1+keyPasses*.85+chances*.45-(attacking&&!ctx.cameo&&keyPasses===0&&assists===0?1.3:0),
+      assists?assists+' assist'+(assists===1?'':'s'):keyPasses+' key pass'+(keyPasses===1?'':'es'),
+      ['You saw the runner early and the final pass was the right weight.',
+       'Your passes in the final third opened the opposition up repeatedly.',
+       'Chance creation was the strongest part of your game today.',
+       'You kept finding the pass nobody else in the stadium saw.',
+       'The delivery into dangerous areas was consistent and deliberate.',
+       'You played with your head up and the team scored because of it.',
+       'That was a creative performance - you made things happen between the lines.'],
+      ['We needed more from you in the final third; the killer pass never came.',
+       'You were tidy but too safe. Take the risk that actually hurts them.',
+       'Not enough of your passes went forward into dangerous space.',
+       'The team lacked a creative spark in your area of the pitch.',
+       'Look up sooner - the runner was there and the pass went sideways.',
+       'You have to be the player who unlocks a low block, not the one who circulates around it.'],assists>0||keyPasses>=2);
+
+    if(passes>=Math.max(5,6*ctx.minutes/90))push('passing',
+      (passPct-passTarget)/6-Math.max(0,per90(misplaced)-3)*.4,
+      passPct+'% from '+passes+' passes'+(misplaced?' · '+misplaced+' misplaced':''),
+      ['Your passing was controlled and accurate under real pressure.',
+       'You moved the ball cleanly and gave the team its rhythm.',
+       'Reliable in possession - teammates could trust the pass every time.',
+       'Your distribution was accurate and the tempo of it was right.',
+       'You rarely wasted the ball and the shape held because of it.',
+       'Technically secure all afternoon; the passing range was well judged.'],
+      ['Too many passes went astray and each one invited pressure back on us.',
+       'Your passing accuracy dropped below what the role demands.',
+       'Simplify the pass when the lane closes rather than forcing it.',
+       'The ball was given away too cheaply - the weight and the choice both need work.',
+       'You forced passes that were not on. Take the simple option and keep us moving.',
+       'The percentage of passes finding a teammate has to be higher than that.']);
+
+    push('security',
+      (lost<=2&&passes>=10?1.2:0)-errG*3.6-errS*1.3-Math.max(0,per90(lost)-4)*.5-Math.max(0,per90(n('poorTouches'))-3)*.3,
+      errG?errG+' error leading to a goal':errS?errS+' error'+(errS===1?'':'s')+' leading to a shot':lost+' possession loss'+(lost===1?'':'es'),
+      ['You looked after the ball and never invited pressure onto the back line.',
+       'Ball retention was excellent - you did not give them a single cheap turnover.',
+       'You were difficult to dispossess and that steadied the whole team.',
+       'Composed in tight areas; you protected possession when we needed to breathe.',
+       'Your first touch under pressure kept us out of trouble all game.'],
+      errG?['A possession error led directly to a goal and that has to be addressed.',
+       'Losing the ball there released them for the goal. Recognise the danger sooner.',
+       'Your mistake put the ball in our own net as good as anyone.',
+       'We conceded because you gave it away in the worst possible area.']
+      :errS?['A turnover in your own half handed them a clear sight of goal.',
+       'One of your giveaways let them shoot at us unopposed.',
+       'You released them for a shot with a careless pass out of defence.']
+      :['You were dispossessed too often in contact - protect the ball before you turn.',
+       'Too many turnovers, and most of them came when we were building forward.',
+       'Your first touch let you down under pressure and it cost us territory.',
+       'You gave the ball back too easily and we spent the game chasing it.']);
+
+    if(dribbles>=2)push('dribbling',
+      (dribbleOk>=3?1.2:0)+(dribbles>=3?(dribblePct-55)/22:0)-(dribbles>=4&&dribblePct<38?1.4:0),
+      dribbleOk+'/'+dribbles+' successful',
+      ['You beat your man repeatedly and carried us up the pitch.',
+       'One-on-one you were a genuine problem for them all afternoon.',
+       'Your close control took defenders out of the game at the right moments.',
+       'Every time you ran at them the whole team moved up with you.',
+       'You committed defenders and that created space for everyone around you.'],
+      ['You ran into trouble too often - pick the moment to take a man on.',
+       'The dribbling attempts were forced. Release the ball earlier when the lane is shut.',
+       'Too many carries ended in a tackle. Play the pass and move.',
+       'You tried to beat two players where one pass would have done more damage.',
+       'Choose your one-on-ones - the failed ones left us exposed on the counter.'],dribbleOk>=2);
+
+    if(!keeper)push('defending',
+      (per90(defActions)-(defensive?4.2:2.2))*.42+duels*.14,
+      defActions+' defensive actions'+(duels?' · '+duels+' duels won':''),
+      ['You competed for everything and stopped attacks before they started.',
+       'Your work without the ball gave the team real defensive security.',
+       'You read the danger early and made the interventions that mattered.',
+       'Aggressive, well-timed defending - you won the ball back high up the pitch.',
+       'You covered ground and cleaned up everything that came through your zone.',
+       'The defensive side of your game was outstanding today.'],
+      ['We needed far more from you defensively; too much went through you unchallenged.',
+       'Your defensive work rate has to match the rest of the team.',
+       'You were beaten too easily when they came at you. Engage sooner.',
+       'Get tight and win your duels - we cannot carry a passenger out of possession.',
+       'The recovery runs were not there and it left the line exposed.'],defActions>=3);
+
+    if(aerials>=3)push('aerial',(aerialPct-50)/16,aerialPct+'% of '+aerials+' aerial duels',
+      ['You dominated in the air and won us vital second balls.',
+       'Your heading was decisive at both ends of the pitch.',
+       'You attacked every ball into the box and came out on top.'],
+      ['You lost the aerial battle and we suffered from the second balls.',
+       'Attack the ball in the air - you were reacting rather than leading.',
+       'The timing of your jump was late far too often.']);
+
+    push('discipline',
+      -(reds*4.5)-(yellows>=2?2.4:yellows*.9)-Math.max(0,per90(fouls)-3)*.4+(defActions>=5&&fouls<=1?.9:0),
+      reds?'Sent off':yellows?yellows+' yellow card'+(yellows===1?'':'s'):fouls+' foul'+(fouls===1?'':'s'),
+      ['You defended aggressively without giving the referee anything to think about.',
+       'Strong in the challenge and clean with it - exactly the balance we want.',
+       'You competed hard and stayed on the right side of the referee all game.'],
+      reds?['The red card left the team with ten men and that is unacceptable.',
+       'You cannot get sent off in a game like that. You let everyone down.',
+       'A red card is a selfish way to finish a match. We had to play out with ten.']
+      :yellows>=2?['Two bookings is careless. You have to manage the game better than that.',
+       'You were walking a tightrope after the first yellow and learned nothing from it.',
+       'Being booked twice in one game is a discipline problem, not bad luck.']
+      :['You gave away too many cheap fouls in dangerous areas.',
+       'The challenges were mistimed and the referee was never going to let that go.',
+       'Your discipline cost us territory and momentum today.',
+       'Too many needless fouls handed them a set piece every time we got on top.']);
+
+    push('tactical',((Number(r.instructionScore)||0)-68)/14+(((Number(r.positionScore)||0)-70)/16),
+      (Number(r.instructionScore)||0)+'% instruction · '+(Number(r.positionScore)||0)+'% positioning',
+      ['You carried out the tactical instruction from the first minute to the last.',
+       'Your positional discipline held the shape together.',
+       'You understood the plan and executed it without needing reminding.',
+       'Tactically you were exactly where the team needed you to be.',
+       'You stuck to the role and the structure worked because of it.'],
+      ['You drifted away from the agreed plan too often.',
+       'The instruction was clear and you did not follow it closely enough.',
+       'Your positioning pulled the shape out of balance and we were opened up.',
+       'React to the instruction sooner - we lost structure whenever you wandered.',
+       'Recover into your zone faster after we turn the ball over.']);
+
+    if(!ctx.cameo)push('workrate',(per90(pressures)-7)/6+((Number(r.staminaEnd)||0)>=35?.2:-.4),
+      pressures+' pressures · '+Math.round(Number(r.staminaEnd)||0)+'% stamina left',
+      ['Your work rate never dropped and the pressing was relentless.',
+       'You ran yourself into the ground for the team today.',
+       'The intensity you pressed with set the tone for everyone else.',
+       'You kept the physical level high right through to the whistle.'],
+      ['The intensity dropped and we lost the press because of it.',
+       'You have to sustain the physical level for the full ninety.',
+       'Your pressing was late and half-hearted; that lets them play out too easily.']);
+
+    if(keeper)push('keeping',saves*.85-(ctx.ga>=3?1.4:0)+(ctx.cleanSheet?1.6:0),
+      saves+' save'+(saves===1?'':'s')+' · '+ctx.ga+' conceded',
+      ['Your saves kept us in the game and the handling was assured.',
+       'You commanded your area and dealt with everything that came into it.',
+       'A clean sheet you fully earned - the shot-stopping was excellent.'],
+      ['You have to do better with at least one of those goals.',
+       'Your starting position let them score from range.',
+       'The decision-making off your line needs a lot of work.']);
+
+    return themes.filter(t=>Number.isFinite(t.score));
+  }
+
+  // Openers are chosen by result and tone, so the manager never opens by praising a
+  // performance he is about to criticise, or vice versa.
+  const V7711_OPENERS={
+    win:{'very-positive':['A win, and you were the biggest reason for it.','Three points, and your performance was the difference.','That is exactly what we needed from you in a game like this.','You won us that match. Simple as that.'],
+      positive:['A win, and your contribution was a real part of it.','Three points, and you did your job well inside it.','Good result, and you played your part properly.','We got the win and you were solid throughout.'],
+      balanced:['We got the result, and there is still more in your performance.','A win, but your own game had clear ups and downs.','Three points on the board - your display was a mixed one.','The result is right; the performance from you was in between.'],
+      critical:['We won in spite of your performance, not because of it.','Three points, but do not let the result hide your own game.','A win, and you were fortunate the rest of the team carried it.','The result flatters your afternoon.']},
+    draw:{'very-positive':['A point, and you were the one player who looked like winning it.','We drew, but your performance deserved more than that.','A draw does not reflect what you gave us today.','You were excellent - the result is the disappointment.'],
+      positive:['A point, and your performance was one of the better ones.','We drew, and you can be reasonably happy with your own game.','A share of the points, and you contributed properly.','Not the result we wanted, but your display was sound.'],
+      balanced:['A point, and a performance with clear parts to build on.','We drew, and your game had as much good as bad in it.','A share of the points and a mixed afternoon from you.','Somewhere in the middle, both for the team and for you.'],
+      critical:['A point dropped, and your performance was part of the reason.','We drew a game we should have won and you have to look at your own part in that.','That is two points lost, and your display did not help.','A draw, and you were below the level required.']},
+    loss:{'very-positive':['We lost, but your individual performance was not the problem.','A defeat, and you were still the best thing about our afternoon.','The result hurts - you were not the reason for it.','You gave us everything. The rest of the team has to match it.'],
+      positive:['A defeat, but your own game held up reasonably well.','We lost, and you were one of the few who can hold your head up.','The result was poor; your contribution was not.','A bad afternoon for the team, a fair one for you.'],
+      balanced:['A defeat, and your performance had both sides to it.','We lost, and your own game was somewhere in the middle.','A poor result, and a mixed afternoon from you inside it.','The result went against us and your display was up and down.'],
+      critical:['A defeat, and your performance was part of why.','We lost, and you were well below the standard required.','That was not good enough, from the team or from you.','A bad result and a bad individual performance to go with it.']}};
+
+  // Used when the player contributed a goal or assist but the verdict is still critical.
+  const V7711_MIXED_BLAME=['You got on the scoresheet, and that counts - but the mistake cancels out a lot of it.',
+    'Your attacking contribution was there. The rest of your game undid it.',
+    'You gave us a moment and then took it back again with the error.',
+    'I will give you the goal involvement. I cannot give you the performance around it.',
+    'What you produced going forward was undone by what you gave away.'];
+  const V7711_CAMEO=['Short window off the bench, so this is on limited evidence.','You had twenty minutes or so - here is what that told me.','A brief appearance, judged on what little I saw.','Not long on the pitch, but enough to form a view.'];
+  const V7711_BRIDGE=['The area to work on is clear: ','What needs attention: ','The one thing to fix: ','Where we need more: '];
+  const V7711_CONCEDE=['On the positive side, ','The one credit I will give you: ','It was not all bad - ','To be fair to you, ','There was one bright spot: '];
+  const V7711_CLOSER=['Keep that standard and your place is safe.','More of that and we will keep picking you.','Build on it - the level is there.','That is the benchmark now.','Take that into training this week.'];
+  const V7711_VERDICTS={
+    excellent:['Excellent tactical discipline','Exactly the role we asked for','Tactically flawless','Read the instruction perfectly'],
+    good:['Good understanding of the role','Solid tactical grasp','Followed the plan well','Understood what we needed'],
+    mixed:['Inconsistent execution','Drifted from the plan at times','Partly followed the instruction','Tactically in and out'],
+    poor:['Instruction not followed closely','Tactically off the plan','The role was not carried out','Ignored the shape too often']};
+
+  const v7711BaseAssessment=buildManagerAssessment;
+  buildManagerAssessment=function(r,position=null){
+    const base=v7711BaseAssessment(r,position);
+    const pos=base.position,ctx=v7711Context(r);
+    v7711Seed=(career?.season||1)*7919+(career?.week||1)*131+Math.round((Number(r.rating)||0)*10)+ctx.minutes;
+    const errG=Number(r.errorsLeadingToGoal)||0,reds=Number(r.redCards)||0;
+    const goals=Number(r.goals)||0,assists=Number(r.assists)||0;
+
+    const themes=v7711Themes(r,ctx,pos);
+    const phraseIds=[],positives=[],negatives=[];
+    // One line per theme - this is what stops the feedback contradicting itself.
+    for(const theme of themes){
+      if(Math.abs(theme.score)<1)continue;
+      const good=theme.score>0;
+      if(good&&theme.posGate===false)continue;
+      const pool=good?theme.positives:theme.negatives;
+      const chosen=v7711Pick(theme.id+(good?'-good':'-bad'),pool,Math.round(theme.score*10));
+      if(!chosen.text)continue;
+      phraseIds.push(chosen.key);
+      (good?positives:negatives).push({id:theme.id,score:Math.abs(theme.score),text:chosen.text,detail:theme.detail});
+    }
+    positives.sort((a,b)=>b.score-a.score);
+    negatives.sort((a,b)=>b.score-a.score);
+    // An error that led to a goal, or a red card, always leads the criticism.
+    const forceFirst=id=>{const i=negatives.findIndex(x=>x.id===id);if(i>0)negatives.unshift(negatives.splice(i,1)[0])};
+    if(errG>0)forceFirst('security');
+    if(reds>0)forceFirst('discipline');
+
+    const total=themes.reduce((sum,t)=>sum+clamp(t.score,-4,4),0);
+    const avg=total/Math.max(1,themes.length);
+    let tone;
+    if(errG>0||reds>0)tone='critical';
+    else if((goals+assists>=2||goals>0)&&avg>.55)tone='very-positive';
+    else if(avg>=.28)tone='positive';
+    else if(avg<=-.3)tone='critical';
+    else tone='balanced';
+    // The result colours the verdict without overriding what actually happened.
+    if(tone==='very-positive'&&ctx.outcome==='loss')tone='positive';
+    if(tone==='critical'&&ctx.outcome==='win'&&!errG&&!reds&&avg>-.62)tone='balanced';
+
+    const lead=positives[0],fault=negatives[0];
+    const mixedBlame=tone==='critical'&&(goals+assists)>0;
+    const opener=mixedBlame
+      ?v7711Pick('open-mixed-blame',V7711_MIXED_BLAME,Math.round(avg*100))
+      :v7711Pick('open-'+ctx.outcome+'-'+tone,V7711_OPENERS[ctx.outcome][tone],Math.round(avg*100));
+    phraseIds.push(opener.key);
+    const parts=[opener.text];
+    if(ctx.cameo){const c=v7711Pick('cameo',V7711_CAMEO,ctx.minutes);phraseIds.push(c.key);parts.push(c.text);}
+    if(tone==='critical'){
+      if(ctx.onlyGoal&&goals>0)parts.push('You scored our only goal of the game.');
+      if(fault)parts.push(fault.text);
+      if(lead&&!(ctx.onlyGoal&&goals>0&&lead.id==='finishing')){const c=v7711Pick('concede',V7711_CONCEDE,positives.length);phraseIds.push(c.key);parts.push(c.text+lead.text.charAt(0).toLowerCase()+lead.text.slice(1));}
+    }else{
+      if(ctx.onlyGoal&&goals>0)parts.push('You scored our only goal of the game.');
+      else if(lead)parts.push(lead.text);
+      if(fault&&tone!=='very-positive'){const b=v7711Pick('bridge',V7711_BRIDGE,negatives.length);phraseIds.push(b.key);parts.push(b.text+fault.text.charAt(0).toLowerCase()+fault.text.slice(1));}
+      else if(!fault){const c=v7711Pick('closer',V7711_CLOSER,positives.length);phraseIds.push(c.key);parts.push(c.text);}
+    }
+    const summary=parts.filter(Boolean).join(' ');
+
+    const iScore=Number(r.instructionScore)||0;
+    const band=iScore>=80?'excellent':iScore>=65?'good':iScore>=50?'mixed':'poor';
+    const verdict=v7711Pick('verdict-'+band,V7711_VERDICTS[band],iScore);
+    phraseIds.push(verdict.key);
+
+    // Trust follows the same reading as the feedback, so the number cannot disagree
+    // with the words the player just read.
+    const trustDelta=clamp(avg*.55+goals*.42+assists*.2-errG*.85-reds*1.1+(ctx.outcome==='win'?.12:ctx.outcome==='loss'?-.08:0),-1.8,1.8);
+
+    return{...base,positives:positives.slice(0,3),negatives:negatives.slice(0,3),summary,tone,
+      instructionVerdict:verdict.text,phraseIds,trustDelta,
+      themeTotal:+total.toFixed(2),themeAverage:+avg.toFixed(2),context:ctx};
+  };
+
+  // The possession / shots / momentum strip and the on-canvas control panel are no
+  // longer drawn during play. Everything behind them still runs: momentum, team
+  // intent, crowd, pressure and the control state machine all keep updating, and the
+  // numbers still reach the post-match breakdown.
+  MatchGame.prototype.drawControlHUD=function(){};
+
+  window.__CXI_V7716={version:'77.16.0',postMatchScorersVisible:true,runForwardLean:true,sideOnStride:true,strongerRunBob:true};
+  window.__CXI_V7715={version:'77.15.0',pressuredPassRush:true,aiOpenPlayCrosses:true,postMatchHeaderLift:true};
+  window.__CXI_V7714={version:'77.14.0',aiFreeKickOnTarget:.5,loosBallPassQueue:true,matchPenaltyCountdown:true,matchPenaltyAttemptFeedback:true};
+  window.__CXI_V7713={version:'77.13.0',aiFreeKickOnTarget:.5,passInputBuffer:USER_ACTION_BUFFER_WINDOW,contestedTouchPassRecovery:true,penaltyIdealMarker:true};
+  window.__CXI_V7712={version:'77.12.0',mirroredSideRun:true,keeperDiveArmScale:.66,tackleOutcomePose:['clean','foul'],aiPenaltyAccuracyUp:true,aiFreeKickAccuracyDown:true};
+  window.__CXI_V7711={version:V7711_FEEDBACK_VERSION,smartManagerFeedback:true,oneLinePerTheme:true,
+    themes:['finishing','creation','passing','security','dribbling','defending','aerial','discipline','tactical','workrate','keeping'],
+    hiddenGameplayHud:['match-pulse','control-panel'],buildAssessment:(r,p)=>buildManagerAssessment(r,p)};  v77SetupCreator();
+
 } catch (err) {
   var div = document.createElement("div"); 
   div.style.position="fixed"; div.style.top="0"; div.style.left="0"; div.style.background="blue"; div.style.color="white"; div.style.zIndex="999999"; div.style.padding="20px"; div.style.fontSize="20px"; 

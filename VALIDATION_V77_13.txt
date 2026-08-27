@@ -1,0 +1,39 @@
+Circle XI v77.13 - Set pieces & pass input - validation
+
+node --check game.js                                     PASS
+Match boots, no console errors, no crash banner          PASS
+window.__CXI_V7713.version === '77.13.0'                 PASS
+
+AI free kick accuracy (200,000 sims per skill band)
+  weak taker    on target                          47.1% PASS
+  average taker on target                          50.7% PASS
+  elite taker   on target                          54.2% PASS
+  mean                                             50.7% PASS
+  (was ~80% after v77.12, and 100% before it)
+
+Pass input under pressure
+  beginKeyAction no longer discards the press while
+    an action cooldown is running                        PASS
+  userDirectionalPass / userDirectionalShot recover a
+    loose ball at the player's feet (<=86u) if he owned
+    it within the last 0.45s                             PASS
+  Otherwise the press is buffered, not dropped           PASS
+  Buffer replays within 0.42s once the ball is back and
+    the cooldown clears; held key resumes a charge, a
+    released key plays a quick first-time ball           PASS
+
+Penalty overlay
+  Match overlay now sets --pen-ideal, matching the
+    ideal-power marker the training stage draws          PASS
+  Match overlay sets dataset.penaltyTechnique, as the
+    training stage does                                  PASS
+
+Regression
+  17 hairstyles, header brand only, beard fit intact     PASS
+
+Not verified in this environment:
+  requestAnimationFrame does not fire while the browser
+  pane is hidden, so the match loop never ticks. The pass
+  buffer and the set-piece overlays could not be driven
+  live - they are verified by construction and by a clean
+  match boot, not by play.

@@ -1,0 +1,9 @@
+Circle XI v77.7.1 – Validation
+================================
+
+[PASS] game.js JavaScript syntax check (`node --check`)
+[PASS] index.html cache-busting reference updated to game.js?v=77.7.1
+[PASS] Adaptive face-fit version updated to 77.7.1
+[PASS] Beard renderer updated for Goatee / Short Beard / Full Beard fitting
+[PASS] Beard width now uses fitted jaw/chin geometry
+[PASS] Moustache width now adapts to face proportions

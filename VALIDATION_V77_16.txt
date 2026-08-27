@@ -1,0 +1,66 @@
+Circle XI v77.16 - Post-match scorers & run animation
+
+node --check game.js                                     PASS
+Boots, match starts, no console errors, no crash banner  PASS
+window.__CXI_V7716.version === '77.16.0'                 PASS
+Temporary run diagnostic removed                         PASS
+
+POST-MATCH: SCORE AND GOAL SCORERS
+  Cause: .postmatch-wrap has FIVE children (eyebrow,
+  score, headline, panel grid, button) but
+  grid-template-rows listed only FOUR:
+    auto auto minmax(0,1fr) auto
+  So the flexible row landed on the HEADLINE, which
+  carries the competition line and the goal scorers,
+  and the panel grid fell into an auto row and
+  overlapped it. Fixed to five rows:
+    auto auto auto minmax(0,1fr) auto
+
+  Measured with a 5-goal scoreline in a 720px viewport:
+    eyebrow  (FULL TIME)          y    0
+    score                         y   41 -  78
+    competition line              y   83 -  95
+    goal scorers                  y  118 - 132
+    panels start                  y  142   (clear)
+    continue button bottom        y  708   (<= 720)
+  score visible                                          PASS
+  scorers visible                                        PASS
+  scorers clear of the panels                            PASS
+  everything fits on screen                              PASS
+
+RUN ANIMATION
+  1. Forward lean was dead code. momentumLean was
+     computed from acceleration and the gait profile,
+     then only ever used as Math.abs(momentumLean)*.18
+     on the VERTICAL axis - the lean itself was never
+     applied, so a sprinter ran bolt upright. Now
+     applied as a real rotation into the direction of
+     travel, scaled by how side-on the view is.         PASS
+
+  2. Side-on stride was wrong. The leg cycle's
+     'longitudinal' travel was only ever added to the
+     figure's local y axis, so running across the screen
+     swung the legs UP AND DOWN instead of front to back
+     and showed no stride separation. Travel is now
+     split between the depth axis and the forward axis
+     by |face.x|.                                        PASS
+     Verified frame-by-frame over a full 8-phase stride:
+     clear front/back scissor side-on where there was
+     none before.
+
+     Front and back views are bit-identical by
+     construction (sideAmt = 0 -> forward term = 0), and
+     confirmed by render.                                PASS
+
+  3. Vertical bob was about 2% of body height, which is
+     invisible. Raised toward 5% with a stronger
+     airborne lift.                                      PASS
+
+Not verified in this environment:
+  requestAnimationFrame does not fire while the browser
+  pane is hidden, so the run cycle was checked frame by
+  frame through the renderer, not watched in motion.
+
+Regression
+  17 hairstyles, header brand only, AI crosses,
+  match penalty countdown all intact                     PASS

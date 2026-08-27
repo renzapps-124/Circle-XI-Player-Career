@@ -1,0 +1,24 @@
+Circle XI v77.8 – Hairstyle Authenticity Validation
+====================================================
+
+[PASS] game.js JavaScript syntax (`node --check`)
+[PASS] Front / Side / Top buttons removed from index.html
+[PASS] Old manual adaptive view block removed from Style tab
+[PASS] Style Impact panel intentionally not implemented
+[PASS] Automatic Classic Media preview present
+[PASS] Automatic Match preview present
+[PASS] Automatic Training preview present
+[PASS] Automatic Replay preview present
+[PASS] Afro uses upgraded dense curl renderer
+[PASS] Waves uses upgraded close-cut wave-pattern renderer
+[PASS] Curls uses upgraded curl-cluster renderer
+[PASS] Long Hair uses upgraded layered-strand renderer
+[PASS] Pony Tail uses upgraded tied multi-strand renderer
+[PASS] Classic Media / portrait contexts use shared drawPortraitHair pipeline
+[PASS] Match / Training contexts use shared drawFootballHair pipeline
+[PASS] Hairstyle cards include texture / motion presentation metadata
+[PASS] CSS cache reference updated to 77.8.0
+[PASS] JavaScript cache reference updated to 77.8.0
+
+Static integration checks: 18/18 passed.
+Note: interactive Chromium navigation is restricted by the execution environment's browser administrator policy, so this validation does not claim a full browser-playthrough runtime test.

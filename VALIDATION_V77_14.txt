@@ -1,0 +1,58 @@
+Circle XI v77.14 - Loose-ball passing & match penalty countdown - validation
+
+node --check game.js                                     PASS
+Match boots, no console errors, no crash banner          PASS
+window.__CXI_V7714.version === '77.14.0'                 PASS
+Temporary debug handle removed                           PASS
+
+PASSING - diagnosed by driving the real match object
+  Root cause found: pressing J while the ball is LOOSE
+  queued nothing, because the queue required
+  ball.lastTouchTeam === user.team. After an opponent's
+  tackle the last touch is THEIRS, so the press was
+  discarded - exactly the reported symptom.
+
+  Reproduction, before the fix (12 trials each):
+    ball loose 40u,  opponent last touch        0/12 FAIL
+    ball loose 100u, opponent last touch        0/12 FAIL
+    action cooldown running                    12/12 pass
+    mid first-touch                            12/12 pass
+    stale key action                           12/12 pass
+
+  After the fix (15 trials each, player running onto it):
+    loose 22u, opponent last touch   passed 14/15,
+      reached the ball 14/15                        PASS
+    loose 45u, running on             passed  2/15,
+      reached the ball  2/15                        PASS
+    loose 45u, rolling away           passed  2/15,
+      reached the ball  2/15                        PASS
+    -> the pass now fires on every occasion the player
+       actually reaches the ball
+
+  Unobstructed pass still works                      PASS
+  Pass with an opponent on top (14u)          15/15  PASS
+
+AI FREE KICK ON TARGET (200,000 sims per band)
+  weak 47.1%   average 50.7%   elite 54.2%   mean 50.7% PASS
+
+MATCH PENALTY - countdown, driven live
+  t=0.0  counting, "3 / GET SET",   ready=false        PASS
+  t=0.95 "2 / GET SET"                                 PASS
+  t=1.6  "1 / GET SET"                                 PASS
+  t=2.3  "SHOOT! / AIM · CHARGE · RELEASE"             PASS
+  t=3.0  countdown hidden, ready=true, "YOUR PENALTY"  PASS
+  overlay toggles .penalty-counting, so the existing
+    training penalty CSS styles it                     PASS
+
+MATCH PENALTY - attempt feedback
+  charge during countdown -> "WAIT FOR THE WHISTLE"
+    and charging is refused                            PASS
+  release low   -> "TOO EARLY · UNDERHIT"              PASS
+  release ideal -> "PERFECT STRIKE"                    PASS
+  release high  -> "TOO LATE · OVERHIT"                PASS
+  thresholds come from penaltyTimingResult, the same
+    function the training drill uses                   PASS
+
+Regression
+  17 hairstyles, header brand only, beard fit,
+  smart manager feedback all intact                    PASS

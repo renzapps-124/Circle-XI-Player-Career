@@ -1,0 +1,71 @@
+Circle XI v77.10 - Head Shape Hair Fit - validation
+
+node --check game.js                                     PASS
+Boot with no caught error banner, no console errors      PASS
+window.__CXI_V7710.version === '77.10.0'                 PASS
+window.__CIRCLE_XI_VISUAL_IDENTITY_VERSION
+  === 'v77.10-head-shape-hair-fit'                       PASS
+
+Hairstyle list
+  17 styles listed, carded and selectable                PASS
+  'Pony Tail' absent from HAIR_STYLES                    PASS
+  'Pony Tail' absent from the Style tab cards            PASS
+  'Pony Tail' absent from the #hair select               PASS
+  Legacy save {hairStyle:'Pony Tail'}     -> Long Hair   PASS
+  Legacy save {hair:'Pony Tail'}          -> Long Hair   PASS
+  Non-retired styles resolve unchanged                   PASS
+
+Rendered every style x 5 head shapes and inspected:
+  Style tab hairstyle cards                              PASS
+  Classic Media player portrait (sprite preview)         PASS
+  Style tab Media / Replay context previews              PASS
+  Style tab Match / Training top-down previews           PASS
+
+Coverage
+  No bare skull at the temples or above the ears         PASS
+  Shaved and Mohawk still show scalp by design           PASS
+  No style covers the eyes, brows or cheeks              PASS
+  Fade line sits on the hair, not the forehead           PASS
+
+Beards
+  Moustache and beard line sit on the real mouth (0.67 ry) PASS
+  Beard bounded by the drawn silhouette - no overhang     PASS
+  No bare strip between beard and face edge              PASS
+  Goatee width follows the head shape chin               PASS
+  Stubble / Goatee / Short / Full read distinctly        PASS
+  Rendered 4 beards x 5 head shapes x 4 jaws             PASS
+  Beards correct in Classic Media and Replay previews    PASS
+
+Animation Identity section removed
+  Section and heading absent from the Style step         PASS
+  All five controls absent from the DOM                  PASS
+  Style step still validates -> continue to Review       PASS
+  Full creator flow Identity -> Review completes         PASS
+  Randomise and Smart Random run without error           PASS
+  Save / Load Preset run without error                   PASS
+  Preset no longer stores the five removed fields        PASS
+  Player model still defaults them (Balanced/Compact/
+    Arms Out/Balanced/Standard)                          PASS
+
+Top bar reduced to a home link
+  Header contains only the brand (1 child)               PASS
+  No background, border, shadow or blur on any screen    PASS
+  Brand click returns home from create/settings/help     PASS
+  Empty header strip passes clicks to content beneath    PASS
+  Brand itself remains hit-testable                      PASS
+  Sound still toggleable in Settings -> Match sounds     PASS
+  #topCareerSummary / #muteBtn lookups guarded           PASS
+
+Head shape
+  Widths track the drawn silhouette's temple width       PASS
+  Hair crown lands on the drawn skull crown              PASS
+  Changing head shape repaints the hairstyle cards       PASS
+
+Exercised 91 head shape x style x hairline combinations
+  with no thrown error                                   PASS
+Exercised 100 facial hair x head shape x jaw combinations
+  with no thrown error                                   PASS
+
+Unchanged by design:
+  In-match and training player hair placement (no head
+  geometry passed; existing scale path retained)

@@ -6,16 +6,18 @@
   <meta name="theme-color" content="#121426" />
   <title>Circle XI: Player Career</title>
   <link rel="icon" href="data:," />
-  <link rel="stylesheet" href="styles.css?v=77.16.0" />
+  <link rel="stylesheet" href="styles.css?v=77.2.1" />
   <!-- v52 compatibility tokens: styles.css?v=52.0.0 game.js?v=52.0.0 -->
 </head>
 <body data-screen="menu">
   <div id="app">
     <header class="topbar">
-      <button class="brand" data-nav="menu" aria-label="Circle XI - go to the home screen">
+      <button class="brand" data-nav="menu" aria-label="Go to main menu">
         <span class="brand-ball">XI</span>
         <span><b>Circle XI</b><small>Player Career</small></span>
       </button>
+      <div id="topCareerSummary" class="top-career-summary hidden"></div>
+      <button id="muteBtn" class="icon-btn" aria-label="Toggle sound">🔊</button>
     </header>
 
     <main>
@@ -238,18 +240,10 @@
                 <div class="creator-section-subhead"><div><small>FACE STUDIO</small><h4>Facial structure</h4></div><span>Appearance is independent from nationality</span></div>
                 <div class="creator-row-3"><label class="field-label">Head shape<select id="headShape" class="nice-select"><option>Oval</option><option>Round</option><option>Square</option><option>Long</option><option>Diamond</option></select></label><label class="field-label">Jaw<select id="jawStyle" class="nice-select"><option>Soft</option><option selected>Balanced</option><option>Defined</option><option>Wide</option></select></label><label class="field-label">Nose<select id="noseStyle" class="nice-select"><option>Small</option><option selected>Balanced</option><option>Wide</option><option>Long</option></select></label></div>
                 <div class="creator-row-3"><label class="field-label">Eyes<select id="eyeStyle" class="nice-select"><option selected>Balanced</option><option>Narrow</option><option>Wide</option><option>Deep set</option></select></label><label class="field-label">Eyebrows<select id="browStyle" class="nice-select"><option selected>Natural</option><option>Thick</option><option>Fine</option><option>Arched</option></select></label><label class="field-label">Facial hair<select id="facialHair" class="nice-select"><option selected>Clean Shaven</option><option>Stubble</option><option>Goatee</option><option>Short Beard</option><option>Full Beard</option></select></label></div>
-                <div class="creator-row-2 v776-face-finish"><label class="field-label">Hairline<select id="hairlineStyle" class="nice-select"><option>Straight</option><option selected>Rounded</option><option>Sharp</option><option>Widow’s Peak</option><option>Curved</option><option>Receding</option></select></label><label class="field-label">Complexion<select id="complexion" class="nice-select"><option selected>Clear</option><option>Freckles</option><option>Light Texture</option><option>Defined Texture</option></select></label></div>
+                <label class="field-label">Complexion<select id="complexion" class="nice-select"><option selected>Clear</option><option>Freckles</option><option>Light Texture</option><option>Defined Texture</option></select></label>
               </div>
               <div class="field-label hair-picker-label">Hairstyle <span>Choose a unique top down silhouette</span></div>
               <div class="hair-style-grid" id="hairChips"></div>
-              <div id="v778StylePreview" class="v778-style-preview" aria-live="polite">
-                <div class="v778-style-hero"><small>CLASSIC MEDIA PREVIEW</small><canvas id="v778MediaPreview" width="260" height="230" aria-label="Classic Media hairstyle preview"></canvas><b id="v778HairName">Fade</b></div>
-                <div class="v778-context-strip">
-                  <figure><canvas id="v778MatchPreview" width="112" height="96" aria-label="Match hairstyle preview"></canvas><figcaption>MATCH</figcaption></figure>
-                  <figure><canvas id="v778TrainingPreview" width="112" height="96" aria-label="Training hairstyle preview"></canvas><figcaption>TRAINING</figcaption></figure>
-                  <figure><canvas id="v778ReplayPreview" width="112" height="96" aria-label="Replay hairstyle preview"></canvas><figcaption>REPLAY</figcaption></figure>
-                </div>
-              </div>
               <select id="hair" class="visually-hidden-input"><option>Short</option><option selected>Fade</option><option>Afro</option><option>Braids</option><option>Shaved</option><option>Curly Top</option><option>Cornrows</option><option>Twists</option><option>Mohawk</option><option>Locs</option></select>
               <div id="hairUnlockNote" class="hair-unlock-note"><span>🔒</span><div><b>More styles unlock during your career</b><small>Make appearances, score goals, earn awards and become a club legend.</small></div></div>
               <div class="v77-equipment-locker">
@@ -257,6 +251,11 @@
                 <div class="creator-row-3"><label class="field-label">Boot model<select id="bootModel" class="nice-select"><option>Velocity</option><option selected>Control Pro</option><option>Power Strike</option><option>Classic Leather</option></select></label><label class="field-label">Primary boot colour<input id="bootColour" type="color" value="#f4f4f4" /></label><label class="field-label">Secondary colour<input id="bootSecondaryColour" type="color" value="#111827" /></label></div>
                 <div class="creator-row-3"><label class="field-label">Shirt number<input id="shirtNumber" type="number" min="1" max="99" value="8" /></label><label class="field-label">Sleeves<select id="sleeveLength" class="nice-select"><option selected>Short</option><option>Long</option><option>Undershirt</option></select></label><label class="field-label">Shirt style<select id="shirtStyle" class="nice-select"><option selected>Untucked</option><option>Tucked</option><option>Fitted</option></select></label></div>
                 <div class="creator-row-3"><label class="field-label">Sock height<select id="sockHeight" class="nice-select"><option>Low</option><option selected>Standard</option><option>High</option></select></label><label class="field-label">Wrist tape<select id="wristTape" class="nice-select"><option selected>None</option><option>Left</option><option>Right</option><option>Both</option></select></label><label class="field-label">Accessories<select id="matchAccessories" class="nice-select"><option selected>None</option><option>Gloves</option><option>Ankle Tape</option><option>Gloves + Ankle Tape</option></select></label></div>
+              </div>
+              <div class="v77-animation-identity">
+                <div class="creator-section-subhead"><div><small>ANIMATION IDENTITY</small><h4>Movement and set-piece style</h4></div><span>Cosmetic timing profiles, not extra attribute points</span></div>
+                <div class="creator-row-3"><label class="field-label">Running style<select id="runningStyle" class="nice-select"><option>Light</option><option selected>Balanced</option><option>Powerful</option><option>Explosive</option></select></label><label class="field-label">Shooting style<select id="shootingStyle" class="nice-select"><option selected>Compact</option><option>Power</option><option>Placement</option><option>Quick Release</option></select></label><label class="field-label">Goal celebration<select id="goalCelebration" class="nice-select"><option selected>Arms Out</option><option>Knee Slide</option><option>Point to Sky</option><option>Calm Walk</option><option>Team Huddle</option></select></label></div>
+                <div class="creator-row-2"><label class="field-label">Free-kick stance<select id="freeKickStance" class="nice-select"><option selected>Balanced</option><option>Side On</option><option>Short Run Up</option><option>Power Run Up</option></select></label><label class="field-label">Penalty run-up<select id="penaltyRunUp" class="nice-select"><option selected>Standard</option><option>Short</option><option>Stutter</option><option>Power</option></select></label></div>
               </div>
             </section>
 
@@ -478,8 +477,7 @@
             <div class="penalty-live-score-chip"><div><span>★★★</span><small>LIVE <b id="matchPenMinute">1'</b></small></div><div><strong id="matchPenTechniqueShort">L</strong><small>SHOT</small></div><div class="penalty-mini-pressure"><small>PRESSURE <b id="matchPenHudPressure">0%</b></small><i><b id="matchPenaltyPressureFill"></b></i></div></div>
             <button id="matchPenaltyMinimalToggle" class="penalty-hud-icon" type="button" title="Minimal HUD" aria-label="Toggle minimal penalty HUD">▣</button><button id="matchPenaltyHelpToggle" class="penalty-hud-icon" type="button" title="Penalty help" aria-label="Penalty help">?</button>
           </div>
-          <div id="matchPenaltyCountdown" class="penalty-countdown"><b>3</b><small>GET SET</small></div><div id="matchPenaltyAimCursor" class="penalty-aim-cursor"><i></i><span></span></div>
-          <div id="matchPenaltyAttemptFeedback" class="penalty-attempt-feedback"></div>
+          <div id="matchPenaltyAimCursor" class="penalty-aim-cursor"><i></i><span></span></div>
           <div class="penalty-aim-label"><b>AIM</b><span id="matchPenAimValue">50 · 17</span><small>WASD / ARROWS</small></div>
           <div class="training-match-hud penalty-power-hud"><div class="penalty-power-row"><span id="matchPenaltyActionName">Normal</span><strong id="matchPenaltyPowerText">0%</strong></div><div class="training-power-track penalty-power-track"><span class="penalty-power-scale"><em>EARLY</em><em>LATE</em></span><i id="matchPenaltyPowerFill"></i><span class="penalty-perfect-zone">PERFECT</span><span class="penalty-power-marker"></span></div><small id="matchPenaltyActionGuide">L · hold and release inside PERFECT</small></div>
           <div class="penalty-technique-selector match-penalty-technique-selector">
@@ -706,6 +704,17 @@
       </div>
     </main>
   </div>
-  <script src="game.js?v=77.16.0"></script>
+  <script>
+try {
+  localStorage.removeItem('circleXIPlayerCareerSlotsV2');
+  localStorage.removeItem('circleXIPlayerActiveCareerV2');
+  localStorage.setItem('circleXIPlayerCareerV1', JSON.stringify({
+    careerId:'startup-test',careerName:'Startup Test',season:1,week:1,
+    player:{name:'Startup Test',position:'CM',overall:65,potential:82,managerTrust:45,morale:70,status:'Academy',nationality:'England',attrs:{passing:65,vision:62,firstTouch:64,dribbling:60,finishing:55,crossing:58,technique:63,pace:64,acceleration:65,stamina:67,strength:60,agility:63,balance:62,decisions:61,composure:60,anticipation:59,positioning:58,tackling:55,freeKicks:50,corners:50}},
+    club:{id:'test-club',name:'Test Club',reputation:70},stats:{apps:0,goals:0,assists:0},messages:[],recentRatings:[],honours:{team:[],individual:[]},fixtureHistory:[]
+  }));
+} catch (e) { document.documentElement.dataset.seedError=String(e); }
+</script>
+  <script src="game.js?v=77.2.1"></script>
 </body>
 </html>

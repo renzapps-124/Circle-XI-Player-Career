@@ -1,0 +1,59 @@
+Circle XI v77.15 - Pressured passing, AI crosses, post-match layout
+
+node --check game.js                                     PASS
+Match boots, no console errors, no crash banner          PASS
+window.__CXI_V7715.version === '77.15.0'                 PASS
+Temporary debug handle removed                           PASS
+
+PASSING under pressure - measured on the live match object
+  Opponent sprinting in at 170u/s, user on the ball,
+  J tapped, 30 trials per distance:
+
+   opp dist | press registered | wind-up | COMPLETED | lost before press
+   ---------|------------------|---------|-----------|------------------
+    400u    |      30/30       |   30    |   30/30   |        0
+     40u    |      30/30       |   30    |   30/30   |        0
+     22u    |      22/30       |   22    |   22/22   |        0
+     16u    |      15/30       |   15    |   15/15   |       15
+
+  Key result: EVERY press that registered produced a
+  completed pass. The old failure mode - press registers,
+  no pass comes out - is gone.                           PASS
+
+  Root cause of the remaining shortfall at close range is
+  the challenge winning the ball, not the input: traced
+  two failure modes, user action 'foul' (fouled, ball
+  loose) and 'frustration' (cleanly dispossessed).
+
+  Fix applied: a pressed player now snaps the ball away
+  instead of completing a full wind-up. Pass-family
+  actions scale their wind-up by lerp(1,.58,pressure/2),
+  so the contact happens sooner under pressure.
+
+  Still open: at 16-22u about a quarter of presses do not
+  register even with the ball still owned. Not yet
+  explained - suspected header-queue path.
+
+AI CROSSES - counted over 128s of simulated play
+  before this change                              0      FAIL
+  after, crosses struck                           4
+  after, passes struck                           66
+  cross share of all deliveries                 5.7%      PASS
+  (real football sits near 4-6%; an earlier setting
+   reached 13% and was dialled back)
+
+  Cause: aiCrossToPoint was only ever called when the
+  user requested a cross with I. Wide carriers in the
+  final third now look for a runner in the box first.
+
+POST-MATCH HEADER
+  #postMatchScreen.active padding-top  70px -> 22px      PASS
+  FULL TIME block top                    70 -> 22 px     PASS
+  wrap height 686px inside a 720px viewport - the score,
+    competition line and panels all fit                  PASS
+  (the 70px was clearing the fixed header bar that
+   v77.10 removed)
+
+Regression
+  17 hairstyles, header brand only, beard fit,
+  match penalty countdown all intact                     PASS

@@ -1,0 +1,73 @@
+Circle XI v77.11 - Smart Manager Feedback & Clean Gameplay HUD - validation
+
+node --check game.js                                     PASS
+Boot with no caught error banner, no console errors      PASS
+window.__CXI_V7711.version === '77.11.0'                 PASS
+11 feedback themes registered                            PASS
+
+Contradiction audit - 300 generated matches, all 10 positions
+  Same theme produced a positive AND a negative     0/300 PASS
+  'Very positive' despite error leading to a goal
+    or a red card                                   0/300 PASS
+  Critical summary that led with praise             0/300 PASS
+  Line not matching the event it scored on          0/300 PASS
+    (red card described as bookings, security error
+     text without an error, and the reverse)
+
+Named regressions from the old build
+  85% passing + 3 misplaced no longer prints both
+    'passing was controlled' and 'misplaced passes'      PASS
+  Goal + error leading to a goal is now 'critical',
+    with the error leading the criticism                 PASS
+  Red card now reads as a sending off, not bookings      PASS
+
+Repetition
+  Unique summaries                                297/300 PASS
+  38 IDENTICAL matches in a row -> 9 distinct
+    summaries, longest identical run 1                   PASS
+  Distinct written lines available                  ~120  PASS
+    (was ~30 lines and 4 fixed summary templates)
+
+Scoring
+  Tone spread over 300 matches: 111 balanced,
+    99 positive, 73 critical, 17 very-positive           PASS
+  Trust delta range -1.80 .. +1.58, mean +0.12           PASS
+  Trust deltas hitting the clamp                    1/300 PASS
+    (previously maxed out on nearly every good game)
+
+Context awareness
+  Substitute cameo judged on per-90 thresholds and
+    flagged as limited evidence                          PASS
+  'You scored our only goal' fires from the scoreline    PASS
+  Win softens a critical verdict only with no error
+    and no red card                                      PASS
+  Loss caps a 'very positive' verdict at 'positive'      PASS
+
+Return shape still matches renderPostMatch
+  weakness.advice / weakness.label / strength.good       PASS
+  instructions[] with verdict field                      PASS
+  positives / negatives / summary / tone
+    / instructionVerdict / trustDelta / phraseIds        PASS
+
+Gameplay HUD
+  Possession/shots/momentum strip not created in a
+    live match                                           PASS
+  drawControlHUD overridden to a no-op after both its
+    definition and its only call site                    PASS
+  controlHudData() retained - control state still
+    resolved every frame                                 PASS
+  Momentum, team intent, crowd and pressure still
+    computed in updateV774Immersion                      PASS
+  Remaining pulse lookups are guarded, so the missing
+    element cannot throw                                 PASS
+
+Not verified in this environment:
+  The match render loop is driven by requestAnimationFrame,
+  which does not fire while the browser pane is hidden, so
+  the canvas could not be sampled. The control panel removal
+  is verified statically: the no-op override is the last
+  assignment to drawControlHUD in the file.
+
+Left in place by design:
+  #v774Awareness, #v774MatchContext, #v774RatingFlash
+  #possessionIndicator (a separate badge, not the strip)
