@@ -241,7 +241,12 @@
   // reached the attacking third in just 22% of open play. Scaling the AI-side restart phases
   // buys that time back. User-taken restarts are untouched: they keep the full grace period.
   // How long a pass/shoot press survives while the player cannot yet play it.
-  const USER_ACTION_BUFFER_WINDOW=0.42;
+  // v77.17: 0.42s was shorter than the recoveries it was meant to bridge - a pass leaves
+  // actionCooldown at up to .51, a cross .74, a block .40, a slide .86 - so a J pressed during
+  // the follow-through of the previous action expired before the player was ever free to play
+  // it. The window now outlasts every kick recovery. The buffer still releases the instant the
+  // player can act, so this changes what survives, not how long a pass takes to leave the foot.
+  const USER_ACTION_BUFFER_WINDOW=0.78;
   const RESTART_TEMPO = 0.45;
   // Measured: 99 tackle contacts a match producing only 9 fouls - a 9% conversion, against a
   // real game where catching the man before the ball is a foul far more often than not. The
@@ -501,12 +506,182 @@
       goalkeeper:{key:'goalkeeper',name:'Goalkeeper',primary:accent,secondary:cxiSimpleContrast(accent),shorts:accent,socks:accent,pattern:'solid'}
     };
   }
+  // ==========================================================================
+  // V77.21 CLUB HERALDIC IDENTITY
+  // The verified 2026/27 database stores name, abbr, colours, pattern, reputation
+  // and stadium - but no crest shape and no motif. Every club in a verified league
+  // therefore fell back to shape 'shield' and a generic football, so all twenty
+  // Premier League badges were the same silhouette with the same charge, separated
+  // only by colour. The legacy realData table in this file already carries the right
+  // shape and heraldic motif for the real clubs, so it becomes the lookup here.
+  // Anything the table does not cover gets a stable identity derived from its name,
+  // which keeps a generated pyramid varied instead of uniformly shielded.
+  //
+  // Motifs are heraldic categories (a bird, a tower, a ship), not reproductions of
+  // any club's registered badge artwork.
+  // ==========================================================================
+  const CXI_CLUB_IDENTITY={
+    "Arsenal":['shield','\u{1f4a3}'],
+    "Aston Villa":['shield','\u{1f981}'],
+    "Bournemouth":['shield','\u{1f352}'],
+    "Brentford":['circle','\u{1f41d}'],
+    "Brighton":['circle','\u{1f985}'],
+    "Chelsea":['circle','\u{1f981}'],
+    "Crystal Palace":['shield','\u{1f985}'],
+    "Everton":['shield','\u{1f3f0}'],
+    "Fulham":['shield','\u{26bd}'],
+    "Ipswich":['shield','\u{1f40e}'],
+    "Leicester":['circle','\u{1f98a}'],
+    "Liverpool":['shield','\u{1f985}'],
+    "Man City":['circle','\u{26f5}'],
+    "Man United":['shield','\u{1f47f}'],
+    "Newcastle":['shield','\u{1f3f0}'],
+    "Nottm Forest":['shield','\u{1f332}'],
+    "Southampton":['shield','\u{26bd}'],
+    "Tottenham":['shield','\u{1f413}'],
+    "West Ham":['shield','\u{2692}'],
+    "Wolves":['hexagon','\u{1f43a}'],
+    "Blackburn":['shield','\u{1f339}'],
+    "Bristol City":['circle','\u{1f426}'],
+    "Burnley":['shield','\u{1f981}'],
+    "Cardiff":['shield','\u{1f409}'],
+    "Coventry":['shield','\u{1f418}'],
+    "Derby":['shield','\u{1f40f}'],
+    "Hull":['shield','\u{1f42f}'],
+    "Leeds":['shield','\u{1f339}'],
+    "Luton Town":['shield','\u{1f3a9}'],
+    "Middlesbrough":['circle','\u{1f981}'],
+    "Millwall":['shield','\u{1f981}'],
+    "Norwich":['shield','\u{1f426}'],
+    "Oxford":['shield','\u{1f402}'],
+    "Plymouth":['shield','\u{26f5}'],
+    "Portsmouth":['shield','\u{2b50}'],
+    "Preston":['shield','\u{1f411}'],
+    "QPR":['circle','\u{26bd}'],
+    "Sheff Utd":['shield','\u{2694}'],
+    "Sheff Wed":['shield','\u{1f989}'],
+    "Stoke":['shield','\u{1f3fa}'],
+    "Sunderland":['shield','\u{1f408}'],
+    "Swansea":['circle','\u{1f9a2}'],
+    "Watford":['shield','\u{1f98c}'],
+    "West Brom":['shield','\u{1f426}'],
+    "Barcelona":['shield','s'],
+    "Atletico Madrid":['shield','Y?'],
+    "Sevilla":['shield','Y'],
+    "Athletic Club":['shield','s?'],
+    "Real Betis":['circle','Y?'],
+    "Villarreal":['shield','Y?'],
+    "Valencia":['shield','Y?'],
+    "Girona":['shield','Y?'],
+    "Osasuna":['shield','Y?'],
+    "Celta Vigo":['shield','s?'],
+    "Getafe":['circle','s'],
+    "Rayo Vallecano":['shield','Y??'],
+    "Alaves":['shield','s'],
+    "Almeria":['shield','Y?'],
+    "Granada":['shield','Y??'],
+    "Bayern Munich":['circle','Y?'],
+    "Dortmund":['circle','Y?B'],
+    "Bayer Leverkusen":['circle','Y?'],
+    "RB Leipzig":['shield','Y?'],
+    "Stuttgart":['shield','Y?'],
+    "Eintracht Frankfurt":['circle','Y?'],
+    "Freiburg":['shield','Y?'],
+    "Hoffenheim":['shield','s'],
+    "Wolfsburg":['circle','Y?W'],
+    "Monchengladbach":['diamond','Y?B'],
+    "Werder Bremen":['diamond','Y?W'],
+    "Augsburg":['shield','s?'],
+    "Heidenheim":['shield','s'],
+    "Bochum":['shield','s'],
+    "Mainz 05":['circle','Y?M'],
+    "Union Berlin":['circle','Y?'],
+    "Koln":['circle','Y?'],
+    "Darmstadt":['shield','s?'],
+    "Schalke 04":['circle','Y?S'],
+    "Hamburger SV":['diamond','s'],
+    "Inter Milan":['circle','Y?'],
+    "AC Milan":['circle','s?'],
+    "Juventus":['shield','Y'],
+    "Napoli":['circle','Y?N'],
+    "AS Roma":['shield','Y?'],
+    "Lazio":['shield','Y?'],
+    "Atalanta":['circle','Y?'],
+    "Fiorentina":['diamond','Y??'],
+    "Torino":['shield','Y?'],
+    "Bologna":['circle','s?'],
+    "Genoa":['shield','Y?'],
+    "Monza":['shield','Y??'],
+    "Lecce":['shield','s?'],
+    "Sassuolo":['shield','s'],
+    "Empoli":['shield','Y'],
+    "Udinese":['shield','Y?'],
+    "Cagliari":['shield','s'],
+    "Verona":['shield','Y?'],
+    "Frosinone":['shield','Y?'],
+    "Salernitana":['shield','Y?'],
+    "PSG":['circle','Y?'],
+    "Marseille":['circle','Y?M'],
+    "Lille":['shield','Y?'],
+    "Lens":['shield','Y?'],
+    "Lyon":['shield','Y?'],
+    "Rennes":['shield','s'],
+    "Nice":['shield','Y?'],
+    "Reims":['circle','s?R'],
+    "Strasbourg":['circle','Y?'],
+    "Montpellier":['circle','s?M'],
+    "Toulouse":['circle','s?'],
+    "Nantes":['shield','Y'],
+    "Le Havre":['circle','s'],
+    "Metz":['shield','Y?'],
+    "Clermont":['shield','Y?'],
+    "Lorient":['circle','Y?'],
+    "Brest":['shield','Y'],
+    "Bordeaux":['shield','Y?'],
+    "Saint-Etienne":['shield','Y?']
+  };
+  const CXI_FALLBACK_SHAPES=['shield','circle','hexagon','badge','octagon','pentagon'];
+  const CXI_FALLBACK_MOTIFS=['\u{1F981}','\u{1F985}','\u{1F3F0}','\u{26F5}','\u{1F332}','\u{1F339}','\u{2B50}','\u{26A1}','\u{1F30A}','\u{2693}','\u{1F41D}','\u{1F434}','\u{2694}','\u{1F686}','\u{1F409}'];
+  // The verified database spells clubs out in full ("Tottenham Hotspur") while the
+  // identity table uses the short form ("Tottenham"), so an exact lookup missed most
+  // of them. Match exactly, then by a hand-checked alias, then by normalised prefix.
+  const CXI_CLUB_ALIASES={
+    'Manchester United':'Man United','Manchester City':'Man City',
+    'Nottingham Forest':'Nottm Forest','Wolverhampton Wanderers':'Wolves',
+    'Sheffield Wednesday':'Sheffield Wed','Sheffield United':'Sheffield Utd',
+    'Queens Park Rangers':'QPR','Bristol City':'Bristol','Hull City':'Hull',
+    'Luton Town':'Luton','Millwall FC':'Millwall','Watford FC':'Watford',
+    'Burnley FC':'Burnley','Sunderland AFC':'Sunderland','Middlesbrough FC':'Middlesbrough',
+    'AFC Bournemouth':'Bournemouth','Brentford FC':'Brentford','Fulham FC':'Fulham',
+    'Everton FC':'Everton','Arsenal FC':'Arsenal','Chelsea FC':'Chelsea',
+    'Liverpool FC':'Liverpool','Aston Villa FC':'Aston Villa','Southampton FC':'Southampton'
+  };
+  let CXI_IDENTITY_NORM=null;
+  function cxiIdentityNormKey(n){return String(n||'').toLowerCase().replace(/[^a-z]/g,'')}
+  function cxiClubIdentity(name,fallbackShape,fallbackIcon){
+    let known=CXI_CLUB_IDENTITY[name]||CXI_CLUB_IDENTITY[CXI_CLUB_ALIASES[name]||''];
+    if(!known){
+      if(!CXI_IDENTITY_NORM){CXI_IDENTITY_NORM={};for(const k of Object.keys(CXI_CLUB_IDENTITY))CXI_IDENTITY_NORM[cxiIdentityNormKey(k)]=CXI_CLUB_IDENTITY[k];}
+      const n=cxiIdentityNormKey(name);
+      if(n.length>=5){
+        if(CXI_IDENTITY_NORM[n])known=CXI_IDENTITY_NORM[n];
+        else{const hit=Object.keys(CXI_IDENTITY_NORM).find(k=>k.length>=5&&(n.startsWith(k)||k.startsWith(n)));if(hit)known=CXI_IDENTITY_NORM[hit];}
+      }
+    }
+    if(known)return{shape:fallbackShape||known[0],icon:fallbackIcon||known[1]};
+    const h=hashText(String(name||'club'));
+    return{
+      shape:fallbackShape||CXI_FALLBACK_SHAPES[h%CXI_FALLBACK_SHAPES.length],
+      icon:fallbackIcon||CXI_FALLBACK_MOTIFS[Math.floor(h/7)%CXI_FALLBACK_MOTIFS.length]
+    };
+  }
+
   function buildCXIVerifiedWorld(country,db){
     const divisions={},clubs={};
     db.divisions.forEach((division,divIndex)=>{
       const clubIds=division.clubs.map((raw,i)=>{
         const id=`club-${country.id}-${cxiSlug(raw.name)}`,kits=cxiExplicitKits(raw);
-        clubs[id]={...raw,id,shortName:raw.shortName||raw.name,shape:raw.shape||'shield',icon:raw.icon||'⚽',countryId:country.id,divisionId:division.id,divisionLevel:division.level,kitPattern:raw.pattern||'solid',kits,databaseSeason:CXI_DATABASE_SEASON,verified:true,kitIdentityVerified:true};
+        const ident=cxiClubIdentity(raw.name,raw.shape,raw.icon);clubs[id]={...raw,id,shortName:raw.shortName||raw.name,shape:ident.shape,icon:ident.icon,countryId:country.id,divisionId:division.id,divisionLevel:division.level,kitPattern:raw.pattern||'solid',kits,databaseSeason:CXI_DATABASE_SEASON,verified:true,kitIdentityVerified:true};
         return id;
       });
       divisions[division.id]={id:division.id,name:division.name,level:division.level,expectedSize:division.expectedSize,clubIds,databaseSeason:CXI_DATABASE_SEASON,verified:true,group:division.group||null,branding:{icon:division.level===1?'★':division.level===2?'◆':'◇',season:CXI_DATABASE_SEASON}};
@@ -1006,6 +1181,50 @@
     Mental:['positioning','vision','anticipation','decisions','composure','teamwork','workRate'],
     Physical:['pace','acceleration','stamina','strength','agility','balance']
   };
+  // Every attribute icon is tinted by the JOB it does, not by how good the rating is -
+  // the bar and the number already carry the rating. Grouping the tints this way means a
+  // glance down the panel separates shooting from defending from set pieces without
+  // reading a single label, and the three category columns still read as one family each.
+  // Emoji were being inferred into Material icons by material-icons-upgrade.js, which left
+  // five attributes (Marking, Penalties, Vision, Decisions, Acceleration) rendering as raw
+  // emoji - and an emoji ignores CSS colour, so those five could not be tinted at all. Two
+  // more pairs collided outright: First Touch and Passing both drew track_changes, Dribbling
+  // and Free Kicks both drew sync. Naming the glyph per attribute fixes both problems and
+  // leaves the shared emoji map untouched for the rest of the app.
+  const ATTRIBUTE_MATERIAL_ICONS={
+    firstTouch:'touch_app',dribbling:'gesture',passing:'send',technique:'flare',crossing:'call_made',
+    finishing:'sports_soccer',longShots:'flight_takeoff',tackling:'security',marking:'my_location',
+    penalties:'adjust',freeKicks:'replay',corners:'flag',throwIns:'pan_tool',
+    positioning:'room',vision:'visibility',anticipation:'psychology',decisions:'call_split',
+    composure:'ac_unit',teamwork:'people',workRate:'directions_run',
+    pace:'flash_on',acceleration:'speed',stamina:'battery_full',strength:'fitness_center',
+    agility:'shuffle',balance:'accessibility_new',
+    heading:'arrow_upward',jumping:'vertical_align_top',bravery:'local_police',curve:'timeline',
+    diving:'swap_horiz',handling:'sports_handball',reflexes:'offline_bolt',gkPositioning:'gps_fixed',
+    kicking:'directions_walk',oneOnOnes:'construction',aerialReach:'flight',distribution:'share'
+  };
+  // A named glyph is emitted as a real Material span, which the upgrader skips; anything
+  // without a name still falls through to the old emoji path.
+  function attributeIconMarkup(key,fallback){
+    const name=ATTRIBUTE_MATERIAL_ICONS[key];
+    return name?`<span class="material-icons-sharp cxi-material-icon" aria-hidden="true">${name}</span>`:(fallback||String.fromCharCode(0x25c6));
+  }
+  const ATTRIBUTE_ICON_TONES={
+    firstTouch:'touch',technique:'touch',dribbling:'touch',curve:'touch',
+    passing:'distribution',crossing:'distribution',kicking:'distribution',distribution:'distribution',
+    finishing:'attack',longShots:'attack',heading:'attack',
+    tackling:'defend',marking:'defend',
+    penalties:'deadball',freeKicks:'deadball',corners:'deadball',throwIns:'deadball',
+    positioning:'awareness',vision:'awareness',anticipation:'awareness',gkPositioning:'awareness',
+    decisions:'judgement',composure:'judgement',
+    teamwork:'collective',workRate:'collective',
+    pace:'speed',acceleration:'speed',
+    stamina:'engine',strength:'power',bravery:'power',
+    agility:'mobility',balance:'mobility',jumping:'mobility',
+    diving:'reflex',reflexes:'reflex',oneOnOnes:'reflex',
+    handling:'hands',aerialReach:'hands'
+  };
+  function attributeIconTone(key){return ATTRIBUTE_ICON_TONES[key]||'neutral'}
   const CREATOR_ATTRIBUTE_ICONS={firstTouch:'\ud83e\uddf2',dribbling:'\ud83c\udf00',passing:'\ud83c\udfaf',technique:'\u2728',crossing:'\u2197',finishing:'\ud83e\udd45',longShots:'\ud83d\ude80',tackling:'\ud83d\udee1',marking:'\ud83d\udc41',penalties:'\u26aa',freeKicks:'\ud83c\udf00',corners:'\ud83d\udea9',throwIns:'\ud83d\ude4c',positioning:'\ud83d\udccd',vision:'\ud83d\udd2d',anticipation:'\ud83e\udde0',decisions:'\u265f',composure:'\ud83e\uddca',teamwork:'\ud83e\udd1d',workRate:'\ud83c\udfc3',pace:'\u26a1',acceleration:'\ud83d\udca8',stamina:'\ud83d\udd0b',strength:'\ud83d\udcaa',agility:'\u21aa',balance:'\u2696'};
 
   function withSeededRandom(seed,fn){const original=Math.random;Math.random=mulberry32(hashText(seed));try{return fn()}finally{Math.random=original}}
@@ -1040,7 +1259,7 @@
     const keyByPosition={GK:['positioning','anticipation','decisions','agility','composure'],CB:['tackling','marking','positioning','strength','anticipation'],RB:['pace','stamina','crossing','tackling','workRate'],LB:['pace','stamina','crossing','tackling','workRate'],DM:['tackling','positioning','passing','decisions','stamina'],CM:['passing','vision','firstTouch','decisions','stamina'],AM:['passing','vision','technique','dribbling','firstTouch'],RW:['pace','dribbling','crossing','technique','acceleration'],LW:['pace','dribbling','crossing','technique','acceleration'],ST:['finishing','composure','pace','positioning','firstTouch']}[position]||[];
     const keys=CREATOR_ATTRIBUTE_GROUPS[activeCreatorAttributeGroup]||CREATOR_ATTRIBUTE_GROUPS.Technical,avg=Math.round(keys.reduce((sum,k)=>sum+(attrs[k]||50),0)/keys.length),overall=calcOverall(attrs,position);
     if($('#creatorAttributeBudget'))$('#creatorAttributeBudget').innerHTML=`<b>${creatorAttributePoints}</b> points remaining`;
-    root.innerHTML=`<div class="creator-attribute-tabs">${Object.keys(CREATOR_ATTRIBUTE_GROUPS).map(group=>`<button type="button" class="${group===activeCreatorAttributeGroup?'active':''}" data-creator-attribute-group="${group}"><span>${group==='Technical'?'\u26bd':group==='Mental'?'\ud83e\udde0':'\u26a1'}</span>${group}<b>${Math.round(CREATOR_ATTRIBUTE_GROUPS[group].reduce((sum,k)=>sum+(attrs[k]||50),0)/CREATOR_ATTRIBUTE_GROUPS[group].length)}</b></button>`).join('')}<aside><small>PROJECTED</small><b>${overall} OVR</b></aside></div><div class="creator-attribute-section ${activeCreatorAttributeGroup.toLowerCase()}"><header><div><small>${activeCreatorAttributeGroup.toUpperCase()} ATTRIBUTES</small><h5>${avg} category average</h5></div><span>Important ${position} attributes are highlighted</span></header><div class="creator-attribute-grid">${keys.map(key=>{const value=attrs[key]||50,important=keyByPosition.includes(key),cost=creatorAttributeCost(value);return`<div class="creator-attribute-row ${important?'important':''} ${attributeColour(value)}"><span class="creator-attr-icon">${CREATOR_ATTRIBUTE_ICONS[key]||'\u25c6'}</span><div><b>${pretty(key)}${important?'<em>KEY</em>':''}</b><i><strong style="width:${value}%"></strong></i></div><button type="button" data-creator-attr="${key}" data-creator-step="-1" aria-label="Reduce ${pretty(key)}">\u2212</button><output>${value}</output><button type="button" data-creator-attr="${key}" data-creator-step="1" aria-label="Increase ${pretty(key)}" ${creatorAttributePoints<cost||value>=90?'disabled':''}>\uff0b</button></div>`}).join('')}</div></div>`;
+    root.innerHTML=`<div class="creator-attribute-tabs">${Object.keys(CREATOR_ATTRIBUTE_GROUPS).map(group=>`<button type="button" class="${group===activeCreatorAttributeGroup?'active':''}" data-creator-attribute-group="${group}"><span>${group==='Technical'?'\u26bd':group==='Mental'?'\ud83e\udde0':'\u26a1'}</span>${group}<b>${Math.round(CREATOR_ATTRIBUTE_GROUPS[group].reduce((sum,k)=>sum+(attrs[k]||50),0)/CREATOR_ATTRIBUTE_GROUPS[group].length)}</b></button>`).join('')}<aside><small>PROJECTED</small><b>${overall} OVR</b></aside></div><div class="creator-attribute-section ${activeCreatorAttributeGroup.toLowerCase()}"><header><div><small>${activeCreatorAttributeGroup.toUpperCase()} ATTRIBUTES</small><h5>${avg} category average</h5></div><span>Important ${position} attributes are highlighted</span></header><div class="creator-attribute-grid">${keys.map(key=>{const value=attrs[key]||50,important=keyByPosition.includes(key),cost=creatorAttributeCost(value);return`<div class="creator-attribute-row ${important?'important':''} ${attributeColour(value)}"><span class="creator-attr-icon" data-attr-tone="${attributeIconTone(key)}">${attributeIconMarkup(key,CREATOR_ATTRIBUTE_ICONS[key])}</span><div><b>${pretty(key)}${important?'<em>KEY</em>':''}</b><i><strong style="width:${value}%"></strong></i></div><button type="button" data-creator-attr="${key}" data-creator-step="-1" aria-label="Reduce ${pretty(key)}">\u2212</button><output>${value}</output><button type="button" data-creator-attr="${key}" data-creator-step="1" aria-label="Increase ${pretty(key)}" ${creatorAttributePoints<cost||value>=90?'disabled':''}>\uff0b</button></div>`}).join('')}</div></div>`;
     root.querySelectorAll('[data-creator-attribute-group]').forEach(btn=>btn.onclick=()=>{activeCreatorAttributeGroup=btn.dataset.creatorAttributeGroup;renderCreatorAttributeDashboard()});
     root.querySelectorAll('[data-creator-attr]').forEach(btn=>btn.onclick=()=>{const key=btn.dataset.creatorAttr,step=Number(btn.dataset.creatorStep),current=creatorAttributeDraft[key]||50;if(step>0){const cost=creatorAttributeCost(current);if(creatorAttributePoints<cost||current>=90)return;creatorAttributeDraft[key]=current+1;creatorAttributePoints-=cost}else if(current>35){creatorAttributeDraft[key]=current-1;creatorAttributePoints+=creatorAttributeCost(current-1)}renderCreatorAttributeDashboard();updateCreationPreview()});
   }
@@ -3252,17 +3471,30 @@
       ctx.ellipse(0, 0, horizontal ? 12.5 : 6.2+shadowPlant*.35-shadowAir*.7, horizontal ? 3.5 : 8.3-shadowAir*1.15, 0, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      ctx.globalAlpha=(horizontal?1:lerp(1,.72,shadowAir)) * 0.45;
-      const angles = [Math.PI/4, Math.PI*3/4, Math.PI*5/4, Math.PI*7/4];
-      ctx.fillStyle = 'rgba(3,18,9,.35)';
-      angles.forEach(ang => {
-        ctx.save();
-        ctx.translate(Math.cos(ang)*2.8, Math.sin(ang)*2.8);
-        ctx.beginPath();
-        ctx.ellipse(0, 0, horizontal ? 12.5 : 6.2+shadowPlant*.35-shadowAir*.7, horizontal ? 3.5 : 8.3-shadowAir*1.15, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      });
+      // v77.22: the match shadow used to stamp the SAME hard-edged ellipse four times,
+      // offset 2.8 units on the diagonals, to fake a blur. It banded into a visible
+      // cross, gave the figure four crisp edges instead of one soft one, and cost four
+      // fills per player per frame - 88 across a full pitch. One radial-gradient ellipse
+      // is genuinely soft, grounds the player properly and is a quarter of the work.
+      const shRX = horizontal ? 12.5 : 6.2+shadowPlant*.35-shadowAir*.7;
+      const shRY = horizontal ? 3.5  : 8.3-shadowAir*1.15;
+      ctx.globalAlpha = horizontal ? 1 : lerp(1,.66,shadowAir);
+      ctx.save();
+      // Work in a unit circle and let the transform make the ellipse, so the falloff
+      // stays circular in shadow space rather than smearing along the long axis.
+      ctx.scale(Math.max(.001,shRX), Math.max(.001,shRY));
+      const shg = ctx.createRadialGradient(0,0,0,0,0,1.34);
+      // A tight, darker core reads as contact with the turf; the long tail is the
+      // penumbra. Lifting off the ground (shadowAir) washes both out together.
+      shg.addColorStop(0,   'rgba(3,18,9,.46)');
+      shg.addColorStop(.42, 'rgba(3,18,9,.30)');
+      shg.addColorStop(.74, 'rgba(3,18,9,.13)');
+      shg.addColorStop(1,   'rgba(3,18,9,0)');
+      ctx.fillStyle = shg;
+      ctx.beginPath();
+      ctx.arc(0,0,1.34,0,Math.PI*2);
+      ctx.fill();
+      ctx.restore();
     }
     ctx.restore();
 
@@ -4497,7 +4729,7 @@
   function renderWorldSelectionInsights(choice){
     const root=$('#worldSelectionInsights');if(!root||!choice)return;
     const snap=clubSelectionSnapshot(choice),countryDb=loadCircleXIManagerCountry(choice.country.id),leagueStrength=Math.round(choice.league.clubs.reduce((sum,c)=>sum+(c.reputation||60),0)/Math.max(1,choice.league.clubs.length));
-    root.innerHTML=`<section class="world-identity-card"><div class="world-icon">${choice.country.icon||'\ud83c\udf0d'}</div><div><small>COUNTRY & LEAGUE</small><h4>${choice.country.name}</h4><p>${choice.continent} \u00b7 ${choice.league.name} \u00b7 Division ${choice.league.level||1}</p></div><div class="world-mini-stats"><span>\ud83c\udfdf\ufe0f ${choice.league.clubs.length} clubs</span><span>\ud83c\udfc6 ${leagueStrength} reputation</span><span>\ud83d\uddfa\ufe0f ${countryDb?.leagues?.length||1} leagues</span></div></section><section class="club-selection-card"><div class="club-selection-head">${crestMarkup(choice.club,'medium')}<div><small>SELECTED CLUB</small><h4>${choice.club.name}</h4><p>\ud83d\udccd ${choice.club.city||choice.country.name} \u00b7 \ud83c\udfdf\ufe0f ${choice.club.stadium||'Club stadium'}</p></div><b class="selection-overall ${ratingTone(snap.overall)}">${snap.overall}<small>OVR</small></b></div><div class="club-rating-grid">${[['\u26a1','Attack',snap.attack],['\ud83e\udde0','Midfield',snap.midfield],['\ud83d\udee1\ufe0f','Defence',snap.defence],['\ud83e\udde4','Goalkeeper',snap.goalkeeper]].map(([icon,label,value])=>`<div class="${ratingTone(value)}"><span>${icon}</span><b>${value}</b><small>${label}</small><i><em style="width:${value}%"></em></i></div>`).join('')}</div><div class="club-facts"><span>\ud83d\udcca Expected ${snap.expected}${snap.expected===1?'st':snap.expected===2?'nd':snap.expected===3?'rd':'th'}</span><span>\ud83d\udc65 ${snap.squadSize} players</span><span>\ud83c\udf82 ${snap.averageAge} avg age</span><span>\u2b50 ${choice.club.reputation||snap.overall} reputation</span></div></section>`;
+    root.innerHTML=`<section class="world-identity-card"><div class="world-icon">${choice.country.icon||'\ud83c\udf0d'}</div><div><small>COUNTRY & LEAGUE</small><h4>${choice.country.name}</h4><p>${choice.continent} \u00b7 ${choice.league.name} \u00b7 Division ${choice.league.level||1}</p></div><div class="world-mini-stats"><span>\ud83c\udfdf\ufe0f ${choice.league.clubs.length} clubs</span><span>\ud83c\udfc6 ${leagueStrength} reputation</span><span>\ud83d\uddfa\ufe0f ${countryDb?.leagues?.length||1} leagues</span></div></section><section class="club-selection-card"><div class="club-selection-head">${crestMarkup(choice.club,'large')}<div><small>SELECTED CLUB</small><h4>${choice.club.name}</h4><p>\ud83d\udccd ${choice.club.city||choice.country.name} \u00b7 \ud83c\udfdf\ufe0f ${choice.club.stadium||'Club stadium'}</p></div><b class="selection-overall ${ratingTone(snap.overall)}">${snap.overall}<small>OVR</small></b></div><div class="club-rating-grid">${[['\u26a1','Attack',snap.attack],['\ud83e\udde0','Midfield',snap.midfield],['\ud83d\udee1\ufe0f','Defence',snap.defence],['\ud83e\udde4','Goalkeeper',snap.goalkeeper]].map(([icon,label,value])=>`<div class="${ratingTone(value)}"><span>${icon}</span><b>${value}</b><small>${label}</small><i><em style="width:${value}%"></em></i></div>`).join('')}</div><div class="club-facts"><span>\ud83d\udcca Expected ${snap.expected}${snap.expected===1?'st':snap.expected===2?'nd':snap.expected===3?'rd':'th'}</span><span>\ud83d\udc65 ${snap.squadSize} players</span><span>\ud83c\udf82 ${snap.averageAge} avg age</span><span>\u2b50 ${choice.club.reputation||snap.overall} reputation</span></div></section>`;
   }
   const V76_CREATOR_BACKGROUNDS={
     'Local Academy Graduate':{icon:'🏠',text:'Strong supporter connection and an easier route into the dressing room.',effects:'Supporters +6 · Team mates +3'},
@@ -7778,36 +8010,225 @@
     if(delta<-.04)return ['\u25bc','down',delta,'Declining'];
     return ['\u2014','stable',0,'Stagnant'];
   }
-  function crestMarkup(club,size='large'){
-    const shapes = {
-      circle: '<circle cx="50" cy="50" r="48" />',
-      square: '<rect x="5" y="5" width="90" height="90" rx="15" />',
-      hexagon: '<polygon points="50,2 95,25 95,75 50,98 5,75 5,25" />',
-      shield: '<path d="M 10 10 L 90 10 L 90 40 C 90 75 50 95 50 95 C 50 95 10 75 10 40 Z" />',
-      diamond: '<polygon points="50,2 98,50 50,98 2,50" />',
-      pentagon: '<polygon points="50,2 98,38 79,98 21,98 2,38" />',
-      triangle: '<polygon points="50,98 95,10 5,10" />',
-      badge: '<path d="M 10 10 L 90 10 L 90 60 Q 50 100 10 60 Z" />',
-      octagon: '<polygon points="30,2 70,2 98,30 98,70 70,98 30,98 2,70 2,30" />'
-    };
-    const c=club||{abbr:'XI',primary:'#6d28d9',secondary:'#f8fafc'};
-    const mark=c.logoMark||c.branding?.icon||'XI',abbr=c.abbr||String(c.name||'XI').slice(0,3).toUpperCase();
-    const content=c.logo?`<img src="${c.logo}" alt="${c.name||abbr} logo">`:`<i>${mark}</i><span>${abbr}</span>`;
-    const shapeSvg = shapes[c.shape] || shapes['shield'];
-    const textFill = contrastTextColour(c.primary || '#6d28d9');
-    
-    let svgContent = c.logo ? `<image href="${c.logo}" width="80" height="80" x="10" y="10" />` : 
-      `<text x="50%" y="48%" dominant-baseline="middle" text-anchor="middle" font-size="38" font-family="system-ui, sans-serif" font-weight="900" fill="${textFill}">${mark}</text>
-       <text x="50%" y="78%" dominant-baseline="middle" text-anchor="middle" font-size="16" font-family="system-ui, sans-serif" font-weight="800" fill="${textFill}" letter-spacing="1">${abbr}</text>`;
+  // ==========================================================================
+  // V77.21 CREST SYSTEM
+  //
+  // The old crest was a shape, one emoji-derived glyph and an abbreviation, and it
+  // had four measurable faults:
+  //   * a 100x100 viewBox inside a 72x82 box, so every crest was letterboxed and
+  //     sat 10px above where the container implied;
+  //   * stroke-width 4 on shapes drawn to the viewBox edge, so circle, hexagon and
+  //     diamond had their outline clipped by the canvas;
+  //   * the abbreviation at y=78% ran outside the shield, which narrows sharply
+  //     below 75% - the letters hung over the edge on the most common shape;
+  //   * at 'tiny' (27px, which is what the match HUD uses) a 38px glyph and a 16px
+  //     word were rendered into 27 pixels and read as noise.
+  // On top of that the motif glyphs collided badly: 19 clubs drew the same paw
+  // print and 7 drew the same aeroplane, so a third of the league shared a badge.
+  //
+  // These are NOT reproductions of real club badges - that artwork is trademarked.
+  // They are original crests built from each club's own colours, kit pattern and
+  // heraldic category, which is what the data in this file already describes.
+  // ==========================================================================
 
-    const svg = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-      <g fill="var(--crest)" stroke="var(--crest2)" stroke-width="4">
-        ${shapeSvg}
-      </g>
-      ${svgContent}
+  // Heraldic category per motif, so clubs that share a glyph can still differ in
+  // layout, and so the charge is chosen by what the badge actually depicts.
+  const CREST_MOTIFS={
+    '\u{1F981}':{icon:'pets',cat:'beast'},        '\u{1F43A}':{icon:'pets',cat:'beast'},
+    '\u{1F98A}':{icon:'pets',cat:'beast'},        '\u{1F42F}':{icon:'pets',cat:'beast'},
+    '\u{1F408}':{icon:'pets',cat:'beast'},        '\u{1F437}':{icon:'pets',cat:'beast'},
+    '\u{1F434}':{icon:'agriculture',cat:'equine'},'\u{1F40E}':{icon:'agriculture',cat:'equine'},
+    '\u{1F411}':{icon:'grass',cat:'horned'},      '\u{1F40F}':{icon:'grass',cat:'horned'},
+    '\u{1F402}':{icon:'grass',cat:'horned'},      '\u{1F98C}':{icon:'grass',cat:'horned'},
+    '\u{1F418}':{icon:'grass',cat:'horned'},
+    '\u{1F985}':{icon:'flight',cat:'bird'},       '\u{1F426}':{icon:'flight',cat:'bird'},
+    '\u{1F413}':{icon:'flight',cat:'bird'},       '\u{1F989}':{icon:'flight',cat:'bird'},
+    '\u{1F41D}':{icon:'emoji_nature',cat:'insect'},
+    '\u{1F409}':{icon:'local_fire_department',cat:'mythic'},
+    '\u{1F47F}':{icon:'local_fire_department',cat:'mythic'},
+    '\u{1F3F0}':{icon:null,cat:'tower'},          '\u{1F3DF}':{icon:null,cat:'tower'},
+    '\u{2694}':{icon:null,cat:'tools'},           '\u{2692}':{icon:null,cat:'tools'},
+    '\u{1F6E0}':{icon:null,cat:'tools'},          '\u{1F528}':{icon:null,cat:'tools'},
+    '\u{1F4A3}':{icon:'military_tech',cat:'ordnance'},
+    '\u{26F5}':{icon:'directions_boat',cat:'ship'},'\u{2693}':{icon:'anchor',cat:'ship'},
+    '\u{1F332}':{icon:'nature',cat:'tree'},       '\u{1F331}':{icon:'eco',cat:'tree'},
+    '\u{1F339}':{icon:'local_florist',cat:'flora'},'\u{1F352}':{icon:'spa',cat:'flora'},
+    '\u{26A1}':{icon:'flash_on',cat:'bolt'},      '\u{1F30A}':{icon:'waves',cat:'water'},
+    '\u{2B50}':{icon:'star',cat:'star'},          '\u{1F31F}':{icon:'star',cat:'star'},
+    '\u{26BD}':{icon:'sports_soccer',cat:'ball'}, '\u{1F3AF}':{icon:'sports_soccer',cat:'ball'},
+    '\u{1F686}':{icon:'train',cat:'industry'},    '\u{1F3ED}':{icon:'precision_manufacturing',cat:'industry'},
+    '\u{1F527}':{icon:'handyman',cat:'industry'}
+  };
+
+  // Two charges the icon font simply does not have. Both are plain geometry, which
+  // is why they are safe to draw by hand - no animal silhouette guesswork.
+  const CREST_CHARGE_PATHS={
+    // A crenellated tower: Everton, Newcastle, Stoke.
+    tower:'M30 62 h40 v-22 h-6 v7 h-7 v-7 h-7 v7 h-7 v-7 h-6 v22 z M36 62 h28 v18 h-28 z M46 68 h8 v12 h-8 z',
+    // Crossed hammers: West Ham and the other tool badges.
+    tools:'M28 34 l7-7 34 34 -7 7 z M72 34 l-7-7 -34 34 7 7 z M24 30 h12 v12 h-12 z M64 30 h12 v12 h-12 z'
+  };
+
+  function crestShapePaths(){
+    // Every shape is drawn inside a 6-unit margin of a 100x114 box so a 5-unit
+    // stroke can never be clipped by the canvas edge - the old bug.
+    return{
+      shield:'M8 8 H92 V54 C92 88 50 108 50 108 C50 108 8 88 8 54 Z',
+      circle:'M50 10 A47 47 0 1 1 49.9 10 Z',
+      square:'M14 12 H86 A8 8 0 0 1 94 20 V96 A8 8 0 0 1 86 104 H14 A8 8 0 0 1 6 96 V20 A8 8 0 0 1 14 12 Z',
+      hexagon:'M50 8 L92 31 V83 L50 106 L8 83 V31 Z',
+      diamond:'M50 8 L94 57 L50 106 L6 57 Z',
+      pentagon:'M50 8 L94 42 L77 104 H23 L6 42 Z',
+      triangle:'M50 104 L94 16 H6 Z',
+      badge:'M10 10 H90 V64 Q50 108 10 64 Z',
+      octagon:'M32 8 H68 L92 32 V82 L68 106 H32 L8 82 V32 Z'
+    };
+  }
+
+  function crestPatternMarkup(pattern,trim,id){
+    // The kit pattern doubles as the crest field, which is how real badges carry a
+    // club's stripes. Clipped to the shape so it never bleeds past the outline.
+    const o='opacity=".34"';
+    if(pattern==='stripes')return [0,1,2,3].map(i=>`<rect x="${14+i*20}" y="0" width="9" height="114" fill="${trim}" ${o}/>`).join('');
+    if(pattern==='hoops')return [0,1,2].map(i=>`<rect x="0" y="${20+i*24}" width="100" height="10" fill="${trim}" ${o}/>`).join('');
+    if(pattern==='halves')return `<rect x="50" y="0" width="50" height="114" fill="${trim}" ${o}/>`;
+    if(pattern==='sash')return `<path d="M0 18 L100 74 L100 92 L0 36 Z" fill="${trim}" ${o}/>`;
+    return'';
+  }
+
+  // ==========================================================================
+  // V77.28 CREST DETAIL
+  // The v77.21 badge was a flat shape, one charge and an abbreviation. Real crests
+  // are layered: a field that is shaded rather than flat, a division or pattern, an
+  // inner border, a charge that often stands on something, honour stars, and a
+  // lettered band. Each of those is added here.
+  //
+  // Two rules keep it from turning to mush. Combined charges and stars only appear
+  // from 'small' upward - at the 28px the match HUD uses, a second glyph is noise.
+  // And the charge colour is chosen for contrast against the club's own primary, so
+  // a pale kit does not end up with a pale emblem on it.
+  // ==========================================================================
+
+  // A charge often stands on something: a ship on waves, a tree on grass, a bee on a
+  // flower. Only the pairings that mean something are listed - the rest stay single,
+  // because a star bolted under every badge would be decoration, not heraldry.
+  const CREST_SUPPORTERS={
+    ship:'waves', water:'directions_boat', tree:'grass', equine:'grass',
+    horned:'grass', beast:'grass', tower:'grass', flora:'spa', insect:'local_florist'
+  };
+  // A charge shown above the main one, where the motif calls for it.
+  const CREST_CRESTS={ bird:'star', mythic:'star', ordnance:'star' };
+
+  // Honour stars, the way a shirt carries them. Driven by club reputation.
+  function crestStarCount(rep){const r=Number(rep)||0;return r>=90?3:r>=85?2:r>=78?1:0}
+
+  // The emblem has to be legible on the club's own colour, so it is picked for
+  // contrast rather than assumed. Gold reads as an honour colour and is preferred
+  // where it works; otherwise fall back to the trim, then to plain black or white.
+  function crestInk(primary,trim){
+    const gold='#fbbf24';
+    if(colourContrastRatio(gold,primary)>=3.2)return gold;
+    if(colourContrastRatio(trim,primary)>=3.2)return trim;
+    return contrastTextColour(primary);
+  }
+  function colourContrastRatio(a,b){
+    const lum=hex=>{const h=String(hex).replace('#','');
+      const v=[0,2,4].map(i=>{let c=parseInt(h.slice(i,i+2),16)/255;return c<=.03928?c/12.92:Math.pow((c+.055)/1.055,2.4)});
+      return .2126*v[0]+.7152*v[1]+.0722*v[2]};
+    const L1=Math.max(lum(a),lum(b)),L2=Math.min(lum(a),lum(b));
+    return (L1+.05)/(L2+.05);
+  }
+
+  function crestStarsMarkup(count,fill){
+    if(!count)return'';
+    const pts=(cx,cy,r)=>{let d='';for(let i=0;i<10;i++){const ang=-Math.PI/2+i*Math.PI/5,rr=i%2?r*.44:r;
+      d+=(i?'L':'M')+(cx+Math.cos(ang)*rr).toFixed(2)+' '+(cy+Math.sin(ang)*rr).toFixed(2);}return d+'Z'};
+    const gap=11,x0=50-(count-1)*gap/2;
+    let out='';
+    for(let i=0;i<count;i++)out+=`<path d="${pts(x0+i*gap,15,3.6)}" fill="${fill}" opacity=".95"/>`;
+    return out;
+  }
+
+  function crestMarkup(club,size='large'){
+    const c=club||{abbr:'XI',primary:'#6d28d9',secondary:'#f8fafc'};
+    const abbr=(c.abbr||String(c.name||'XI').slice(0,3)).toUpperCase().slice(0,4);
+    const primary=c.primary||'#6d28d9',trim=c.secondary||'#f8fafc';
+    const ink=crestInk(primary,trim);
+    const shapes=crestShapePaths();
+    const shapePath=shapes[c.shape]||shapes.shield;
+    const uid=`cr${Math.abs(hashText(`${c.id||''}${c.name||abbr}${c.shape||''}`))%100000}`;
+
+    // A club badge on the pitch-side HUD has about 28px to work with. Words and a
+    // second glyph do not survive that, so compact keeps only the primary charge.
+    const compact=size==='tiny'||size==='mini';
+    const detailed=!compact&&size!=='small';
+    const raw=String(c.logoMark||c.branding?.icon||c.icon||'').replace(/\uFE0F/g,'');
+    const motif=CREST_MOTIFS[raw]||null;
+    const iconName=motif?motif.icon:(window.CXI_MATERIAL_ICON_NAME?.(raw,`${c.name||abbr} club crest`)||null);
+    const chargePath=motif&&!motif.icon?CREST_CHARGE_PATHS[motif.cat]:null;
+    const supporter=detailed&&motif?CREST_SUPPORTERS[motif.cat]:null;
+    const crestTop=detailed&&motif?CREST_CRESTS[motif.cat]:null;
+    const stars=detailed?crestStarCount(c.reputation):0;
+
+    // Charge sits in the upper field on a lettered crest, dead centre on a compact one,
+    // and lifts a little when something stands beneath it.
+    const chargeY=compact?58:(supporter?43:46);
+    const chargeSize=compact?54:40;
+    let charge='';
+    if(c.logo){
+      charge=`<image href="${c.logo}" x="22" y="${chargeY-26}" width="56" height="56" preserveAspectRatio="xMidYMid meet"/>`;
+    }else if(chargePath){
+      charge=`<g transform="translate(50 ${chargeY}) scale(${(chargeSize/56).toFixed(3)}) translate(-50 -57)"><path d="${CREST_CHARGE_PATHS[motif.cat]}" fill="${ink}"/></g>`;
+    }else if(iconName){
+      // Rendered outside the svg - the Material ligature only resolves in HTML.
+      charge='';
+    }else{
+      // No motif at all: a bold monogram is a real badge convention, not a fallback smell.
+      charge=`<text x="50" y="${chargeY}" text-anchor="middle" dominant-baseline="central" font-family="Russo One, sans-serif" font-weight="900" font-size="${compact?46:38}" fill="${ink}">${escapeMarkup(abbr.slice(0,2))}</text>`;
+    }
+
+    // The shield narrows below 75% of its height, so lettering goes in a band across
+    // the widest part rather than over the point, which is what used to overflow.
+    const lettering=compact?'':
+      `<rect x="8" y="72" width="84" height="21" fill="${trim}" opacity=".92"/>
+       <text x="50" y="83" text-anchor="middle" dominant-baseline="central" font-family="Russo One, sans-serif" font-weight="800" font-size="${abbr.length>3?14:16}" letter-spacing="${abbr.length>3?0:1}" fill="${contrastTextColour(trim)}">${escapeMarkup(abbr)}</text>`;
+
+    const pattern=crestPatternMarkup(c.kitPattern||c.branding?.kitPattern||'solid',trim,uid);
+
+    // A shaded field instead of a flat one, lit from the upper left like every other
+    // gradient in the game so the badge sits in the same light as the pitch.
+    const fieldId=uid+'f';
+    const field=`<linearGradient id="${fieldId}" x1="0" y1="0" x2="0.75" y2="1">
+        <stop offset="0" stop-color="${mixColour(primary,'#ffffff',.16)}"/>
+        <stop offset="0.55" stop-color="${primary}"/>
+        <stop offset="1" stop-color="${shadeColour(primary,-.22)}"/>
+      </linearGradient>`;
+
+    // An inner border and a chief give the field the layering a real badge has.
+    const innerBorder=compact?'':`<path d="${shapePath}" fill="none" stroke="${trim}" stroke-width="1.6" opacity=".55" transform="translate(50 57) scale(.88) translate(-50 -57)"/>`;
+    const chief=detailed?`<rect x="0" y="8" width="100" height="13" fill="${trim}" opacity=".22"/>`:'';
+
+    const svg=`<svg viewBox="0 0 100 114" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${escapeMarkup(c.name||abbr)} crest">
+      <defs><clipPath id="${uid}"><path d="${shapePath}"/></clipPath>${field}</defs>
+      <path d="${shapePath}" fill="url(#${fieldId})"/>
+      <g clip-path="url(#${uid})">${pattern}${chief}${lettering}${crestStarsMarkup(stars,'#fbbf24')}</g>
+      ${charge}${innerBorder}
+      <path d="${shapePath}" fill="none" stroke="${trim}" stroke-width="5" stroke-linejoin="round"/>
     </svg>`;
 
-    return `<div class="visual-club-crest ${size}" data-element="${c.branding?.elementId||''}" style="--crest:${c.primary||'#6d28d9'};--crest2:${c.secondary||'#f8fafc'}">${svg}</div>`;
+    // Material charges are HTML spans layered over the shape. A combined charge is two
+    // of them: the emblem, and the thing it stands on or is crowned by.
+    const span=(name,cls)=>`<span class="cxi-crest-charge material-icons-sharp cxi-material-icon${cls}" aria-hidden="true">${name}</span>`;
+    let overlay='';
+    if(!c.logo&&!chargePath&&iconName){
+      overlay+=span(iconName,(compact?' compact':'')+(supporter?' lifted':''));
+      if(supporter)overlay+=span(supporter,' sub');
+      if(crestTop)overlay+=span(crestTop,' crest-top');
+    }else if(!c.logo&&chargePath&&supporter){
+      overlay+=span(supporter,' sub');
+    }
+
+    return `<div class="visual-club-crest ${size}" data-element="${c.branding?.elementId||''}" data-crest-shape="${c.shape||'shield'}" data-crest-stars="${stars}" style="--crest:${primary};--crest2:${trim};--crest-ink:${ink}">${svg}${overlay}</div>`;
   }
   function hexRgb(hex){const h=String(hex||'#000000').replace('#','');const n=parseInt(h.length===3?h.split('').map(x=>x+x).join(''):h,16)||0;return [(n>>16)&255,(n>>8)&255,n&255]}
   function colourDistance(a,b){const A=hexRgb(a),B=hexRgb(b);return Math.sqrt(A.reduce((s,v,i)=>s+(v-B[i])**2,0));}
@@ -8342,7 +8763,7 @@
       <section class="profile-vital-icons">${[['\u2764\ufe0f',Math.round(p.fitness)+'%','Fitness'],['\u26a1',Math.round(tProfile.sharpness||70)+'%','Sharpness'],['\ud83d\udd0b',Math.round(100-(tProfile.fatigue||0))+'%','Energy'],['\ud83d\ude0a',Math.round(p.morale)+'%','Morale'],['\ud83d\udcc8',lastGains?lastGains.total.toFixed(2):'0.00','Last gain'],['\ud83c\udfc1',retirementAge,'Retirement']].map(([i,v,l])=>`<div><span>${i}</span><b>${v}</b><small>${l}</small></div>`).join('')}</section>
       <section class="v773-profile-physical">${(()=>{const ph=calculatePhysicalProfile(p),sum=physicalProfileSummary(ph);return `<header><span>🧍</span><div><small>PHYSICAL PROFILE</small><b>${escapeMarkup(ph.buildName)} · ${ph.heightCm} cm · ${Math.round(ph.weightKg)} kg</b></div></header><div><span><small>CENTRE OF GRAVITY</small><b>${sum.cog}</b></span><span><small>STRIDE</small><b>${sum.stride}</b></span><span><small>PHYSICAL PRESENCE</small><b>${sum.presence}</b></span><span><small>AERIAL REACH</small><b>${sum.aerial}</b></span></div><p>The same physical identity is used in Match Day, Classic Media, training, collisions and aerial duels.</p>`})()}</section>
       <section class="v775-profile-visual">${(()=>{const v=resolvedVisualIdentity(p);return `<header><span>🎨</span><div><small>VISUAL IDENTITY</small><b>${escapeMarkup(v.hairStyle)} · ${escapeMarkup(v.headShape)} face · ${escapeMarkup(v.bootModel)}</b></div></header><div><span><small>FACE</small><b>${escapeMarkup(v.jawStyle)} · ${escapeMarkup(v.hairlineStyle)} hairline · ${escapeMarkup(v.facialHair)}</b></span><span><small>KIT STYLE</small><b>${escapeMarkup(v.sleeveLength)} · ${escapeMarkup(v.shirtStyle)}</b></span><span><small>DETAILS</small><b>${escapeMarkup(v.wristTape)} tape · ${escapeMarkup(v.sockHeight)} socks</b></span><span><small>MOVEMENT</small><b>${escapeMarkup(v.runningStyle)} run · ${escapeMarkup(v.shootingStyle)} shot</b></span></div><p>One saved appearance drives Career Media, Match Day, training and generated player visuals.</p><button type="button" class="v775-style-locker-btn" data-v775-style-locker>EDIT CAREER APPEARANCE</button>`})()}</section>
-      <section class="profile-category-grid">${Object.entries(PROFILE_GROUPS).map(([group,keys])=>{const visibleKeys=keys.filter(k=>k in p.attrs),categoryAverage=Math.round(visibleKeys.reduce((s,k)=>s+(p.attrs[k]||50),0)/Math.max(1,visibleKeys.length));return `<article class="profile-attribute-category ${group.toLowerCase()}"><header><span>${group==='Technical'?'\u26bd':group==='Physical'?'\u26a1':'\ud83e\udde0'}</span><div><small>${group.toUpperCase()} · ${visibleKeys.length} ATTRIBUTES</small><b>${categoryAverage}</b></div></header><div class="profile-attribute-rows">${visibleKeys.map(k=>{const v=p.attrs[k]||50,d=profileAttributeDelta(p,k),raw=Number(tProfile.attributeProgress?.[k]??v),progress=Math.round((raw-Math.floor(raw))*100),isKey=keyAttrs.includes(k);return `<div class="profile-attribute-row ${attributeColour(v)} ${isKey?'important':''}"><span class="attr-icon">${ATTRIBUTE_ICONS[k]||'\u25c6'}</span><div><b>${pretty(k)}${isKey?'<em class="profile-key-badge">KEY</em>':''}</b><i><em style="width:${Math.max(4,v)}%"></em><strong style="left:${progress}%"></strong></i><small>${progress}% towards ${Math.min(99,v+1)}</small></div><output>${v}</output><mark class="${d>0?'up':d<0?'down':'flat'}">${d>0?'\u2191 +'+d.toFixed(2):d<0?'\u2193 '+Math.abs(d).toFixed(2):'\u2022'}</mark></div>`}).join('')}</div></article>`}).join('')}</section>
+      <section class="profile-category-grid">${Object.entries(PROFILE_GROUPS).map(([group,keys])=>{const visibleKeys=keys.filter(k=>k in p.attrs),categoryAverage=Math.round(visibleKeys.reduce((s,k)=>s+(p.attrs[k]||50),0)/Math.max(1,visibleKeys.length));return `<article class="profile-attribute-category ${group.toLowerCase()}"><header><span>${group==='Technical'?'\u26bd':group==='Physical'?'\u26a1':'\ud83e\udde0'}</span><div><small>${group.toUpperCase()} · ${visibleKeys.length} ATTRIBUTES</small><b>${categoryAverage}</b></div></header><div class="profile-attribute-rows">${visibleKeys.map(k=>{const v=p.attrs[k]||50,d=profileAttributeDelta(p,k),raw=Number(tProfile.attributeProgress?.[k]??v),progress=Math.round((raw-Math.floor(raw))*100),isKey=keyAttrs.includes(k);return `<div class="profile-attribute-row ${attributeColour(v)} ${isKey?'important':''}"><span class="attr-icon" data-attr-tone="${attributeIconTone(k)}">${attributeIconMarkup(k,ATTRIBUTE_ICONS[k])}</span><div><b>${pretty(k)}${isKey?'<em class="profile-key-badge">KEY</em>':''}</b><i><em style="width:${Math.max(4,v)}%"></em><strong style="left:${progress}%"></strong></i><small>${progress}% towards ${Math.min(99,v+1)}</small></div><output>${v}</output><mark class="${d>0?'up':d<0?'down':'flat'}">${d>0?'\u2191 +'+d.toFixed(2):d<0?'\u2193 '+Math.abs(d).toFixed(2):'\u2022'}</mark></div>`}).join('')}</div></article>`}).join('')}</section>
       <section class="profile-development-ribbon"><span>\ud83d\udcc8</span><div><small>RECENT DEVELOPMENT</small><b>${lastGains?.label||'Keep training and performing'}</b><p>${lastGains?.items?.length?lastGains.items.slice(0,5).map(x=>`${pretty(x.key)} +${x.points.toFixed(2)}`).join(' \u00b7 '):'Attribute progress and full increases will appear with coloured arrows.'}</p></div></section>
     </div>`;
   }
@@ -8373,7 +8794,7 @@
   ];
   function allTransferClubs(){const list=[];try{const db=career.world?.countryId?loadCircleXIManagerCountry(career.world.countryId):null;(db?.leagues||[]).forEach(l=>(l.clubs||[]).forEach(c=>list.push({...c,leagueName:l.name,leagueId:l.id,leagueLevel:l.level||1})));}catch{}return list.length?list:career.league.map(c=>({...c,leagueName:career.world?.leagueName||'League',leagueId:career.world?.leagueId||'league',leagueLevel:career.world?.leagueLevel||1}))}
   function ensureTransferMarket(save=career){ensureCareerRecords(save);const tm=save.transferMarket,window=contractNegotiationWindow(save),ratings=save.recentRatings||[],avg=ratings.length?ratings.reduce((a,b)=>a+b,0)/ratings.length:0,eliteForm=ratings.length>=8&&avg>=9;if(window.open&&tm.windowKey!==window.key){const pool=[...allTransferClubs(),...(eliteForm?MAJOR_TRANSFER_CLUBS:[])].filter((c,i,arr)=>c.id!==save.club?.id&&c.abbr!==save.club?.abbr&&arr.findIndex(x=>(x.id||x.abbr)===(c.id||c.abbr))===i),ovr=save.player.overall||60,targetRep=eliteForm?99:clamp(ovr+4+(avg-6.5)*5,45,96),ranked=pool.map(c=>({...c,fit:eliteForm?(c.reputation||60):100-Math.abs((c.reputation||60)-targetRep)+seededUnit(`${save.careerId}-${window.key}-${c.id}`)*12})).sort((a,b)=>b.fit-a.fit),selected=eliteForm?ranked.filter(c=>(c.reputation||0)>=80).slice(0,6):ranked.filter(c=>(c.reputation||60)<=targetRep+12).slice(0,4);tm.offers=selected.map((c,i)=>{const rep=c.reputation||60,role=ovr>=rep+5?'Key Player':ovr>=rep-2?'Regular Starter':ovr>=rep-8?'Rotation':'Prospect',wage=Math.round(Math.max(save.player.wage||650,(rep*rep*.32)+(ovr*38)+(avg*190))/100)*100;return{id:`${window.key}-${c.id||c.abbr}`,club:{...c},leagueName:c.leagueName,leagueId:c.leagueId,leagueLevel:c.leagueLevel,wage,years:save.player.age<=23?4:3,role,interest:eliteForm?'Exceptional form override':i===0?'Priority target':'Strong interest',reason:eliteForm?`${avg.toFixed(2)} average rating triggered major-club interest.`:`${save.player.overall} OVR and ${avg.toFixed(2)||'\u2014'} form fit the club's recruitment level.`}});tm.windowKey=window.key;tm.history.unshift({week:save.week,window:window.label,count:tm.offers.length});tm.history=tm.history.slice(0,12);if(tm.offers.length)save.messages.unshift({title:`${window.icon} ${tm.offers.length} transfer offers`,body:`Formal offers arrived during the ${window.label.toLowerCase()}.`,new:true});}return tm}
-  function transferOfferMarkup(){const tm=ensureTransferMarket(),window=contractNegotiationWindow(),avg=career.recentRatings?.length?career.recentRatings.reduce((a,b)=>a+b,0)/career.recentRatings.length:0;if(!window.open)return `<section class="transfer-window-panel closed"><div><span>\ud83d\udd12</span><div><small>TRANSFER MARKET</small><b>Formal offers are closed</b><p>Interest can build now, but offers arrive only at season start, January or the end of the season.</p></div></div><em>${window.weeks}</em></section>`;return `<section class="transfer-window-panel open"><header><div><small>${window.icon} ${window.label.toUpperCase()}</small><h3>Club Offers</h3><p>${avg>=9&&career.recentRatings.length>=8?'\u2b50 Exceptional 9.00+ form has alerted every major club.':'Offers are matched to ability, form, position and squad need.'}</p></div><span>${tm.offers.length} offers</span></header><div class="transfer-offer-grid">${tm.offers.map(o=>`<article class="transfer-offer-card" style="--offer:${o.club.primary||'#6d28d9'}"><div class="transfer-club-head">${crestMarkup(o.club,'small')}<div><small>${o.leagueName}</small><b>${o.club.name}</b><p>\u2b50 ${o.club.reputation||60} reputation</p></div></div><div class="transfer-offer-facts"><span>\ud83d\udcb7 \u00a3${o.wage.toLocaleString()}/wk</span><span>\ud83d\udcc4 ${o.years} years</span><span>\ud83d\udc55 ${o.role}</span><span>\ud83c\udf0d ${o.club.continental?'Continental football':'Domestic target'}</span></div><p>${o.reason}</p><button class="primary-btn full" data-accept-transfer="${o.id}">Accept Club Offer</button></article>`).join('')||'<p>No suitable clubs submitted a formal offer in this window.</p>'}</div></section>`}
+  function transferOfferMarkup(){const tm=ensureTransferMarket(),window=contractNegotiationWindow(),avg=career.recentRatings?.length?career.recentRatings.reduce((a,b)=>a+b,0)/career.recentRatings.length:0;if(!window.open)return `<section class="transfer-window-panel closed"><div><span>\ud83d\udd12</span><div><small>TRANSFER MARKET</small><b>Formal offers are closed</b><p>Interest can build now, but offers arrive only at season start, January or the end of the season.</p></div></div><em>${window.weeks}</em></section>`;return `<section class="transfer-window-panel open"><header><div><small>${window.icon} ${window.label.toUpperCase()}</small><h3>Club Offers</h3><p>${avg>=9&&career.recentRatings.length>=8?'\u2b50 Exceptional 9.00+ form has alerted every major club.':'Offers are matched to ability, form, position and squad need.'}</p></div><span>${tm.offers.length} offers</span></header><div class="transfer-offer-grid">${tm.offers.map(o=>`<article class="transfer-offer-card" style="--offer:${o.club.primary||'#6d28d9'}"><div class="transfer-club-head">${crestMarkup(o.club,'medium')}<div><small>${o.leagueName}</small><b>${o.club.name}</b><p>\u2b50 ${o.club.reputation||60} reputation</p></div></div><div class="transfer-offer-facts"><span>\ud83d\udcb7 \u00a3${o.wage.toLocaleString()}/wk</span><span>\ud83d\udcc4 ${o.years} years</span><span>\ud83d\udc55 ${o.role}</span><span>\ud83c\udf0d ${o.club.continental?'Continental football':'Domestic target'}</span></div><p>${o.reason}</p><button class="primary-btn full" data-accept-transfer="${o.id}">Accept Club Offer</button></article>`).join('')||'<p>No suitable clubs submitted a formal offer in this window.</p>'}</div></section>`}
   function applyCareerClubMove(offer,save=career){
     save.club={...offer.club};save.world={...(save.world||{}),leagueId:offer.leagueId,leagueName:offer.leagueName,leagueLevel:offer.leagueLevel,clubId:offer.club.id};
     try{const db=loadCircleXIManagerCountry(save.world.countryId),league=db?.leagues?.find(l=>l.id===offer.leagueId);if(league?.clubs?.length){save.league=league.clubs.map((c,i)=>({...c,p:0,pts:0,gd:0,seed:(c.reputation||60)+Math.random()*8-i*.02}));save.clubIndex=Math.max(0,save.league.findIndex(c=>c.id===offer.club.id));}}catch{}
@@ -8922,7 +9343,7 @@
   function v76CareerHomeMarkup(p,home,opp){
     ensureV76CareerSystems(career);const currentEvent=careerCalendarEvents(home).get(career.week),nextOpp=currentEvent?.club||opp,nextCompetition=currentEvent?.competition||currentCareerCompetition(career),international=currentEvent?.type==='international'||nextCompetition?.type==='international',nextHome=international?nationalTeamClub(careerCountry(career)||ensureInternationalCareer(career).countryName,ensureInternationalCareer(career).teamRating):home;const v=career.v76,rep=v.reputation,path=v.squadPath,rival=v76EnsureRival(career),obj=v76RefreshMatchObjectives(career),story=v.narrative.worldStories[0],boosts=v76ActiveTrainingBoosts(career),condition=careerMatchCondition(p),memory=v76MatchMemoryLine(career,nextOpp),idx=V76_SQUAD_LADDER.indexOf(path.tier),progress=clamp((idx/(V76_SQUAD_LADDER.length-1))*100,0,100),identity=v76CareerIdentity(career),unread=careerUnreadCount(career);
     return `<div class="v76-career-home">
-      <section class="v76-match-hero" style="--club:${nextHome.primary||'#6d28d9'};--opp:${nextOpp.primary||'#0ea5e9'}"><div class="v76-match-copy"><small>NEXT MATCH · ${escapeMarkup(nextCompetition?.name||career.world?.leagueName||'Career Match')}</small><h3>${escapeMarkup(nextHome.shortName||nextHome.name)} <em>vs</em> ${escapeMarkup(nextOpp.shortName||nextOpp.name)}</h3><p>${escapeMarkup(memory)}</p><div><span>${condition.label}</span><span>${path.tier}</span><span>${boosts.length} training boost${boosts.length===1?'':'s'}</span></div></div><div class="v76-match-crests">${crestMarkup(nextHome,'medium')}<b>VS</b>${crestMarkup(nextOpp,'medium')}</div><button data-career-tab-jump="fixtures">Match Centre →</button></section>
+      <section class="v76-match-hero" style="--club:${nextHome.primary||'#6d28d9'};--opp:${nextOpp.primary||'#0ea5e9'}"><div class="v76-match-copy"><small>NEXT MATCH · ${escapeMarkup(nextCompetition?.name||career.world?.leagueName||'Career Match')}</small><h3>${escapeMarkup(nextHome.shortName||nextHome.name)} <em>vs</em> ${escapeMarkup(nextOpp.shortName||nextOpp.name)}</h3><p>${escapeMarkup(memory)}</p><div><span>${condition.label}</span><span>${path.tier}</span><span>${boosts.length} training boost${boosts.length===1?'':'s'}</span></div></div><div class="v76-match-crests">${crestMarkup(nextHome,'large')}<b>VS</b>${crestMarkup(nextOpp,'large')}</div><button data-career-tab-jump="fixtures">Match Centre →</button></section>
       <section class="v76-career-status"><article><small>SQUAD PATHWAY</small><div class="v76-role-row"><b>${escapeMarkup(path.tier)}</b><span>${Math.round(p.managerTrust||0)}% trust</span></div><i><em style="width:${progress}%"></em></i><p>${escapeMarkup(v76SquadNextRequirement(career))}</p></article><article><small>REPUTATION</small><div class="v76-rep"><span>${rep.icon}</span><b>${rep.score}</b><div><strong>${escapeMarkup(rep.level)}</strong><em>${escapeMarkup(identity)}</em></div></div><p>Form, minutes, trophies, international football and supporter standing all contribute.</p></article><article><small>CAREER RIVAL</small><div class="v76-rival"><span>⚔️</span><div><b>${escapeMarkup(rival.name)}</b><em>${rival.position} · ${rival.overall} OVR</em></div><strong>${Number(rival.rating||6.8).toFixed(1)}</strong></div><p>You ${career.stats?.goals||0}G/${career.stats?.assists||0}A · Rival ${rival.goals||0}G/${rival.assists||0}A</p></article></section>
       <section class="v76-objectives"><header><div><small>MANAGER MATCH PLAN</small><b>Personalised objectives</b></div><span>${p.position} · ${path.tier}</span></header><div>${obj.map(o=>`<article><span>${o.key==='rating'?'⭐':o.key==='passPct'?'↗':o.key==='tackles'?'🛡️':o.key==='saves'?'🧤':o.key==='dribbles'?'🪄':'🎯'}</span><div><b>${escapeMarkup(o.label)}</b><small>${escapeMarkup(o.detail)}</small></div></article>`).join('')}</div></section>
       ${v76WeekPlanMarkup(career)}${v76TrainingBoostMarkup(career)}
@@ -9314,7 +9735,7 @@
     if(loan)return `<section class="loan-panel active"><div class="contract-heading"><h3>\ud83d\udd01 Loan Spell</h3><span class="contract-status-pill">${loan.weeksRemaining} week${loan.weeksRemaining===1?'':'s'} left</span></div><p>You are on loan at <b>${escapeMarkup(loan.club?.name||'a club')}</b> as a ${escapeMarkup(loan.role||'squad player')}. You return to ${escapeMarkup(loan.parentSnapshot?.club?.name||'your parent club')} when the spell ends.</p></section>`;
     const offers=tm.loanOffers||[];if(!offers.length&&!tm.loanNote)return'';
     if(!offers.length)return `<section class="loan-panel"><div class="contract-heading"><h3>\ud83d\udd01 Loan Enquiry</h3><span class="contract-status-pill">No offers</span></div><p>${escapeMarkup(tm.loanNote||'')}</p></section>`;
-    return `<section class="loan-panel"><div class="contract-heading"><h3>\ud83d\udd01 Loan Offers</h3><span class="contract-status-pill">${offers.length} club${offers.length===1?'':'s'}</span></div><p>Clubs that will guarantee you minutes for the rest of this season.</p><div class="loan-offer-grid">${offers.map(o=>`<article class="loan-offer-card" style="--offer:${o.club.primary||'#0ea5e9'}"><div class="transfer-club-head">${crestMarkup(o.club,'small')}<div><small>${escapeMarkup(o.leagueName||'League')}</small><b>${escapeMarkup(o.club.name)}</b><p>\u2b50 ${o.club.reputation||60} reputation</p></div></div><div class="transfer-offer-facts"><span>\ud83d\udc55 ${escapeMarkup(o.role)}</span><span>\u23f3 ${o.weeks} weeks</span><span>\ud83d\udcb7 ${money(o.wage)}/wk</span><span>\u26bd ${escapeMarkup(o.minutes)}</span></div><p>${escapeMarkup(o.reason)}</p><button class="primary-btn full" data-accept-loan="${o.id}">Accept Loan</button></article>`).join('')}</div></section>`;
+    return `<section class="loan-panel"><div class="contract-heading"><h3>\ud83d\udd01 Loan Offers</h3><span class="contract-status-pill">${offers.length} club${offers.length===1?'':'s'}</span></div><p>Clubs that will guarantee you minutes for the rest of this season.</p><div class="loan-offer-grid">${offers.map(o=>`<article class="loan-offer-card" style="--offer:${o.club.primary||'#0ea5e9'}"><div class="transfer-club-head">${crestMarkup(o.club,'medium')}<div><small>${escapeMarkup(o.leagueName||'League')}</small><b>${escapeMarkup(o.club.name)}</b><p>\u2b50 ${o.club.reputation||60} reputation</p></div></div><div class="transfer-offer-facts"><span>\ud83d\udc55 ${escapeMarkup(o.role)}</span><span>\u23f3 ${o.weeks} weeks</span><span>\ud83d\udcb7 ${money(o.wage)}/wk</span><span>\u26bd ${escapeMarkup(o.minutes)}</span></div><p>${escapeMarkup(o.reason)}</p><button class="primary-btn full" data-accept-loan="${o.id}">Accept Loan</button></article>`).join('')}</div></section>`;
   }
   function acceptLoanOffer(id){
     const tm=ensureTransferMarket(),offer=(tm.loanOffers||[]).find(o=>o.id===id);if(!offer||career?.loan)return;
@@ -10072,7 +10493,7 @@
       this.pointerleave=()=>{this.mouse.inside=false};
       this.contextmenu=e=>e.preventDefault();
       this.windowResize=()=>this.resize();
-      this.windowBlur=()=>{this.clearGoalkeeperInputSequence();this.keys={};if(this.user){this.user.jockeying=false;this.user.shielding=false;}};
+      this.windowBlur=()=>{this.clearGoalkeeperInputSequence();this.resetActionInput();this.keys={};if(this.user){this.user.jockeying=false;this.user.shielding=false;}};
       this.fullscreenchange=()=>{
         const fullscreen=document.fullscreenElement===$('#matchScreen');
         const button=$('#fullscreenBtn');
@@ -10184,6 +10605,11 @@
       // is displayed far larger, and draw() sizes the world viewport from the backing store \u2014
       // the camera then frames a tiny patch of turf and the whole screen renders solid green.
       // Wait for a frame with real measurements instead.
+      // v77.24: dpr does not depend on the element having been laid out, and draw()
+      // divides the backing store by it on every frame. Leaving it undefined on this
+      // path made w and h NaN, which reached createRadialGradient and THREW - taking
+      // the whole frame with it, goal celebration included. Assign it before bailing.
+      this.dpr=dpr;
       if(cssW<1||cssH<1){if(!this.awaitingLayout){this.awaitingLayout=true;requestAnimationFrame(()=>{this.awaitingLayout=false;if(this.running!==false)this.resize()})}return;}
       const targetW=Math.max(640,Math.round(cssW*dpr)),targetH=Math.max(360,Math.round(cssH*dpr));
       const resized=this.canvas.width!==targetW||this.canvas.height!==targetH;
@@ -10193,7 +10619,18 @@
       if(resized)this.screenAtmosphereCache=null;
     }
     destroy(){this.running=false;this.clearGoalkeeperInputSequence();stopCrowdAmbience(this.crowdAmbience);this.crowdAmbience=null;$('#goalReplayPrompt')?.classList.add('hidden');$('#subOffOverlay')?.classList.add('hidden');if(this.originalRandom){Math.random=this.originalRandom;this.originalRandom=null;}this.mouse.charging=false;this.canvas.classList.remove('shot-charging');window.removeEventListener('keydown',this.keydown);window.removeEventListener('keyup',this.keyup);window.removeEventListener('resize',this.windowResize);window.removeEventListener('blur',this.windowBlur);document.removeEventListener('fullscreenchange',this.fullscreenchange);this.canvas.removeEventListener('pointermove',this.pointermove);this.canvas.removeEventListener('pointerdown',this.pointerdown);window.removeEventListener('pointerup',this.pointerup);this.canvas.removeEventListener('pointerleave',this.pointerleave);this.canvas.removeEventListener('contextmenu',this.contextmenu);this.canvasObserver?.disconnect();this.canvasObserver=null;}
-    togglePause(v){this.paused=v;if(v)this.clearGoalkeeperInputSequence();$('#pauseOverlay').classList.toggle('hidden',!v);if(!v){this.last=performance.now();this.stepAccumulator=0}}
+    // v77.17: focus loss and pausing used to leave keyAction.key holding whichever action key
+    // was down at the time. beginKeyAction returns early on a key that is already charging, so
+    // the next J press was swallowed outright while the stale charge drained into a full-power
+    // pass nobody asked for. Any interruption now drops the pending input cleanly.
+    resetActionInput(){
+      this.keyAction={key:null,charge:0,maxCharge:1.15,combo:null,comboKeys:null,maxHoldTimer:0};
+      this.userActionBuffer=null;
+      if(this.mouse){this.mouse.charging=false;this.mouse.charge=0;}
+      this.canvas?.classList.remove('shot-charging');
+    }
+
+    togglePause(v){this.paused=v;if(v){this.clearGoalkeeperInputSequence();this.resetActionInput();}$('#pauseOverlay').classList.toggle('hidden',!v);if(!v){this.last=performance.now();this.stepAccumulator=0}}
 
     setAction(p, action, duration, facingDir = null) {
       if (!p) return;
@@ -10421,8 +10858,11 @@
       }
       if(this.keyAction.key){
         if(this.keyAction.key===k||this.restart)return;
-        const combo=this.actionButtonCombo(this.keyAction.key,k);if(!combo)return;
-        if(this.ball.owner!==this.user&&!this.user.queuedAction)return;
+        // v77.17: a second action key that cannot form a combo right now used to be dropped on
+        // the floor while the first key kept charging. Hand it to the input buffer instead so
+        // the press still plays once the player is actually able to play it.
+        const combo=this.actionButtonCombo(this.keyAction.key,k);if(!combo){this.bufferUserAction(k);return;}
+        if(this.ball.owner!==this.user&&!this.user.queuedAction){this.bufferUserAction(k);return;}
         if(this.user.queuedAction){this.user.queuedAction.combo=combo.id;this.user.queuedAction.timer=1.2}
         this.keyAction.combo=combo;this.keyAction.comboKeys=[this.keyAction.key,k];this.feedback(`${this.keyAction.key.toUpperCase()} + ${k.toUpperCase()} \u00b7 ${combo.label.toLowerCase()}`,0);beep(700,.035);return;
       }
@@ -10457,7 +10897,12 @@
       if(combo){
         if(!this.keyAction.comboKeys?.map(x=>String(x).toLowerCase()).includes(keyLower))return;
       }else if(currentKey!==keyLower){
-        if(!currentKey||!['j','k','l','i'].includes(keyLower))return;
+        // v77.17: this release belongs to a key that never started its own charge. Resolving the
+        // other charged key from it turned "hold L, tap J" into a shot and consumed L's release
+        // as well, so neither key did what was pressed. Leave the charged key alone and let the
+        // input buffer play this press as soon as the player is free.
+        if(['j','k','l','i'].includes(keyLower)&&this.userActionBuffer?.key===keyLower)this.updateBufferedUserAction();
+        return;
       }
       const activeKey=currentKey||keyLower;
       const power=clamp(this.keyAction.charge/this.keyAction.maxCharge,.08,1);
@@ -11994,7 +12439,13 @@
       const speed=Math.hypot(p.vx||0,p.vy||0);
       const turn=Math.abs(angleDifference(p.upperDir??p.dir,aimAngle))/Math.PI;
       const fatigue=1-clamp(p.stamina/100,0,1),staminaAttr=clamp(Number(p.attrs?.stamina||55),1,99),fatigueLoad=fatigue*lerp(1.12,.70,staminaAttr/99);
-      return clamp(1-speed/390*.22-turn*.18-fatigueLoad*.19-(p.injuredTimer>0?.12:0),.28,1);
+      // v77.18: the one function named after Balance never read the Balance rating - body
+      // stability while striking was identical for a 20 and a 95. It is exactly what this
+      // attribute should govern: a high-Balance player can strike on the run, across his
+      // body and when tired, while a low-Balance one has to be set first. Anchored so a 55
+      // rating reproduces the previous numbers exactly.
+      const steady=clamp(1+(55-clamp(Number(p.attrs?.balance||55),1,99))*.0095,.58,1.35);
+      return clamp(1-speed/390*.22*steady-turn*.18*steady-fatigueLoad*.19*steady-(p.injuredTimer>0?.12:0),.28,1);
     }
 
     actionAccuracyTier(score){
@@ -12473,7 +12924,14 @@
     userBlock(){
       const owner=this.ball.owner,faceTarget=owner&&owner.team!==this.user.team?owner:this.ball;
       if(faceTarget){const a=Math.atan2(faceTarget.y-this.user.y,faceTarget.x-this.user.x);this.user.dir=this.user.upperDir=a;}
-      const h=this.ball?.z||0,bs=Math.hypot(this.ball?.vx||0,this.ball?.vy||0);this.user.manualBlockTimer=.64;this.user.blockContactUsed=false;this.user.actionVariant=h>25?'body-block':h>9?'knee-block':bs>280?'shot-block':'foot-block';this.setAction(this.user,'block',.56,this.user.upperDir??this.user.dir);
+      const h=this.ball?.z||0,bs=Math.hypot(this.ball?.vx||0,this.ball?.vy||0);
+      // v77.18: Positioning is what puts the body in the lane, and Anticipation is what
+      // starts the movement early. A good reader holds the block longer and covers a wider
+      // slice of the lane; a poor one has to be almost exactly right to get a touch on it.
+      const blockRead=(()=>{const m=this.mentalMatchProfile(this.user);return clamp(m.positioning*.62+m.anticipation*.38,0,1)})();
+      this.user.manualBlockTimer=lerp(.46,.88,blockRead);
+      this.user.manualBlockSpan={forward:lerp(27,45,blockRead),lateral:lerp(17,32,blockRead),height:lerp(34,51,blockRead)};
+      this.user.blockContactUsed=false;this.user.actionVariant=h>25?'body-block':h>9?'knee-block':bs>280?'shot-block':'foot-block';this.setAction(this.user,'block',.56,this.user.upperDir??this.user.dir);
       this.user.vx*=.48;this.user.vy*=.48;this.actionCooldown=.4;this.feedback('Block · get your body into the passing or shooting lane',0);this.showCue(this.user,'BLOCK',.48);
     }
 
@@ -14054,7 +14512,16 @@
         if(p.queuedAction){p.queuedAction.timer-=dt;if(p.queuedAction.timer<=0)p.queuedAction=null}
         if(p.position==='GK'&&this.ball.owner===p&&['catch','dive','smother'].includes(p.action)&&p.actionTimer>0&&!p.pendingKick&&!p.gkHoldingBall){p.gkHoldingBall=true;p.gkHoldTimer=6;this.showCue(p,'SAFE HANDS',.65)}
         if(p.gkHoldingBall){p.gkHoldTimer=Math.max(0,(p.gkHoldTimer||0)-dt);if(this.ball.owner!==p){p.gkHoldingBall=false;p.gkHoldTimer=0}else if(p.gkHoldTimer<=0){p.gkHoldingBall=false;this.setAction(p,'firstTouch',.24,p.dir);this.showCue(p,'AT FEET',.5);if(p===this.user)this.feedback('Goalkeeper releases the ball at his feet',0)}}
-        if(p.headerIntent){p.headerIntent.timer-=dt;if(p.headerIntent.timer<=0)p.headerIntent=null}
+        if(p.headerIntent){
+          p.headerIntent.timer-=dt;
+          if(p.headerIntent.timer<=0){
+            // v77.17: J on a high loose ball queues a header. When the ball never arrived at head
+            // height the intent expired into nothing, which read as "J did not pass". If he has
+            // the ball by the time it lapses, replay the press as the action it was meant to be.
+            const lapsedKey=p===this.user?p.headerIntent.key:null;p.headerIntent=null;
+            if(lapsedKey&&this.ball.owner===this.user)this.bufferUserAction(lapsedKey);
+          }
+        }
         if(p.commandTimer>0){p.commandTimer=Math.max(0,p.commandTimer-dt);if(p.commandTimer===0)p.commandIcon=''}
         if(p.callTimer>0){p.callTimer=Math.max(0,p.callTimer-dt);if(p.callTimer===0){p.called=false;p.callTarget=null}}
         if (p.pendingKick) {
@@ -14072,7 +14539,7 @@
               else{this.releaseBall(kick.vx,kick.vy,kick.intended,kick.restartRelease,kick.lift,kick.action,kick.flight,kick,p);if(kick.curve)this.ball.curve=kick.curve;}
             }else{
               p.recoveryTimer=Math.max(p.recoveryTimer||0,.10);p.action='idle';p.actionTimer=0;
-              if(p===this.user&&!opponentOwns)this.feedback('Pass cancelled · ball moved beyond contact',0);
+              if(p===this.user)this.feedback(opponentOwns?'Pass cancelled · dispossessed before contact':'Pass cancelled · ball moved beyond contact',0);
             }
           }
         }
@@ -15493,7 +15960,8 @@
       if((this.user.manualBlockTimer||0)>0&&!this.user.blockContactUsed&&this.ball.owner!==this.user){
         const facing=this.user.upperDir??this.user.dir??0,dx=this.ball.x-this.user.x,dy=this.ball.y-this.user.y;
         const forward=dx*Math.cos(facing)+dy*Math.sin(facing),lateral=-dx*Math.sin(facing)+dy*Math.cos(facing),height=this.ball.z||0;
-        if(forward>-12&&forward<35&&Math.abs(lateral)<24&&height<42){
+        const blockSpan=this.user.manualBlockSpan||{forward:35,lateral:24,height:42};
+        if(forward>-12&&forward<blockSpan.forward&&Math.abs(lateral)<blockSpan.lateral&&height<blockSpan.height){
           this.user.blockContactUsed=true;this.telemetry.blocks[this.user.team]=(this.telemetry.blocks[this.user.team]||0)+1;
           const speedBefore=Math.max(1,currentSpeed),normal=Math.atan2(dy,dx),deflect=normal+Math.PI+(Math.random()-.5)*.8;
           this.ball.vx=Math.cos(deflect)*speedBefore*rand(.26,.48);this.ball.vy=Math.sin(deflect)*speedBefore*rand(.26,.48);this.ball.vz=Math.max(12,Math.min(58,height+rand(14,42)));
@@ -15921,7 +16389,13 @@
 
     draw(){
       this.ensureControlledPlayerState();
-      const ctx=this.ctx,dpr=this.dpr,w=this.canvas.width/dpr,h=this.canvas.height/dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+      const ctx=this.ctx,dpr=Number.isFinite(this.dpr)&&this.dpr>0?this.dpr:(window.devicePixelRatio||1);
+      const w=this.canvas.width/dpr,h=this.canvas.height/dpr;
+      // A frame drawn before the first successful resize has no viewport to draw into.
+      // Skipping is invisible; continuing throws inside the atmosphere pass and loses
+      // everything after it, which is how a goal celebration could render as a blank pitch.
+      if(!Number.isFinite(w)||!Number.isFinite(h)||w<1||h<1){this.resize();return;}
+      ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
       const zoom=this.displayZoom();
       const cameraDisplayX=this.camera.y,cameraDisplayY=this.W-this.camera.x;
       const sx=w/2-cameraDisplayX*zoom,sy=h/2-cameraDisplayY*zoom;
@@ -18147,12 +18621,12 @@
   function clubComparisonMarkup(club,rows){
     const mine=career?.club;
     if(!club||!mine)return clubProfileMarkup(club,rows);
-    if(isCareerClub(club))return `<section class="league-club-profile club-compare-view" style="--club:${club.primary||'#2563eb'};--trim:${club.secondary||'#f8fafc'}"><div class="club-compare-header"><button type="button" data-close-club-comparison>← Club profile</button><small>CLUB COMPARISON</small><h3>Select another club</h3><p>You are currently viewing ${escapeMarkup(mine.name)}. Choose another team from the table to compare it with your club.</p></div><div class="club-compare-same">${crestMarkup(mine)}<b>${escapeMarkup(mine.name)}</b><span>YOUR CLUB</span></div></section>`;
+    if(isCareerClub(club))return `<section class="league-club-profile club-compare-view" style="--club:${club.primary||'#2563eb'};--trim:${club.secondary||'#f8fafc'}"><div class="club-compare-header"><button type="button" data-close-club-comparison>← Club profile</button><small>CLUB COMPARISON</small><h3>Select another club</h3><p>You are currently viewing ${escapeMarkup(mine.name)}. Choose another team from the table to compare it with your club.</p></div><div class="club-compare-same">${crestMarkup(mine,'tiny')}<b>${escapeMarkup(mine.name)}</b><span>YOUR CLUB</span></div></section>`;
     const a=clubRatingSnapshot(mine),b=clubRatingSnapshot(club),minePos=clubLeaguePosition(mine,rows),otherPos=clubLeaguePosition(club,rows);
     const metrics=[['Overall','overall'],['Attack','attack'],['Midfield','midfield'],['Defence','defence'],['Goalkeeper','goalkeeper']];
     const score=metrics.reduce((sum,[,key])=>sum+(a[key]>b[key]?1:a[key]<b[key]?-1:0),0),verdict=score>0?`${mine.shortName||mine.name} have the stronger profile`:score<0?`${club.shortName||club.name} have the stronger profile`:'The clubs are evenly matched';
     const maxGap=Math.max(...metrics.map(([,key])=>Math.abs(a[key]-b[key]))),closest=metrics.slice().sort((x,y)=>Math.abs(a[x[1]]-b[x[1]])-Math.abs(a[y[1]]-b[y[1]]))[0]?.[0]||'Overall';
-    return `<section class="league-club-profile club-compare-view" style="--club:${club.primary||'#2563eb'};--trim:${club.secondary||'#f8fafc'}"><div class="club-compare-header"><button type="button" data-close-club-comparison>← Club profile</button><small>CLUB COMPARISON</small><h3>${escapeMarkup(mine.shortName||mine.name)} <em>vs</em> ${escapeMarkup(club.shortName||club.name)}</h3><p>Comparison mode stays active while you select other clubs from the table.</p></div><div class="club-compare-teams"><article class="mine">${crestMarkup(mine)}<span><small>YOUR CLUB</small><b>${escapeMarkup(mine.shortName||mine.name)}</b><em>${minePos?`#${minePos} in this league`:'Current club'}</em></span><strong>${a.overall}<small>OVR</small></strong></article><i>VS</i><article class="target">${crestMarkup(club)}<span><small>SELECTED CLUB</small><b>${escapeMarkup(club.shortName||club.name)}</b><em>${otherPos?`#${otherPos} in league`:'Selected club'}</em></span><strong>${b.overall}<small>OVR</small></strong></article></div><div class="club-compare-metrics">${metrics.map(([label,key])=>{const left=a[key],right=b[key],delta=left-right,leftClass=delta>0?'winner':delta<0?'':'level',rightClass=delta<0?'winner':delta>0?'':'level';return`<div><b class="${leftClass}">${left}</b><span>${label}<small>${delta===0?'EVEN':`${Math.abs(delta)} PT GAP`}</small></span><b class="${rightClass}">${right}</b><i><em style="width:${left}%"></em><strong style="width:${right}%"></strong></i></div>`}).join('')}</div><div class="club-compare-verdict"><span>${score>0?'↗':score<0?'↘':'↔'}</span><div><small>QUICK VERDICT</small><b>${escapeMarkup(verdict)}</b><p>Largest attribute gap: ${maxGap} · closest unit: ${closest}. Ratings use the same club model shown throughout Career Mode.</p></div></div><button type="button" class="secondary-btn full" data-close-club-comparison>← Back to ${escapeMarkup(club.shortName||club.name)} profile</button></section>`;
+    return `<section class="league-club-profile club-compare-view" style="--club:${club.primary||'#2563eb'};--trim:${club.secondary||'#f8fafc'}"><div class="club-compare-header"><button type="button" data-close-club-comparison>← Club profile</button><small>CLUB COMPARISON</small><h3>${escapeMarkup(mine.shortName||mine.name)} <em>vs</em> ${escapeMarkup(club.shortName||club.name)}</h3><p>Comparison mode stays active while you select other clubs from the table.</p></div><div class="club-compare-teams"><article class="mine">${crestMarkup(mine,'tiny')}<span><small>YOUR CLUB</small><b>${escapeMarkup(mine.shortName||mine.name)}</b><em>${minePos?`#${minePos} in this league`:'Current club'}</em></span><strong>${a.overall}<small>OVR</small></strong></article><i>VS</i><article class="target">${crestMarkup(club,'tiny')}<span><small>SELECTED CLUB</small><b>${escapeMarkup(club.shortName||club.name)}</b><em>${otherPos?`#${otherPos} in league`:'Selected club'}</em></span><strong>${b.overall}<small>OVR</small></strong></article></div><div class="club-compare-metrics">${metrics.map(([label,key])=>{const left=a[key],right=b[key],delta=left-right,leftClass=delta>0?'winner':delta<0?'':'level',rightClass=delta<0?'winner':delta>0?'':'level';return`<div><b class="${leftClass}">${left}</b><span>${label}<small>${delta===0?'EVEN':`${Math.abs(delta)} PT GAP`}</small></span><b class="${rightClass}">${right}</b><i><em style="width:${left}%"></em><strong style="width:${right}%"></strong></i></div>`}).join('')}</div><div class="club-compare-verdict"><span>${score>0?'↗':score<0?'↘':'↔'}</span><div><small>QUICK VERDICT</small><b>${escapeMarkup(verdict)}</b><p>Largest attribute gap: ${maxGap} · closest unit: ${closest}. Ratings use the same club model shown throughout Career Mode.</p></div></div><button type="button" class="secondary-btn full" data-close-club-comparison>← Back to ${escapeMarkup(club.shortName||club.name)} profile</button></section>`;
   }
   renderFullLeague=function(){
     const root=$('#fullLeaguePanel');if(!root||!career)return;const setup=initialiseLeagueBrowser();if(!setup?.league)return;const {countries,country,db,league}=setup,rows=deterministicLeagueRows(league),filtered=rows.filter(r=>!leagueBrowserState.search||r.name.toLowerCase().includes(leagueBrowserState.search.toLowerCase())),selected=rows.find(r=>r.id===leagueBrowserState.clubId)||rows.find(r=>career.club&&((r.id&&r.id===career.club.id)||(r.name&&r.name===career.club.name)))||rows[0];leagueBrowserState.clubId=selected?.id;
@@ -18396,7 +18870,7 @@
   MatchGame.prototype.giveBall=function(p,...args){const out=v40CoreGiveBall.call(this,p,...args);if(p&&!p.isUser)p.aiDecisionTimer=this.aiDecisionCooldown(p,.32,0);return out;};
 
   const v40CoreUpdateBall=MatchGame.prototype.updateBall;
-  MatchGame.prototype.updateBall=function(dt){const loose=!this.ball.owner,lastTeam=this.ball.lastTouchTeam;if(loose){for(const p of this.players){if(p.sentOff||p.onPitch===false||p.substituted||p.team===lastTeam)continue;p.v40AnticipationReach=lerp(.35,3.35,this.mentalMatchProfile(p).anticipation);}}const out=v40CoreUpdateBall.call(this,dt);for(const p of this.players)delete p.v40AnticipationReach;return out;};
+  MatchGame.prototype.updateBall=function(dt){const loose=!this.ball.owner,lastTeam=this.ball.lastTouchTeam;if(loose){for(const p of this.players){if(p.sentOff||p.onPitch===false||p.substituted||p.team===lastTeam)continue;p.v40AnticipationReach=lerp(.35,3.35,this.mentalMatchProfile(p).anticipation)+(p.isUser?this.userAnticipationRead(p):0);}}const out=v40CoreUpdateBall.call(this,dt);for(const p of this.players)delete p.v40AnticipationReach;return out;};
 
   // V41 PHYSICAL ATTRIBUTE MATCH ENGINE
   // Pace sets the movement ceiling, Acceleration controls the burst, Agility controls turning,
@@ -20439,6 +20913,809 @@
   // numbers still reach the post-match breakdown.
   MatchGame.prototype.drawControlHUD=function(){};
 
+  // ============================================================================
+  // V77.18 USER ATTRIBUTE IMPACT
+  // The V40 (mental) and V41 (physical) layers already give most of the profile
+  // screen a job in a live match. Five ratings did not have one the user could
+  // feel: Work Rate and Teamwork only did anything while the position assist was
+  // held, Marking only shaded the player when jockeying with no movement input,
+  // Anticipation bought about three units of loose-ball reach, and Positioning
+  // never reached the user's own manual block. Each of those now changes
+  // something the player can notice, and none of them take control away.
+  // ============================================================================
+
+  // Anticipation: reading a pass, not just standing near one. The stretch is worth
+  // most when the ball is genuinely travelling across the player rather than sitting
+  // still at his feet, which is exactly when an interception is a read and not luck.
+  MatchGame.prototype.userAnticipationRead=function(p){
+    if(!p)return 0;
+    const m=this.mentalMatchProfile(p),speed=Math.hypot(this.ball.vx||0,this.ball.vy||0),d=dist(p,this.ball);
+    const travelling=clamp((speed-55)/250,0,1);
+    const closing=speed>1&&d>1?clamp(((p.x-this.ball.x)*(this.ball.vx||0)+(p.y-this.ball.y)*(this.ball.vy||0))/(speed*d),0,1):0;
+    return lerp(0,7.4,m.anticipation)*(.40+travelling*.32+closing*.28);
+  };
+
+  // Marking: standing near the ball is not the same as marking it. Every defender's
+  // presence is now worth what their Marking says it is worth, in both directions -
+  // a high-Marking user visibly degrades the pass and shot the opponent plays next,
+  // and a good opposing marker squeezes the user the same way. Weighted so that a
+  // 55 Marking body counts for exactly what it counted for before.
+  const v7718CoreActionPressure=MatchGame.prototype.actionPressure;
+  MatchGame.prototype.actionPressure=function(p,radius=88){
+    if(!p||!Array.isArray(this.players))return v7718CoreActionPressure.call(this,p,radius);
+    const opponents=this.players.filter(o=>o.team!==p.team&&!o.sentOff&&o.onPitch!==false&&dist(o,p)<radius);
+    if(!opponents.length)return 0;
+    let weighted=0,proximity=0;
+    for(const o of opponents){
+      const mark=clamp(Number(o.attrs?.marking??55),1,99);
+      const w=clamp(1+(mark-55)*.0062,.72,1.30)*(o.jockeying?1.12:1)*(o.position==='GK'?.70:1);
+      weighted+=w;
+      proximity=Math.max(proximity,(radius-dist(o,p))/radius*w);
+    }
+    return clamp(weighted*.22+proximity*.34,0,1);
+  };
+
+  // Teamwork: how far the rest of the side will go to answer your call. The teammate
+  // still judges the ball on his own passing, vision and decisions - Teamwork decides
+  // how willing he is to look for you at all, with Vision counting for the balls played
+  // into space. Neutral at 55 across the board, decisive at either extreme.
+  const v7718CoreTeamCommand=MatchGame.prototype.executeTeamCommand;
+  MatchGame.prototype.executeTeamCommand=function(){
+    const cmd=this.pendingTeamCommand,u=this.user;
+    if(!cmd||!u||!u.attrs)return v7718CoreTeamCommand.call(this);
+    const mate=this.players.find(q=>q.id===cmd.ownerId);
+    if(!mate||mate===u||!mate.attrs)return v7718CoreTeamCommand.call(this);
+    const m=this.mentalMatchProfile(u);
+    const trust=clamp(m.teamwork*.60+m.vision*.24+m.decisions*.16,0,1);
+    const saved={decisions:mate.attrs.decisions,vision:mate.attrs.vision};
+    mate.attrs.decisions=clamp(Number(saved.decisions??55)+lerp(-15,15,trust),1,99);
+    mate.attrs.vision=clamp(Number(saved.vision??55)+lerp(-9,11,trust),1,99);
+    try{return v7718CoreTeamCommand.call(this)}
+    finally{mate.attrs.decisions=saved.decisions;mate.attrs.vision=saved.vision;}
+  };
+
+  // Work Rate: the engine. It never makes the player faster - Pace and Acceleration own
+  // that - it decides whether he can do it again. High Work Rate spends less on every
+  // sprint, press and jockey, refills the sprint reserve sooner and recovers faster when
+  // he stands still. A low Work Rate player visibly fades through a half.
+  const v7718CoreUpdateUser=MatchGame.prototype.updateUser;
+  MatchGame.prototype.updateUser=function(dt){
+    const u=this.user;
+    if(!u)return v7718CoreUpdateUser.call(this,dt);
+    const staminaBefore=u.stamina,reserveBefore=Number.isFinite(u.sprintReserve)?u.sprintReserve:null;
+    const out=v7718CoreUpdateUser.call(this,dt);
+    if(!this.user)return out;
+    const m=this.mentalMatchProfile(u),ceiling=matchCareerFatigue(this).ceiling;
+    if(Number.isFinite(staminaBefore)&&Number.isFinite(u.stamina)){
+      const used=Math.max(0,staminaBefore-u.stamina),gained=Math.max(0,u.stamina-staminaBefore);
+      if(used>0)u.stamina=clamp(staminaBefore-used*lerp(1.19,.81,m.workRate),0,ceiling);
+      else if(gained>0)u.stamina=clamp(staminaBefore+gained*lerp(.84,1.22,m.workRate),0,ceiling);
+    }
+    if(reserveBefore!==null&&Number.isFinite(u.sprintReserve)){
+      const regained=u.sprintReserve-reserveBefore;
+      if(regained>0)u.sprintReserve=clamp(reserveBefore+regained*lerp(.83,1.28,m.workRate),0,100);
+    }
+    return out;
+  };
+
+  // Work Rate again: how long the press you called actually lasts, and how hard the
+  // nearest teammate commits to it.
+  const v7718CorePressSupport=MatchGame.prototype.callPressSupport;
+  MatchGame.prototype.callPressSupport=function(){
+    const out=v7718CorePressSupport.call(this);
+    const u=this.user;if(!u)return out;
+    const m=this.mentalMatchProfile(u),window=lerp(1.15,2.05,clamp(m.workRate*.68+m.teamwork*.32,0,1));
+    this.pressWindow=window;
+    const helper=this.players.find(q=>q.id===this.calledPressHelperId);
+    if(helper)helper.calledPressTimer=window;
+    return out;
+  };
+
+  // ============================================================================
+  // V77.20  TEAM QUALITY, OFF-BALL RUNS, DECISIONS AND SHOT VARIETY
+  //
+  // Three systems were making choices that ignored who was playing:
+  //   * updateCompleteMatchDepth picked a run pattern with index%2 and index%3, so
+  //     the same player made the same run every time and a relegation side ran the
+  //     channels exactly as well as a title side.
+  //   * aiDecision's release, through-ball and cross probabilities were fixed
+  //     constants, so squad quality changed nothing about how a team played.
+  //   * aiShoot chose between 'finesse' and whatever the variant selector returned,
+  //     but fed it a power range of .46-.9 - which cannot reach the placed (<.32),
+  //     scoop (<.46) or knuckle (>.84) branches. The animation library already had
+  //     eighteen shot poses; the AI could only ever reach three or four of them.
+  //
+  // Everything below is driven by the two things the request named: the team's
+  // rating and the individual's attributes.
+  // ============================================================================
+
+  // Squad rating for a team, as the mean overall of who is actually on the pitch,
+  // blended with club reputation so a big club's identity still counts for something.
+  // Recomputed at most twice a second because substitutions and red cards move it.
+  MatchGame.prototype.teamQualityProfile=function(team){
+    const cache=this.__teamQuality||(this.__teamQuality={});
+    const now=this.elapsed||0,hit=cache[team];
+    if(hit&&now-hit.at<0.5)return hit;
+    const squad=this.players.filter(q=>q.team===team&&!q.sentOff&&q.onPitch!==false&&!q.substituted);
+    const mean=squad.length?squad.reduce((n,q)=>n+clamp(Number(q.overall||60),1,99),0)/squad.length:60;
+    const club=team===0?this.homeClub:this.opponent;
+    const reputation=clamp(Number(club?.reputation||club?.rating||mean),1,99);
+    const rating=clamp(mean*.72+reputation*.28,1,99);
+    const n=clamp((rating-48)/44,0,1);      // 48 rated -> 0, 92 rated -> 1
+    const profile={
+      at:now,rating,n,
+      patience:lerp(.72,1.24,n),        // holds the ball rather than hitting it long
+      progression:lerp(.70,1.28,n),     // finds the forward option
+      risk:lerp(.62,1.22,n),            // attempts the through ball
+      runIQ:lerp(.55,1.30,n),           // times and varies the off-ball run
+      shotIQ:lerp(.60,1.28,n)           // picks the right finish for the situation
+    };
+    cache[team]=profile;return profile;
+  };
+
+  // --------------------------------------------------------------------------
+  // OFF-BALL RUNS
+  // The pattern a player makes is now his own: Work Rate decides how often he goes,
+  // Pace and Acceleration decide whether it is a sprint in behind or a short check,
+  // Positioning and Anticipation decide whether he stays onside and arrives late,
+  // Teamwork decides whether he holds width for someone else. Team quality varies
+  // the repertoire - a weak side runs straight and early, a strong one runs in behind,
+  // pulls to the back post and makes third-man runs.
+  // --------------------------------------------------------------------------
+  MatchGame.prototype.runProfileFor=function(p){
+    const a=p?.attrs||{},v=k=>clamp(Number(a[k]??55),1,99)/99;
+    const engine=v('workRate'),burst=clamp(v('pace')*.55+v('acceleration')*.45,0,1);
+    const read=clamp(v('positioning')*.45+v('anticipation')*.35+v('decisions')*.20,0,1);
+    return{engine,burst,read,unselfish:v('teamwork'),
+      // How willing he is to leave his station at all.
+      appetite:clamp(engine*.58+read*.28+burst*.14,0,1)};
+  };
+
+  MatchGame.prototype.selectRunPattern=function(p,owner,quality){
+    const r=this.runProfileFor(p),role=p.position,attack=p.team===0?1:-1;
+    const wide=Math.abs(p.y-this.H/2)>150;
+    const ahead=(p.x-owner.x)*attack>0;
+    const finalThird=attack>0?owner.x>this.W*.55:owner.x<this.W*.45;
+    const seed=Math.abs(hashText(`${p.id}-${Math.floor((this.elapsed||0)/1.6)}`)%1000)/1000;
+    // A tired or low work-rate player simply holds his shape more often.
+    const stamina=clamp(Number(p.stamina??100)/100,0,1);
+    const willing=r.appetite*quality.runIQ*lerp(.62,1,stamina);
+    if(seed>willing*1.15)return'hold-shape';
+    if(['RB','LB'].includes(role)&&wide)
+      return finalThird&&r.burst>.58&&seed<willing*.8?'overlap':'underlap';
+    if(['RW','LW'].includes(role))
+      return finalThird&&r.burst>.62?(seed<.5?'in-behind':'back-post'):
+             r.unselfish>.62&&seed<.42?'hold-width':'cut-inside';
+    if(['ST'].includes(role))
+      return finalThird?(r.read>.66&&seed<.46?'back-post':r.burst>.60?'in-behind':'near-post')
+                       :(r.unselfish>.58?'drop-short':'in-behind');
+    if(['AM','CM'].includes(role))
+      return finalThird&&r.read>.60&&seed<.44?'late-arrival':
+             ahead?'third-man':'support-angle';
+    return ahead?'support-angle':'hold-shape';
+  };
+
+  MatchGame.prototype.runTargetFor=function(p,owner,pattern,quality){
+    const attack=p.team===0?1:-1,r=this.runProfileFor(p);
+    const line=this.secondLastDefenderLine(p.team);
+    // Better readers hold the line later and stay a yard the right side of it.
+    const onsideBuffer=lerp(16,3,r.read*quality.runIQ);
+    const depth=lerp(70,150,r.burst);
+    let tx=p.homeX,ty=p.homeY,weight=.58;
+    switch(pattern){
+      case'overlap':      tx=owner.x+attack*depth; ty=p.homeY; weight=.72; break;
+      case'underlap':     tx=owner.x+attack*(depth*.8); ty=p.homeY+(this.H/2-p.homeY)*.44; weight=.66; break;
+      case'in-behind':    tx=(p.team===0?line-onsideBuffer:line+onsideBuffer); ty=p.y+(owner.y>p.y?38:-38); weight=.84; break;
+      case'back-post':    tx=owner.x+attack*(depth*.9); ty=owner.y>this.H/2?this.H*.30:this.H*.70; weight=.78; break;
+      case'near-post':    tx=owner.x+attack*(depth*.7); ty=lerp(p.y,this.H/2,.55); weight=.76; break;
+      case'cut-inside':   tx=owner.x+attack*62; ty=lerp(p.y,this.H/2,.48); weight=.64; break;
+      case'hold-width':   tx=owner.x+attack*24; ty=p.homeY<this.H/2?52:this.H-52; weight=.60; break;
+      case'drop-short':   tx=owner.x-attack*72; ty=lerp(p.y,owner.y,.35); weight=.62; break;
+      case'late-arrival': tx=owner.x-attack*22; ty=lerp(p.y,this.H/2,.30); weight=.70; break;
+      case'third-man':    tx=owner.x+attack*88; ty=p.y+(p.y<this.H/2?58:-58); weight=.66; break;
+      case'support-angle':tx=owner.x-attack*58; ty=owner.y+(p.y<owner.y?-82:82); weight=.58; break;
+      default:            tx=p.homeX; ty=p.homeY; weight=.44;
+    }
+    return{x:clamp(tx,28,this.W-28),y:clamp(ty,32,this.H-32),weight};
+  };
+
+  const v7720CoreDepth=MatchGame.prototype.updateCompleteMatchDepth;
+  MatchGame.prototype.updateCompleteMatchDepth=function(dt){
+    const out=v7720CoreDepth.call(this,dt);
+    const owner=this.ball.owner;
+    if(!owner||owner.sentOff)return out;
+    const quality=this.teamQualityProfile(owner.team);
+    const mates=this.players.filter(q=>q.team===owner.team&&q!==owner&&!q.sentOff&&q.onPitch!==false&&!q.substituted&&q.position!=='GK');
+    for(const m of mates){
+      if(m.isUser)continue;                       // never steer the controlled player
+      if((m.runTimer||0)>0)continue;
+      const pattern=this.selectRunPattern(m,owner,quality);
+      const target=this.runTargetFor(m,owner,pattern,quality);
+      const r=this.runProfileFor(m);
+      m.runPattern=pattern;
+      m.tacticalTarget=target;
+      // A better engine repeats the run sooner; a sprint in behind commits for longer
+      // than a short check, so the hold time comes from the pattern as well as the man.
+      const committed=['in-behind','overlap','back-post','third-man'].includes(pattern);
+      m.runTimer=lerp(committed?1.05:.55,committed?.62:.32,r.engine)+(Math.abs(hashText(String(m.id)+pattern)%100)/100)*.22;
+      m.runIsSprint=committed&&r.burst>.55;
+    }
+    return out;
+  };
+
+  // --------------------------------------------------------------------------
+  // DECISIONS
+  // The player's own Decisions/Vision/Composure already set 'intelligence' inside
+  // aiDecision. What was missing was the side around him: a good team releases the
+  // ball later, plays forward more often and tries the pass that breaks a line.
+  // Injected by nudging the difficulty profile for the duration of the call, which
+  // is the same trick the V40 layer uses and leaves the core scoring untouched.
+  // --------------------------------------------------------------------------
+  const v7720CoreAIDecision=MatchGame.prototype.aiDecision;
+  MatchGame.prototype.aiDecision=function(p,forced=false){
+    if(!p||p.isUser||p.position==='GK')return v7720CoreAIDecision.call(this,p,forced);
+    const quality=this.teamQualityProfile(p.team);
+    const saved=this.difficulty.decision;
+    this.difficulty.decision=clamp(saved*lerp(.88,1.14,quality.n),.5,1.5);
+    // possessionTime feeds 'mustRelease'. A strong side is allowed to carry a beat
+    // longer before it must let go; a weak one panics sooner. This is the single
+    // lever that most changes how a team looks on the ball.
+    const heldFor=p.possessionTime||0;
+    p.possessionTime=heldFor/Math.max(.55,quality.patience);
+    try{return v7720CoreAIDecision.call(this,p,forced)}
+    finally{this.difficulty.decision=saved;p.possessionTime=heldFor;}
+  };
+
+  // --------------------------------------------------------------------------
+  // SHOT VARIETY
+  // aiShoot fed the variant selector a power between .46 and .9, which cannot reach
+  // the placed, scoop or knuckle branches, and short-circuited to 'finesse' whenever
+  // technique cleared 72. The shot type is now an actual decision - keeper position,
+  // distance, angle, pressure, whether the ball is off the ground, the striker's own
+  // Finishing / Composure / Technique / Balance, and how good his side is.
+  // --------------------------------------------------------------------------
+  MatchGame.prototype.selectShotIntent=function(p,ctx){
+    const a=p.attrs||{},v=k=>clamp(Number(a[k]??55),1,99)/99;
+    const finishing=v('finishing'),technique=v('technique'),composure=v('composure'),
+          balance=v('balance'),longShots=v('longShots'),power=v('strength');
+    const q=ctx.quality.shotIQ;
+    const seed=Math.abs(hashText(`${p.id}-shot-${Math.floor((this.elapsed||0)*3)}`)%1000)/1000;
+    const close=ctx.distance<150,mid=ctx.distance>=150&&ctx.distance<300,far=ctx.distance>=300;
+    const tightAngle=ctx.angleQuality<.42,crowded=ctx.pressure>=2,airborne=(this.ball.z||0)>9;
+
+    // A keeper off his line is the one situation that demands a chip, and reading it
+    // is Composure and Vision rather than raw Finishing.
+    if(ctx.keeperAdvanced>58&&!far&&composure*q>.52&&seed<.22+composure*.45)
+      return{type:'chip',power:clamp(.24+seed*.12,.18,.38),action:'chip'};
+    // Off the ground: volley or half-volley rather than a normal strike.
+    if(airborne&&technique>.52)
+      return{type:(this.ball.z||0)>16?'volley':'halfVolley',power:clamp(.52+technique*.3,.45,.88),
+             action:(this.ball.z||0)>16?'volley':'halfVolley'};
+    // Under real pressure with no time to set: stab at it.
+    if(crowded&&close&&balance<.62)
+      return{type:'toe-poke',power:clamp(.34+seed*.16,.28,.55),action:'shoot'};
+    // Inside the six-yard area a finish is placed, not smashed.
+    if(ctx.distance<95&&finishing*q>.42)
+      return{type:'placed',power:clamp(.20+seed*.14,.16,.36),action:'shoot'};
+    // Tight angle near the byline: near post, hard and low.
+    if(tightAngle&&!far)
+      return{type:'driven',power:clamp(.66+finishing*.24,.55,.95),action:'shoot'};
+    // The classic curled finish across the keeper, from the corner of the box.
+    if(mid&&technique*q>.60&&seed<.18+technique*.5)
+      return{type:'finesse',power:clamp(.46+technique*.26,.40,.80),action:'shoot'};
+    // From range, a technician hits it knuckling and a strong striker hits it flat.
+    if(far)
+      return longShots*q>.66&&seed<.42
+        ?{type:'knuckle',power:clamp(.86+seed*.12,.85,1),action:'shoot'}
+        :{type:'power',power:clamp(.72+power*.22,.65,1),action:'shoot'};
+    return{type:'standard',power:clamp(.52+finishing*.28,.44,.90),action:'shoot'};
+  };
+
+  const v7720CoreAIShoot=MatchGame.prototype.aiShoot;
+  MatchGame.prototype.aiShoot=function(p,power=.62){
+    if(!p||this.ball.owner!==p)return v7720CoreAIShoot.call(this,p,power);
+    const gx=p.team===0?this.W+15:-15,goalCentre=(this.goalTop+this.goalBottom)/2;
+    const keeper=this.players.find(q=>q.team!==p.team&&q.position==='GK'&&!q.sentOff);
+    const goalLine=p.team===0?this.W:0;
+    const ctx={
+      distance:Math.hypot(gx-p.x,goalCentre-p.y),
+      angleQuality:clamp(1-Math.abs(p.y-goalCentre)/290,0,1),
+      pressure:this.players.filter(o=>o.team!==p.team&&!o.sentOff&&dist(o,p)<72).length,
+      keeperAdvanced:keeper?Math.abs(keeper.x-goalLine):0,
+      quality:this.teamQualityProfile(p.team)
+    };
+    const intent=this.selectShotIntent(p,ctx);
+    this.__v7720ShotIntent=intent;
+    let ok;
+    try{ok=v7720CoreAIShoot.call(this,p,intent.power)}
+    finally{this.__v7720ShotIntent=null;}
+    if(!ok||!p.pendingKick)return ok;
+    // The pose is resolved at draw time from (p.action, p.actionVariant), so a shot type
+    // the core does not know about has to claim both after the kick is queued - the same
+    // thing executeQueuedAction already does for an aerial finish. Without this a chip
+    // drew the power-shot pose and, worse, flew like a drive.
+    const k=p.pendingKick;
+    if(intent.type==='chip'){
+      p.action='chip';p.actionVariant='quickDink';k.action='chip';
+      const sp=Math.hypot(k.vx,k.vy)||1,want=sp*.54;
+      k.vx=k.vx/sp*want;k.vy=k.vy/sp*want;
+      k.lift=Math.max(k.lift||0,76);k.dip=Math.max(k.dip||0,64);k.topspin=Math.max(k.topspin||0,58);k.backspin=0;
+      k.delay=Math.min(k.delay,.14);
+      p.actionLength=p.actionTimer=Math.max(.42,p.actionLength||0);
+    }else if(intent.type==='volley'||intent.type==='halfVolley'){
+      const high=intent.type==='volley';
+      p.action=intent.type;p.actionVariant=intent.type;k.action=intent.type;
+      k.lift=Math.max(k.lift||0,high?27:15);
+      k.topspin=Math.max(k.topspin||0,high?48:72);
+      k.dip=Math.max(k.dip||0,high?31:47);
+      k.contactZ=Math.max(k.contactZ||0,this.ball.z||0);
+      k.delay=Math.min(k.delay,high?.20:.16);
+    }else if(intent.type==='finesse'){
+      p.action='finesse';p.actionVariant='finesse';k.action='finesse';
+    }
+    return ok;
+  };
+
+  // The core selector runs inside aiShoot and would otherwise overwrite the intent.
+  const v7720CoreVariant=MatchGame.prototype.selectContextualKickVariant;
+  MatchGame.prototype.selectContextualKickVariant=function(p,action,facingDir,options={}){
+    const intent=this.__v7720ShotIntent;
+    if(intent&&p&&!p.isUser&&(action==='shoot'||action==='finesse')){
+      // 'standard' means "no special pose" - let the core pick from speed, turn and
+      // pressure as it always did. Everything else is a decision already made.
+      // 'standard' means no special pose - let the core read speed, turn and pressure as
+      // it always did. 'chip' resolves through the chip action, so it needs its variant name.
+      if(intent.type==='chip')return'quickDink';
+      if(intent.type!=='standard')return intent.type;
+    }
+    return v7720CoreVariant.call(this,p,action,facingDir,options);
+  };
+
+  // ============================================================================
+  // V77.24  STANDS AND CROWD
+  //
+  // The ground had three rows behind each goal, two down each side, no corners and
+  // no upper tier - about 336 animated supporters, and the only thing they ever
+  // reacted to was a goal. Allegiance was decided by "x > 72% of the pitch width",
+  // so the away following was a strip in the corner rather than an end.
+  //
+  // This rebuilds the bowl with an upper tier and filled corners, roughly triples
+  // the animated crowd, gives the away support a real end behind one goal, and
+  // replaces the single goal reaction with a typed one driven off recordEvent, so
+  // the stands answer shots, saves, corners, fouls and cards as well as goals.
+  // ============================================================================
+
+  // How each event reads from the stands. 'team' on the reaction is whoever is
+  // PLEASED by it; the other end plays the opposite pose.
+  const CROWD_REACTIONS={
+    goal:     {duration:5.2,mood:'ecstatic', intensity:1,   sound:true},
+    woodwork: {duration:2.2,mood:'agonised', intensity:.9},
+    nearMiss: {duration:1.7,mood:'agonised', intensity:.72},
+    save:     {duration:2.0,mood:'relieved', intensity:.68},
+    corner:   {duration:1.9,mood:'expectant',intensity:.55},
+    foul:     {duration:1.8,mood:'indignant',intensity:.62},
+    redCard:  {duration:3.4,mood:'indignant',intensity:.95},
+    offside:  {duration:1.5,mood:'indignant',intensity:.48},
+    fullTime: {duration:6.0,mood:'ecstatic', intensity:1}
+  };
+
+  MatchGame.prototype.triggerCrowdReaction=function(kind,team,opts={}){
+    const def=CROWD_REACTIONS[kind];
+    if(!def||team!==0&&team!==1)return;
+    const current=this.crowdReaction;
+    // A goal outranks anything already running; nothing interrupts a goal.
+    if(current&&current.kind==='goal'&&kind!=='goal'&&current.age<current.duration)return;
+    if(current&&current.age<current.duration&&(CROWD_REACTIONS[current.kind]?.intensity||0)>def.intensity&&kind!=='goal')return;
+    this.crowdReaction={
+      kind,mood:def.mood,team,age:0,
+      duration:def.duration*(opts.durationScale||1),
+      // The home end is louder than a travelling support, as it is in a real ground.
+      intensity:def.intensity*(team===0?1:.88)*(opts.intensityScale||1)
+    };
+  };
+
+  // One hook for the whole match: every event already routes through recordEvent.
+  const v7724CoreRecordEvent=MatchGame.prototype.recordEvent;
+  MatchGame.prototype.recordEvent=function(type,team,data={}){
+    const out=v7724CoreRecordEvent.call(this,type,team,data);
+    try{
+      if(type==='goal')this.triggerCrowdReaction('goal',team);
+      else if(type==='corner')this.triggerCrowdReaction('corner',team);
+      else if(type==='offside')this.triggerCrowdReaction('offside',team===0?1:0);
+      else if(type==='redCard')this.triggerCrowdReaction('redCard',team===0?1:0);
+      else if(type==='foul')this.triggerCrowdReaction('foul',team===0?1:0);
+      else if(type==='shot'){
+        // A shot only moves a crowd if it was actually a chance. xG is already here.
+        const xg=Number(data.xg)||0;
+        if(xg>=.14)this.triggerCrowdReaction('nearMiss',team,{intensityScale:clamp(.6+xg,.6,1.3)});
+      }
+    }catch(err){/* the crowd must never be able to break the match loop */}
+    return out;
+  };
+
+  // Woodwork and saves do not go through recordEvent, so they are hooked directly.
+  const v7724CoreFrame=MatchGame.prototype.resolveGoalFrameCollision;
+  if(v7724CoreFrame)MatchGame.prototype.resolveGoalFrameCollision=function(side,...rest){
+    const hit=v7724CoreFrame.call(this,side,...rest);
+    if(hit){const attacking=side==='right'?0:1;this.triggerCrowdReaction('woodwork',attacking);}
+    return hit;
+  };
+  const v7724CoreKeeperContact=MatchGame.prototype.goalkeeperContact;
+  if(v7724CoreKeeperContact)MatchGame.prototype.goalkeeperContact=function(gk,speed,...rest){
+    // Only a genuine stop draws a reaction; a routine collection does not.
+    if(gk&&Number(speed)>250)this.triggerCrowdReaction('save',gk.team);
+    return v7724CoreKeeperContact.call(this,gk,speed,...rest);
+  };
+
+  // --------------------------------------------------------------------------
+  // THE BOWL
+  // Five rows behind each goal, four down each side, plus corner wedges, and an
+  // upper tier set back behind the lower one. Allegiance is now geographic: the
+  // away end is the block behind the right-hand goal, home fills the rest.
+  // --------------------------------------------------------------------------
+  // ============================================================================
+  // V77.25 CROWD ORIENTATION AND TERRACING
+  //
+  // The match world is drawn inside ctx.rotate(-PI/2), so world +y is screen +x.
+  // The crowd figures were laid out head-at-local-minus-y, feet-at-plus-y and drawn
+  // straight into that rotated space, which put every supporter on their side with
+  // their feet pointing at the right-hand edge of the screen. The same rotation sent
+  // "jump" sideways instead of up. Both are fixed by cancelling the world rotation
+  // per fan, so a stand reads as people standing up and jumping on the spot.
+  //
+  // The rows are also real terracing now: each is a fixed depth back from the pitch,
+  // spaced tightly enough to overlap, scaled down and shaded darker as it recedes,
+  // and the whole crowd is sorted back-to-front so near rows occlude far ones.
+  //
+  // Allegiance was wrong as well. World x is the LONG axis with the goals at x=0 and
+  // x=W, so the stands behind the goals are the ones the previous pass called 'left'
+  // and 'right'. The away end is now that block behind one goal plus the corners
+  // beside it, rather than a strip along the end of both touchlines.
+  // ============================================================================
+  MatchGame.prototype.buildAnimatedCrowd=function(){
+    const fans=[],skins=['#f1c6a8','#d99b73','#b9784c','#8b573c','#5b382b'];
+    const random=mulberry32(((this.matchSeed||1)^0x5f3759df)>>>0);
+    const R=()=>random();
+
+    // depth 0 is the front row on the rail; rows recede from there.
+    const add=(x,y,team,depth,side,tier)=>fans.push({
+      x:x+(R()-.5)*3.4,y:y+(R()-.5)*2.6,team,side,tier,depth,row:depth,
+      phase:R()*Math.PI*2,
+      // A raked stand shrinks as it goes back. The random spread stays narrow so a
+      // row still reads as a row rather than a scatter of different-sized people.
+      size:(tier==='upper'?.72:.92)*(1-depth*.052)+R()*.14,
+      skin:skins[Math.floor(R()*skins.length)],
+      scarf:R()<.24,flag:R()<.10,
+      zeal:.45+R()*.55
+    });
+
+    // Rows sit inside the concrete drawn by buildStadiumTexture, not over its edge.
+    const SIDE_LOWER_A=[-102,-95,-88,-81,-74];                                   // world y
+    const SIDE_LOWER_B=[this.H+68,this.H+75,this.H+82,this.H+89,this.H+96];
+    const END_LOWER_H=[-122,-115,-108,-101];                                     // world x
+    const END_LOWER_A=[this.W+98,this.W+105,this.W+112,this.W+119];
+    // v77.27: these used to sit at -146..-122 and -158..-142, outside the texture pad,
+    // so they were live figures with no baked crowd behind them. Pulled inside it.
+    const SIDE_UPPER_A=[-114,-107];
+    const SIDE_UPPER_B=[this.H+109,this.H+116];
+    const END_UPPER_H=[-134,-127];
+    const END_UPPER_A=[this.W+127,this.W+134];
+
+    // The away allocation is the end behind the x=W goal plus the two corners beside
+    // it. Both touchlines are home: at a real ground the side stands are the season
+    // ticket blocks, and keeping them home is what makes the away end read as an away
+    // end rather than a gradient of colour along one half of the bowl.
+    const sideAllegiance=()=>0;
+
+    SIDE_LOWER_A.forEach((y,d)=>{for(let i=0;i<64;i++){const x=-112+i*(this.W+224)/63;add(x,y,sideAllegiance(x),d,'sideA','lower');}});
+    SIDE_LOWER_B.forEach((y,d)=>{for(let i=0;i<64;i++){const x=-112+i*(this.W+224)/63;add(x,y,sideAllegiance(x),d,'sideB','lower');}});
+    SIDE_UPPER_A.forEach((y,d)=>{for(let i=0;i<52;i++){const x=-126+i*(this.W+252)/51;add(x,y,sideAllegiance(x),d,'sideA','upper');}});
+    SIDE_UPPER_B.forEach((y,d)=>{for(let i=0;i<52;i++){const x=-126+i*(this.W+252)/51;add(x,y,sideAllegiance(x),d,'sideB','upper');}});
+
+    END_LOWER_H.forEach((x,d)=>{for(let i=0;i<38;i++){const y=-52+i*(this.H+104)/37;add(x,y,0,d,'endHome','lower');}});
+    END_LOWER_A.forEach((x,d)=>{for(let i=0;i<38;i++){const y=-52+i*(this.H+104)/37;add(x,y,1,d,'endAway','lower');}});
+    END_UPPER_H.forEach((x,d)=>{for(let i=0;i<30;i++){const y=-70+i*(this.H+140)/29;add(x,y,0,d,'endHome','upper');}});
+    END_UPPER_A.forEach((x,d)=>{for(let i=0;i<30;i++){const y=-70+i*(this.H+140)/29;add(x,y,1,d,'endAway','upper');}});
+
+    // Corner wedges tie the bowl together instead of leaving four gaps.
+    const corners=[[-104,-88,-1,-1,false],[this.W+104,-88,1,-1,true],
+                   [-104,this.H+88,-1,1,false],[this.W+104,this.H+88,1,1,true]];
+    for(const [cx,cy,sx,sy,awaySide] of corners)
+      for(let d=0;d<4;d++)for(let i=0;i<11;i++)
+        add(cx+sx*d*8-sx*i*3.2,cy+sy*(d*7-i*5),awaySide?1:0,d,'corner','lower');
+
+    // Painter's order: deepest rows first so the front row overlaps them. Without this
+    // a stand looks like a grid of separate dots rather than a packed bank of people.
+    fans.sort((a,b)=>(b.depth-a.depth)||(a.tier==='upper'?-1:1));
+    return fans;
+  };
+
+
+  // The static texture gains an upper deck, a roof line and corner infill so the
+  // animated fans above are not floating over bare concrete.
+  const v7724CoreStadium=MatchGame.prototype.buildStadiumTexture;
+  MatchGame.prototype.buildStadiumTexture=function(){
+    const canvas=v7724CoreStadium.call(this);
+    try{
+      const c=canvas.getContext('2d');
+      // The core texture translated by (140,120); match it so coordinates line up.
+      c.save();c.setTransform(1,0,0,1,140,120);
+      const deck=(x,y,w,h)=>{
+        c.fillStyle='#0c1512';c.fillRect(x,y,w,h);
+        c.strokeStyle='rgba(255,255,255,.055)';c.lineWidth=1;
+        for(let i=y+6;i<y+h;i+=8){c.beginPath();c.moveTo(x,i);c.lineTo(x+w,i);c.stroke();}
+        c.strokeStyle='rgba(255,255,255,.10)';c.strokeRect(x+.5,y+.5,w-1,h-1);
+      };
+      // V77.27 BOWL INSIDE THE PAD
+      // buildStadiumTexture allocates a canvas padded by 140 in x and only 120 in y,
+      // and drawStadiumSurround blits it at exactly (-140,-120). Anything drawn past
+      // that is silently clipped. The upper decks were at world y -150..-104, so all
+      // but the last sixteen units of them fell outside the bitmap - which is why the
+      // upper tier rendered as bare dark with a few live fans floating in it.
+      // Everything now sits inside the pad: a deeper single bank behind each touchline
+      // (which only has 120 units to work with) and a genuine second tier behind each
+      // goal, where the 140-unit pad leaves room for one.
+      deck(-138,-119,this.W+276,17);
+      deck(-138,this.H+102,this.W+276,17);
+      deck(-138,-96,26,this.H+192);
+      deck(this.W+112,-96,26,this.H+192);
+      // Corner infill.
+      c.fillStyle='#111c18';
+      c.fillRect(-138,-118,60,56);c.fillRect(this.W+78,-118,60,56);
+      c.fillRect(-138,this.H+62,60,56);c.fillRect(this.W+78,this.H+62,60,56);
+      // A roof lip catches the floodlights and stops the bowl reading as a flat band.
+      const roof=c.createLinearGradient(0,-119,0,-106);
+      roof.addColorStop(0,'rgba(148,163,184,.32)');roof.addColorStop(1,'rgba(148,163,184,0)');
+      c.fillStyle=roof;c.fillRect(-138,-119,this.W+276,13);
+      const roofB=c.createLinearGradient(0,this.H+119,0,this.H+106);
+      roofB.addColorStop(0,'rgba(148,163,184,.32)');roofB.addColorStop(1,'rgba(148,163,184,0)');
+      c.fillStyle=roofB;c.fillRect(-138,this.H+106,this.W+276,13);
+      // Stairwells break the bank into blocks.
+      c.fillStyle='rgba(196,204,198,.10)';
+      for(let x=-100;x<this.W+120;x+=168){c.fillRect(x,-118,10,54);c.fillRect(x,this.H+64,10,54);}
+
+      // ======================================================================
+      // V77.26 STAND DENSITY
+      // The animated crowd is what reacts, but it cannot also be what FILLS the
+      // ground. A supporter is about four units wide, so a believably full stand
+      // needs one every five units - roughly 7,000 figures across the bowl, which
+      // is far too many to redraw every frame. Measured on the live canvas the
+      // stands were about a quarter covered, which is why they read as scattered
+      // dots rather than a crowd.
+      // So the mass is baked in here, once, at texture build time where the cost
+      // does not matter, and the animated layer sits on top of it. The upper decks
+      // and corner infill added in v77.24 were bare concrete until now.
+      // ======================================================================
+      {
+        const rnd=mulberry32(0x9E3779B9);
+        const skin=['#f1c6a8','#d99b73','#b9784c','#8b573c','#5b382b'];
+        const homeKit=[this.homeClub?.primary||'#6d28d9',this.homeClub?.secondary||'#f8fafc','#f8fafc','#facc15'];
+        const awayKit=[this.opponent?.primary||'#ef4444',this.opponent?.secondary||'#111827','#e2e8f0','#94a3b8'];
+        // Same allegiance rule as the animated layer: the away end is the block
+        // behind the x=W goal, everything else is home.
+        const kitFor=(x,isEndBand)=>((isEndBand&&x>this.W*.5)||x>this.W*.90)?awayKit:homeKit;
+
+        // One seated supporter: head, shoulders, and a hint of the seat back. Kept
+        // to three fills because this runs several thousand times.
+        const bakeFan=(x,y,scale,kit)=>{
+          const sh=kit[(rnd()*kit.length)|0], sk=skin[(rnd()*skin.length)|0];
+          c.save();c.translate(x,y);c.scale(scale,scale);
+          c.fillStyle=sh;c.fillRect(-1.9,-0.4,3.8,4.4);
+          c.fillStyle=sk;c.beginPath();c.arc(0,-2.1,1.35,0,Math.PI*2);c.fill();
+          c.fillStyle=rnd()<.5?'rgba(10,14,12,.35)':'rgba(255,255,255,.10)';
+          c.fillRect(-1.9,3.4,3.8,1.1);
+          c.restore();
+        };
+
+        // Fill a rectangular band on a grid tight enough that neighbours touch,
+        // jittered so the rows do not read as graph paper.
+        const fill=(x0,x1,y0,y1,stepX,stepY,scale,isEndBand)=>{
+          for(let y=y0;y<y1;y+=stepY)
+            for(let x=x0;x<x1;x+=stepX){
+              if(rnd()<.06)continue;                    // a few empty seats
+              bakeFan(x+(rnd()-.5)*stepX*.5,y+(rnd()-.5)*stepY*.45,
+                      scale*(.92+rnd()*.18),kitFor(x,isEndBand));
+            }
+        };
+
+        // Behind each touchline the pad allows 120 units, so it is one deep bank
+        // rather than two tiers. Figures shrink toward the back of it.
+        fill(-118,this.W+118,-116,-64,4.9,6.1,1,false);
+        fill(-118,this.W+118,this.H+66,this.H+118,4.9,6.1,1,false);
+
+        // Behind the goals the pad allows 140, which is enough for a real second tier.
+        fill(-116,-92,-58,this.H+58,5.2,6.0,1,true);
+        fill(this.W+92,this.W+116,-58,this.H+58,5.2,6.0,1,true);
+        fill(-137,-120,-88,this.H+88,4.6,5.4,.84,true);
+        fill(this.W+120,this.W+137,-88,this.H+88,4.6,5.4,.84,true);
+
+        // Corner infill, so the bowl has no bare wedges.
+        fill(-136,-80,-116,-64,4.8,5.8,.92,false);
+        fill(this.W+80,this.W+136,-116,-64,4.8,5.8,.92,true);
+        fill(-136,-80,this.H+66,this.H+118,4.8,5.8,.92,false);
+        fill(this.W+80,this.W+136,this.H+66,this.H+118,4.8,5.8,.92,true);
+
+        // A soft darkening over the back of each deck so the mass reads as depth
+        // rather than a flat wall of heads.
+        const shade=(x,y,w,h,dir)=>{
+          const grd=dir==='v'?c.createLinearGradient(0,y,0,y+h):c.createLinearGradient(x,0,x+w,0);
+          grd.addColorStop(0,'rgba(2,8,6,.55)');grd.addColorStop(1,'rgba(2,8,6,0)');
+          c.fillStyle=grd;c.fillRect(x,y,w,h);
+        };
+        // Darken the back of each bank so the mass reads as depth, not a wall of heads.
+        shade(-138,-118,this.W+276,26,'v');
+        shade(-138,-96,26,this.H+192,'h');
+      }
+      c.restore();
+    }catch(err){/* a decorative pass must never stop a match starting */}
+    return canvas;
+  };
+
+  // --------------------------------------------------------------------------
+  // HOW THE STANDS ANSWER
+  // The old renderer knew two states: celebrating and disappointed, and only a goal
+  // ever set them. Each mood now has its own posture, the pleased and displeased
+  // ends read differently, and between events the crowd keeps a low idle sway so a
+  // still stand never looks like a painted backdrop.
+  // --------------------------------------------------------------------------
+  const v7724CoreDrawCrowd=MatchGame.prototype.drawAnimatedCrowd;
+  MatchGame.prototype.drawAnimatedCrowd=function(ctx){
+    if(settings.crowdDetail==='Off'||(settings.performanceMode==='Low'&&settings.crowdDetail!=='High'))return;
+    const fans=this.animatedCrowd;
+    if(!fans||!fans.length)return;
+
+    const reaction=this.crowdReaction;
+    const age=reaction?.age||0,duration=reaction?.duration||0;
+    const active=!!reaction&&age<duration;
+    // Sharp attack, long decay: a stand erupts instantly and settles slowly.
+    const env=active?clamp(age<.18?age/.18:1-(age-.18)/Math.max(.2,duration-.18),0,1):0;
+    const power=env*(reaction?.intensity||1);
+    const mood=active?reaction.mood:null;
+
+    const homeColours=[this.homeClub?.primary||'#6d28d9',this.homeClub?.secondary||'#f8fafc'];
+    const awayColours=[this.opponent?.primary||'#ef4444',this.opponent?.secondary||'#111827'];
+
+    // The crowd count roughly tripled, so the detail step scales with it to keep the
+    // per-frame cost near where it was on the low and auto tiers.
+    const base=settings.crowdDetail==='Low'?3:(settings.performanceMode==='Auto'||this.adaptiveQualityTier===0)?2:1;
+    const step=Math.max(1,base);
+
+    const zoom=this.displayZoom(),dpr=this.dpr||1;
+    const cssW=this.canvas.width/dpr,cssH=this.canvas.height/dpr;
+    const halfX=cssH/(2*Math.max(.2,zoom))+40,halfY=cssW/(2*Math.max(.2,zoom))+40;
+    const t=this.elapsed||0;
+
+    ctx.save();ctx.lineCap='round';
+    for(let index=0;index<fans.length;index+=step){
+      const fan=fans[index];
+      if(!this.matchCeremony&&(fan.x<this.camera.x-halfX||fan.x>this.camera.x+halfX||fan.y<this.camera.y-halfY||fan.y>this.camera.y+halfY))continue;
+
+      const pleased=active&&fan.team===reaction.team;
+      const displeased=active&&fan.team!==reaction.team;
+      const palette=fan.team===0?homeColours:awayColours;
+      const shirt=palette[index%palette.length];
+      const zeal=fan.zeal||.8;
+
+      // Ambient: a slow breathing sway everyone shares, offset by phase.
+      const idle=Math.sin(t*1.15+fan.phase)*.34*zeal;
+      let jump=0,slump=0,arms='rest',wave=Math.sin(t*2.2+fan.phase);
+
+      if(pleased){
+        switch(mood){
+          case'ecstatic':  jump=Math.abs(Math.sin(age*11+fan.phase))*3.4*power*zeal; arms='up';      break;
+          case'relieved':  jump=Math.abs(Math.sin(age*7+fan.phase))*.9*power*zeal;   arms='clap';    break;
+          case'expectant': jump=power*.7*zeal;                                       arms='forward'; break;
+          case'indignant': jump=power*.5*zeal;                                       arms='point';   break;
+          case'agonised':  slump=power*1.3*zeal;                                     arms='head';    break;
+          default:         jump=Math.abs(Math.sin(age*9+fan.phase))*2*power*zeal;    arms='up';
+        }
+      }else if(displeased){
+        // The other end is not simply idle: it deflates, or jeers.
+        if(mood==='ecstatic'||mood==='relieved'){slump=power*1.5*zeal;arms=index%3===0?'head':'rest';}
+        else if(mood==='indignant'){jump=power*.35*zeal;arms=index%2?'point':'rest';}
+        else slump=power*.5*zeal;
+      }
+
+      ctx.save();
+      ctx.translate(fan.x,fan.y);
+      // Cancel the world's -90 degree rotation so this supporter stands upright on
+      // screen, and so a jump travels up the screen instead of sideways across it.
+      ctx.rotate(Math.PI/2);
+      ctx.translate(0,-jump+slump+idle);
+      ctx.scale(fan.size,fan.size);
+
+      ctx.fillStyle='rgba(0,0,0,.3)';
+      ctx.beginPath();ctx.ellipse(1.5,4.2+jump,2.6,1,0,0,Math.PI*2);ctx.fill();
+
+      // The back of a stand sits in the shade of the one in front of it.
+      const depthShade=-(fan.depth||0)*.085;
+      ctx.fillStyle=depthShade?shadeColour(shirt,depthShade):shirt;
+      ctx.strokeStyle='rgba(4,8,14,.55)';ctx.lineWidth=.55;
+      ctx.beginPath();ctx.roundRect(-2,-.2,4,5,1);ctx.fill();ctx.stroke();
+
+      ctx.strokeStyle=fan.skin;ctx.lineWidth=1.25;ctx.beginPath();
+      if(arms==='up'){
+        const w=Math.sin(age*13+fan.phase)*1.1;
+        ctx.moveTo(-1.5,.5);ctx.lineTo(-3.4,-3.1-w);ctx.moveTo(1.5,.5);ctx.lineTo(3.4,-3.1+w);
+      }else if(arms==='head'){
+        ctx.moveTo(-1.5,.6);ctx.lineTo(-2.6,-2.5);ctx.lineTo(-1.1,-4.1);
+        ctx.moveTo(1.5,.6);ctx.lineTo(2.6,-2.5);ctx.lineTo(1.1,-4.1);
+      }else if(arms==='clap'){
+        const c=Math.abs(Math.sin(age*16+fan.phase))*.9;
+        ctx.moveTo(-1.5,.4);ctx.lineTo(-.7-c,-1.9);ctx.moveTo(1.5,.4);ctx.lineTo(.7+c,-1.9);
+      }else if(arms==='forward'){
+        ctx.moveTo(-1.5,.5);ctx.lineTo(-2.9,-1.4);ctx.moveTo(1.5,.5);ctx.lineTo(2.9,-1.4);
+      }else if(arms==='point'){
+        ctx.moveTo(-1.5,.7);ctx.lineTo(-2.4,2.6);ctx.moveTo(1.5,.5);ctx.lineTo(3.6,-1.9);
+      }else{
+        ctx.moveTo(-1.5,.7);ctx.lineTo(-2.5,3.1+slump*.3);ctx.moveTo(1.5,.7);ctx.lineTo(2.5,3.1+slump*.3);
+      }
+      ctx.stroke();
+
+      ctx.fillStyle=depthShade?shadeColour(fan.skin,depthShade):fan.skin;
+      ctx.beginPath();ctx.arc(0,-1.9+slump*.25,1.45,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle=index%5?'#21140d':'#d5d0c4';
+      ctx.beginPath();ctx.arc(0,-2.3+slump*.25,1.35,Math.PI,Math.PI*2);ctx.fill();
+
+      if((fan.scarf||fan.flag)&&pleased&&power>.25){
+        ctx.strokeStyle=palette[(index+1)%palette.length];ctx.lineWidth=1;
+        ctx.beginPath();ctx.moveTo(-3.5,-4.5-wave);ctx.lineTo(3.5,-4.2+wave);ctx.stroke();
+        if(fan.flag){ctx.fillStyle=palette[index%palette.length];ctx.globalAlpha=.85;
+          ctx.beginPath();ctx.moveTo(3.4,-4.3);ctx.lineTo(6.2,-5.6+wave);ctx.lineTo(6.2,-2.9+wave);ctx.closePath();ctx.fill();ctx.globalAlpha=1;}
+      }
+      ctx.restore();
+    }
+
+    // Ticker tape, but only for the two moods that would actually produce it.
+    if(active&&power>.2&&(mood==='ecstatic')){
+      const scoring=fans.filter(f=>f.team===reaction.team);
+      if(scoring.length){
+        ctx.globalAlpha=power*.82;
+        for(let i=0;i<52;i++){
+          const fan=scoring[(i*17)%scoring.length];if(!fan)continue;
+          const fall=(age*28+i*7)%34,drift=Math.sin(age*3+i)*8;
+          ctx.fillStyle=['#fbbf24','#f472b6','#60a5fa','#ffffff'][i%4];
+          ctx.fillRect(fan.x+drift,fan.y-18+fall,1.6,3.2);
+        }
+        ctx.globalAlpha=1;
+      }
+    }
+    ctx.restore();
+  };
+
+  // Full time is a property flip in two different places rather than a method call,
+  // so the reaction rides the rising edge of it. A draw gets no reaction: nobody in
+  // the ground celebrates a point they both wanted to be three.
+  const v7725CoreUpdate=MatchGame.prototype.update;
+  MatchGame.prototype.update=function(dt){
+    const out=v7725CoreUpdate.call(this,dt);
+    // Not a rising edge inside this call: fullTimePending is also set from
+    // updatePenaltyShootout, and a shootout can end on a frame this wrapper never
+    // sees the transition for. The once-only flag is what guarantees a single fire,
+    // so simply acting on the flag being up covers every route to full time.
+    if(this.fullTimePending&&!this.__fullTimeCrowdDone){
+      this.__fullTimeCrowdDone=true;
+      const h=(this.score||[0,0])[0],a=(this.score||[0,0])[1];
+      if(h!==a)this.triggerCrowdReaction('fullTime',h>a?0:1);
+    }
+    return out;
+  };
+
+  window.__CXI_V7727={version:'77.27.0',bowlInsideTexturePad:true,deepTouchlineBank:true,secondTierBehindGoals:true};
+  window.__CXI_V7726={version:'77.26.0',bakedStandDensity:true,upperDecksPopulated:true,cornersPopulated:true};
+  window.__CXI_V7725={version:'77.25.0',uprightCrowd:true,terracedRows:true,
+    backToFrontOrder:true,depthShading:true,awayEndBehindGoal:true,fullTimeWired:true};
+
+  window.__CXI_V7724={version:'77.24.0',dprFrameGuard:true,upperTier:true,cornerStands:true,
+    typedCrowdReactions:Object.keys(CROWD_REACTIONS),geographicAwayEnd:true};
+
+  window.__CXI_V7720={version:'77.20.0',teamQualityProfile:true,attributeDrivenRuns:true,
+    teamScaledDecisions:true,shotIntentSelection:true,
+    runPatterns:['overlap','underlap','in-behind','back-post','near-post','cut-inside','hold-width','drop-short','late-arrival','third-man','support-angle','hold-shape'],
+    shotTypes:['chip','volley','halfVolley','toe-poke','placed','driven','finesse','knuckle','power','standard']};
+
+  window.__CXI_V7718={version:'77.18.0',balanceStrikeStability:true,markingWeightedPressure:true,teamworkCallTrust:true,workRateStaminaEconomy:true,workRatePressWindow:true,anticipationInterceptionRead:true,positioningBlockCover:true};
+  window.__CXI_V7717={version:'77.17.0',passInputBuffer:USER_ACTION_BUFFER_WINDOW,strictActionKeyRelease:true,actionInputResetOnBlur:true,lapsedHeaderFallsBackToPass:true,cancelledKickAlwaysReported:true};
   window.__CXI_V7716={version:'77.16.0',postMatchScorersVisible:true,runForwardLean:true,sideOnStride:true,strongerRunBob:true};
   window.__CXI_V7715={version:'77.15.0',pressuredPassRush:true,aiOpenPlayCrosses:true,postMatchHeaderLift:true};
   window.__CXI_V7714={version:'77.14.0',aiFreeKickOnTarget:.5,loosBallPassQueue:true,matchPenaltyCountdown:true,matchPenaltyAttemptFeedback:true};
